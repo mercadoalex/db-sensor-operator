@@ -34,6 +34,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	// +kubebuilder:scaffold:imports
@@ -71,6 +73,11 @@ var _ = BeforeSuite(func() {
 	debeziumListGVK := deployer.DebeziumServerGVK
 	debeziumListGVK.Kind += "List"
 	scheme.Scheme.AddKnownTypeWithName(debeziumListGVK, &unstructured.UnstructuredList{})
+
+	// Register the Prometheus Operator monitoring/v1 types so the client can
+	// create/get the typed ServiceMonitor in envtest (mirrors cmd/main.go). The
+	// minimal ServiceMonitor CRD is picked up automatically from testdata/crd.
+	Expect(monitoringv1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
 

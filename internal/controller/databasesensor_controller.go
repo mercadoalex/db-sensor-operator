@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +37,7 @@ import (
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
+	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
 )
 
 // Condition types and derived phases.
@@ -56,6 +59,23 @@ type DatabaseSensorReconciler struct {
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors/finalizers,verbs=update
 // +kubebuilder:rbac:groups=debezium.io,resources=debeziumservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=prometheusrules,verbs=get;list;watch;create;update;patch;delete
+
+// RBAC notes (NFR-5, least privilege; no wildcards, no cluster-admin):
+//   - apps/deployments is read-only: the operator inspects the Debezium
+//     Deployment for health (Task 9) but never mutates it (the Debezium Operator
+//     owns it).
+//   - services full CRUD: Task 5 creates/updates/deletes the per-sensor metrics
+//     Service.
+//   - configmaps full CRUD is listed by tasks.md item 5; Task 5 itself writes no
+//     ConfigMap, so this MAY be narrowed to get;list;watch in a later task.
+//   - secrets stay read-only (presence check only, NFR-4).
+//   - monitoring.coreos.com/prometheusrules CRUD is granted now for the complete
+//     role, though PrometheusRule creation is Task 10 (no code imports it yet).
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -97,7 +117,6 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// function rather than a reconciler field: it has no state of its own, so
 	// injecting it would add a dependency without a payoff. The result drives the
 	// Ready condition set below.
-	// TODO(Task 5): r.Metrics.EnsureService / EnsureServiceMonitor(ctx, &sensor)
 	// TODO(Task 10): r.Metrics.EnsureAlertRules(ctx, &sensor)
 	// TODO(Task 9): phase, lag := r.Health.Check(ctx, &sensor)
 	ensureErr := deployer.EnsureDebeziumServer(ctx, r.Client, r.Scheme, &sensor)
@@ -110,6 +129,21 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		!errors.Is(ensureErr, deployer.ErrUnsupportedDBType) {
 		log.Error(ensureErr, "Failed to ensure DebeziumServer")
 		return ctrl.Result{}, ensureErr
+	}
+
+	// Ensure the metrics scrape path (Task 5): the per-sensor Service (US-3.3)
+	// and, when opted in, the ServiceMonitor (US-3.2). These are plain K8s
+	// objects with no mapped failure status reason; a non-nil error is returned
+	// so controller-runtime backs off and retries, as with transient
+	// DebeziumServer errors. Run only once the (possibly mapped) DebeziumServer
+	// ensure did not hit a transient error above.
+	if err := metrics.EnsureService(ctx, r.Client, r.Scheme, &sensor); err != nil {
+		log.Error(err, "Failed to ensure metrics Service")
+		return ctrl.Result{}, err
+	}
+	if err := metrics.EnsureServiceMonitor(ctx, r.Client, r.Scheme, &sensor); err != nil {
+		log.Error(err, "Failed to ensure ServiceMonitor")
+		return ctrl.Result{}, err
 	}
 
 	// Translate the ensure result into the hybrid status (ADR-011): conditions
@@ -225,7 +259,13 @@ func (r *DatabaseSensorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sensoriov1.DatabaseSensor{}).
 		Owns(debeziumServer).
-		// TODO(Task 5): .Owns(&corev1.Service{}) — Service created in Task 5
+		// The per-sensor metrics Service is always owned by the sensor (Task 5).
+		Owns(&corev1.Service{}).
+		// Same-namespace ServiceMonitors carry an owner ref, so .Owns re-enqueues
+		// the sensor when they drift. Cross-namespace ServiceMonitors have no
+		// owner ref (K8s forbids cross-namespace owner refs), so .Owns does not
+		// watch them; they are reconciled on the 30s requeue cadence (DECISION 2/3).
+		Owns(&monitoringv1.ServiceMonitor{}).
 		Named("databasesensor").
 		Complete(r)
 }

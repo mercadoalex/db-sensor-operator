@@ -25,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -60,6 +61,12 @@ func init() {
 	debeziumListGVK := deployer.DebeziumServerGVK
 	debeziumListGVK.Kind += "List"
 	scheme.AddKnownTypeWithName(debeziumListGVK, &unstructured.UnstructuredList{})
+
+	// Register the Prometheus Operator monitoring/v1 types (ServiceMonitor,
+	// PrometheusRule) so the client can create and own them (Task 5 Service/
+	// ServiceMonitor; Task 10 PrometheusRule). Unlike Debezium, this API has an
+	// importable, version-compatible Go module (Step 0 decision).
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
