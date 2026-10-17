@@ -313,6 +313,95 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			}).Should(Succeed())
 		})
 
+		It("should keep the status stable across a repeated reconcile (idempotency)", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Wiring a fixed-clock LagTracker + Checker with a recent event so the sensor converges to a stable phase")
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			clock := func() time.Time { return now }
+			lt := health.NewLagTrackerWithClock(clock)
+			lt.OnEvent(now.Add(-5 * time.Second).UnixMilli())
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+				Lag:    lt,
+				Health: health.NewCheckerWithClock(k8sClient, lt, clock),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Fabricating a running pod status so the sensor converges to a steady, non-Pending phase")
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling a second time so the health path writes the steady-state status")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Capturing the steady-state phase and each condition's LastTransitionTime")
+			steady := &sensoriov1.DatabaseSensor{}
+			var steadyPhase string
+			type condSnap struct {
+				status     metav1.ConditionStatus
+				reason     string
+				transition metav1.Time
+			}
+			snaps := map[string]condSnap{}
+			condTypes := []string{"DebeziumAvailable", "ReceivingEvents", "Ready"}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, steady)).To(Succeed())
+				// The sensor must have reached a stable non-Pending phase before
+				// we snapshot it, otherwise the "no churn" assertion is vacuous.
+				g.Expect(steady.Status.Phase).To(Equal("Running"))
+				for _, ct := range condTypes {
+					c := meta.FindStatusCondition(steady.Status.Conditions, ct)
+					g.Expect(c).NotTo(BeNil())
+				}
+			}).Should(Succeed())
+			steadyPhase = steady.Status.Phase
+			for _, ct := range condTypes {
+				c := meta.FindStatusCondition(steady.Status.Conditions, ct)
+				snaps[ct] = condSnap{status: c.Status, reason: c.Reason, transition: c.LastTransitionTime}
+			}
+
+			By("Reconciling a third time with identical inputs")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Asserting the phase is unchanged and no condition churned (same Status/Reason/LastTransitionTime)")
+			// meta.SetStatusCondition only bumps LastTransitionTime when a
+			// condition's Status actually changes, so a second reconcile with
+			// unchanged inputs must leave every condition's transition time
+			// steady — this is the DESIGN.MD "second reconcile → same result,
+			// no status thrash" contract.
+			after := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, after)).To(Succeed())
+			Expect(after.Status.Phase).To(Equal(steadyPhase))
+			for _, ct := range condTypes {
+				c := meta.FindStatusCondition(after.Status.Conditions, ct)
+				Expect(c).NotTo(BeNil())
+				prev := snaps[ct]
+				Expect(c.Status).To(Equal(prev.status), "condition %s Status churned", ct)
+				Expect(c.Reason).To(Equal(prev.reason), "condition %s Reason churned", ct)
+				Expect(c.LastTransitionTime).To(Equal(prev.transition), "condition %s LastTransitionTime churned", ct)
+			}
+
+			By("Asserting the DebeziumServer child was not duplicated")
+			list := &unstructured.UnstructuredList{}
+			list.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.List(ctx, list, client.InNamespace(resourceNamespace))).To(Succeed())
+			Expect(list.Items).To(HaveLen(1))
+		})
+
 		It("should converge the US-5.5 surface to Degraded on warning-band lag", func() {
 			By("Creating the referenced password Secret")
 			Expect(k8sClient.Create(ctx, &corev1.Secret{
