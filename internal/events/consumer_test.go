@@ -30,6 +30,8 @@ import (
 	kafka "github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 )
 
 const insertFixture = `{"payload":{"op":"c","ts_ms":1700000000000,"source":{"db":"pg","table":"orders"}}}`
@@ -148,17 +150,17 @@ func TestKafkaConsumerStart(t *testing.T) {
 
 func TestNewConsumerFactory(t *testing.T) {
 	t.Run("empty defaults to http", func(t *testing.T) {
-		c, err := NewConsumer(TransportConfig{})
+		c, err := NewConsumer(sensoriov1.TransportConfig{})
 		require.NoError(t, err)
 		assert.IsType(t, &HTTPConsumer{}, c)
 	})
 	t.Run("http", func(t *testing.T) {
-		c, err := NewConsumer(TransportConfig{Type: "http"})
+		c, err := NewConsumer(sensoriov1.TransportConfig{Type: "http"})
 		require.NoError(t, err)
 		assert.IsType(t, &HTTPConsumer{}, c)
 	})
 	t.Run("kafka", func(t *testing.T) {
-		c, err := NewConsumer(TransportConfig{Type: "kafka", Kafka: KafkaTransport{
+		c, err := NewConsumer(sensoriov1.TransportConfig{Type: "kafka", Kafka: &sensoriov1.KafkaTransport{
 			Brokers: []string{"localhost:9092"}, Topic: "cdc", GroupID: "g",
 		}})
 		require.NoError(t, err)
@@ -170,7 +172,7 @@ func TestNewConsumerFactory(t *testing.T) {
 		}
 	})
 	t.Run("unknown errors", func(t *testing.T) {
-		c, err := NewConsumer(TransportConfig{Type: "rabbitmq"})
+		c, err := NewConsumer(sensoriov1.TransportConfig{Type: "rabbitmq"})
 		assert.Nil(t, c)
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, ErrUnsupportedTransport))

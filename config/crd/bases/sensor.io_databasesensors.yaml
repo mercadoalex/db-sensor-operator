@@ -227,6 +227,46 @@ spec:
                   type: string
                 minItems: 1
                 type: array
+              transport:
+                description: |-
+                  transport configures how Debezium CDC events are delivered to the
+                  operator. It is the event ingress and is orthogonal to spec.sink (which
+                  is the metrics/alert egress) per ADR-012. Defaults to the HTTP transport.
+                properties:
+                  kafka:
+                    description: kafka configures the Kafka transport; ignored when
+                      type is "http".
+                    properties:
+                      brokers:
+                        description: brokers is the list of Kafka bootstrap broker
+                          addresses.
+                        items:
+                          type: string
+                        type: array
+                      groupId:
+                        description: groupId is the Kafka consumer group the operator
+                          joins.
+                        type: string
+                      topic:
+                        description: |-
+                          topic is the explicit topic to consume; takes precedence over
+                          topicPrefix when set.
+                        type: string
+                      topicPrefix:
+                        description: topicPrefix is the prefix Debezium uses for its
+                          event topics.
+                        type: string
+                    type: object
+                  type:
+                    default: http
+                    description: |-
+                      type selects the event transport: "http" (default, no broker required)
+                      or "kafka".
+                    enum:
+                    - http
+                    - kafka
+                    type: string
+                type: object
             required:
             - database
             - tables

@@ -152,6 +152,43 @@ type SinkConfig struct {
 	Webhook *WebhookSink `json:"webhook,omitempty"`
 }
 
+// TransportConfig selects and configures the Debezium delivery transport: how
+// CDC events reach the operator. It is orthogonal to spec.sink (ADR-012):
+// spec.transport is the ingress for events, while spec.sink is the egress for
+// derived metrics and alerts. HTTP is the default because it needs no broker.
+type TransportConfig struct {
+	// type selects the event transport: "http" (default, no broker required)
+	// or "kafka".
+	// +optional
+	// +kubebuilder:validation:Enum=http;kafka
+	// +kubebuilder:default=http
+	Type string `json:"type,omitempty"`
+
+	// kafka configures the Kafka transport; ignored when type is "http".
+	// +optional
+	Kafka *KafkaTransport `json:"kafka,omitempty"`
+}
+
+// KafkaTransport configures the Kafka event transport.
+type KafkaTransport struct {
+	// brokers is the list of Kafka bootstrap broker addresses.
+	// +optional
+	Brokers []string `json:"brokers,omitempty"`
+
+	// topicPrefix is the prefix Debezium uses for its event topics.
+	// +optional
+	TopicPrefix string `json:"topicPrefix,omitempty"`
+
+	// groupId is the Kafka consumer group the operator joins.
+	// +optional
+	GroupID string `json:"groupId,omitempty"`
+
+	// topic is the explicit topic to consume; takes precedence over
+	// topicPrefix when set.
+	// +optional
+	Topic string `json:"topic,omitempty"`
+}
+
 // DashboardConfig configures the optional embedded dashboard.
 type DashboardConfig struct {
 	// enabled turns the embedded dashboard (/dashboard, /api/events) on.
@@ -179,6 +216,12 @@ type DatabaseSensorSpec struct {
 	// sink configures the observability backends alerts and metrics fan out to.
 	// +optional
 	Sink SinkConfig `json:"sink,omitempty"`
+
+	// transport configures how Debezium CDC events are delivered to the
+	// operator. It is the event ingress and is orthogonal to spec.sink (which
+	// is the metrics/alert egress) per ADR-012. Defaults to the HTTP transport.
+	// +optional
+	Transport *TransportConfig `json:"transport,omitempty"`
 
 	// dashboard configures the optional embedded dashboard.
 	// +optional

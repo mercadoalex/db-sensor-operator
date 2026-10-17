@@ -37,6 +37,7 @@ import (
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
+	"github.com/mercadoalex/db-sensor-operator/internal/health"
 	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
 )
 
@@ -52,6 +53,17 @@ const (
 type DatabaseSensorReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// Exporter is the operator-wide Prometheus metrics exporter and Lag is the
+	// operator-wide replication-lag tracker (DECISION 2 wiring). Both are
+	// OPTIONAL and nil-safe: the reconcile skeleton does not use them yet. They
+	// are injected by cmd/main.go so a later task can read lag/metrics into
+	// status without re-plumbing.
+	// TODO(Task 13): manage a per-sensor CDC consumer lifecycle here, (re)starting
+	// it on spec.transport changes and feeding events through Exporter/Lag; read
+	// Lag.GetLag()/LastEvent() into the hybrid status.
+	Exporter *metrics.Exporter
+	Lag      *health.LagTracker
 }
 
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors,verbs=get;list;watch;create;update;patch;delete

@@ -16,6 +16,16 @@ spec:
     - orders
     - users
     - payments
+  # transport is the Debezium event ingress (ADR-012), orthogonal to sink below.
+  # Defaults to http (no broker required). To use Kafka instead, set type: kafka
+  # and uncomment the kafka block:
+  transport:
+    type: http # http | kafka
+    # kafka:
+    #   brokers:
+    #     - kafka-bootstrap.kafka:9092
+    #   topicPrefix: dbsensor
+    #   groupId: db-sensor-operator
   sink:
     type: all # prometheus | datadog | webhook | all
     prometheus:

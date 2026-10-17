@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/events"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
 	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
@@ -46,7 +47,7 @@ func TestPipelineEndToEndHTTP(t *testing.T) {
 	lag := health.NewLagTrackerWithClock(clock)
 	pipe := &events.Pipeline{Exporter: exp, Lag: lag}
 
-	consumer, err := events.NewConsumer(events.TransportConfig{Type: "http"})
+	consumer, err := events.NewConsumer(sensoriov1.TransportConfig{Type: "http"})
 	require.NoError(t, err)
 	httpc, ok := consumer.(*events.HTTPConsumer)
 	require.True(t, ok)

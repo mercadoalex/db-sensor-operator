@@ -41,35 +41,9 @@ import (
 
 	kafka "github.com/segmentio/kafka-go"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 )
-
-// TransportConfig selects and configures the event transport. It is a temporary
-// local shim.
-//
-// TODO(FEAT-002): replace this struct with sensoriov1.TransportConfig from
-// api/v1 (added by FEAT-002) and delete this shim. NewConsumer's signature and
-// the field names (Type, Kafka{Brokers, Topic, GroupID}) are chosen to match the
-// intended API type so the switch is mechanical. Shim location:
-// internal/events/consumer.go.
-type TransportConfig struct {
-	// Type is the transport kind: "" or "http" selects the HTTPConsumer
-	// (default), "kafka" selects the KafkaConsumer.
-	Type string
-
-	// Kafka holds the KafkaConsumer settings; ignored for the HTTP transport.
-	Kafka KafkaTransport
-
-	// HTTPAddr is the listen address for the HTTPConsumer (e.g. ":8081").
-	// Defaults to defaultHTTPAddr when empty.
-	HTTPAddr string
-}
-
-// KafkaTransport configures the KafkaConsumer.
-type KafkaTransport struct {
-	Brokers []string
-	Topic   string
-	GroupID string
-}
 
 const defaultHTTPAddr = ":8081"
 
@@ -84,22 +58,25 @@ type Consumer interface {
 // yields an HTTPConsumer (the default), "kafka" yields a KafkaConsumer. Any
 // other value is a wrapped ErrUnsupportedTransport.
 //
-// handler is retained by the returned Consumer and invoked for every
-// successfully parsed event; it may be nil only if the caller passes it to Start
-// instead (Start's handler argument takes precedence when non-nil).
-func NewConsumer(cfg TransportConfig) (Consumer, error) {
+// The handler is supplied to the returned Consumer's Start method; it is invoked
+// for every successfully parsed event.
+//
+// cfg is the api/v1 TransportConfig (ADR-012). The HTTPConsumer listens on
+// defaultHTTPAddr; the operator-wide listen address is applied by cmd/main.go,
+// since the transport addr is operator config rather than a per-CR field.
+func NewConsumer(cfg sensoriov1.TransportConfig) (Consumer, error) {
 	switch cfg.Type {
 	case "", "http":
-		addr := cfg.HTTPAddr
-		if addr == "" {
-			addr = defaultHTTPAddr
-		}
-		return &HTTPConsumer{Addr: addr}, nil
+		return &HTTPConsumer{Addr: defaultHTTPAddr}, nil
 	case "kafka":
+		var kcfg sensoriov1.KafkaTransport
+		if cfg.Kafka != nil {
+			kcfg = *cfg.Kafka
+		}
 		reader := kafka.NewReader(kafka.ReaderConfig{
-			Brokers: cfg.Kafka.Brokers,
-			Topic:   cfg.Kafka.Topic,
-			GroupID: cfg.Kafka.GroupID,
+			Brokers: kcfg.Brokers,
+			Topic:   kcfg.Topic,
+			GroupID: kcfg.GroupID,
 		})
 		return &KafkaConsumer{Reader: reader}, nil
 	default:

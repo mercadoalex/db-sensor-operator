@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -33,6 +34,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -40,6 +43,9 @@ import (
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/controller"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
+	"github.com/mercadoalex/db-sensor-operator/internal/events"
+	"github.com/mercadoalex/db-sensor-operator/internal/health"
+	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -80,6 +86,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var cdcHTTPBindAddress string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -100,6 +107,9 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&cdcHTTPBindAddress, "cdc-http-bind-address", "",
+		"The address the HTTP CDC event consumer binds to (e.g. :8082). "+
+			"Empty (the default) disables the HTTP consumer so envtest and leader election are unaffected.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -200,14 +210,46 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build the operator-wide event-pipeline components (DECISION 2): one
+	// Exporter registered on controller-runtime's global metrics registry (so it
+	// is served by the manager's existing metrics server) and one LagTracker.
+	// The Pipeline fans each CDC event out to both.
+	// TODO(Task 15): mount the HTTP consumer's Handler() and exp.Handler() on the
+	// real ServeMux alongside /dashboard and /api/events.
+	exp := metrics.NewExporter(ctrlmetrics.Registry)
+	lag := health.NewLagTracker()
+	pipeline := &events.Pipeline{Exporter: exp, Lag: lag}
+
 	if err := (&controller.DatabaseSensorReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Exporter: exp,
+		Lag:      lag,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "databasesensor")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+
+	// Optionally run the default HTTP CDC consumer as a manager Runnable. It is
+	// OFF by default (empty --cdc-http-bind-address) so envtest and leader
+	// election are unaffected; a later task mounts it on the real ServeMux.
+	if cdcHTTPBindAddress != "" {
+		consumer, err := events.NewConsumer(sensoriov1.TransportConfig{Type: "http"})
+		if err != nil {
+			setupLog.Error(err, "Failed to create CDC consumer")
+			os.Exit(1)
+		}
+		if httpc, ok := consumer.(*events.HTTPConsumer); ok {
+			httpc.Addr = cdcHTTPBindAddress
+		}
+		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			return consumer.Start(ctx, pipeline.Handle)
+		})); err != nil {
+			setupLog.Error(err, "Failed to add CDC consumer runnable")
+			os.Exit(1)
+		}
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "Failed to set up health check")
