@@ -1,0 +1,9 @@
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  labels:
+    app.kubernetes.io/name: db-sensor-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: databasesensor-sample
+spec:
+  # TODO(user): Add fields here

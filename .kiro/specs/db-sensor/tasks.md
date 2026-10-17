@@ -12,7 +12,8 @@ Implementation language is **Go** (per `design.md` and the `tech` steering file)
 
 - [ ] 1. Scaffold the operator project with Kubebuilder
   - Run `kubebuilder init --domain sensor.io --repo github.com/tuuser/db-sensor-operator`
-  - Run `kubebuilder create api --group sensor --version v1 --kind DatabaseSensor --resource --controller`
+  - Run `kubebuilder create api --group "" --version v1 --kind DatabaseSensor --resource --controller`
+  - Note: use an empty `--group ""` with `--domain sensor.io` to get `apiVersion: sensor.io/v1`; a non-empty `--group sensor` would concatenate with the domain to the wrong `sensor.sensor.io`
   - Confirm the generated layout matches the structure steering (`api/v1`, `internal/controller`, `cmd/main.go`, `config/`)
   - Verify `make build` and `make test` pass on the empty scaffold
   - _Requirements: 11.1, 14.1_

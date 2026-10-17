@@ -2,7 +2,7 @@
   <img src="assets/logo_horizontal_bco.jpeg" alt="Lactiflluus — DatabaseSensor Operator" width="520">
 </p>
 
-<h1 align="center">Lactiflluus — DatabaseSensor Operator</h1>
+<h1 align="center">Lactifluus — DatabaseSensor Operator</h1>
 
 <p align="center">
   Un operator de Kubernetes basado en Debezium (CDC) como sensor de observabilidad de bases de datos.

@@ -10,32 +10,36 @@ testbin/
 
 # Test binary, built with `go test -c`
 *.test
-
 # Output of the go coverage tool
 *.out
 cover.out
 coverage.*
-
 # Go workspace file
 go.work
 go.work.sum
-
 # Dependency directories
 vendor/
-
 # Kubebuilder / controller-gen artifacts
 *.kubeconfig
-
 # envtest downloaded assets
 /testbin/
 .local/
-
 # Editor / OS
 .DS_Store
 *.swp
 *~
 .idea/
 .vscode/
-
 # Build / release
 dist/
+# Kubebuilder-generated additions
+Dockerfile.cross
+*.swo
+# Kubernetes Generated files - skip generated files, except for vendored files
+!vendor/**/zz_generated.*
+bin/*
+# Output of the go coverage tool, specifically when used with LiteIDE
+# editor and IDE paraphernalia
+.idea
+.vscode
+# Kubeconfig might contain secrets
