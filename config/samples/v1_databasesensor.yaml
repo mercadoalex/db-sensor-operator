@@ -6,4 +6,43 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: databasesensor-sample
 spec:
-  # TODO(user): Add fields here
+  database:
+    type: postgresql
+    host: postgres-svc.prod
+    port: 5432
+    user: debezium
+    passwordSecret: db-creds
+  tables:
+    - orders
+    - users
+    - payments
+  sink:
+    type: all # prometheus | datadog | webhook | all
+    prometheus:
+      namespace: monitoring
+      serviceMonitor: true
+      alertRules:
+        - name: HighLag
+          expr: "debezium_lag_seconds > 30"
+          for: 5m
+          severity: warning
+        - name: NoEvents
+          expr: "rate(debezium_events_total[5m]) == 0"
+          for: 15m
+          severity: critical
+    datadog:
+      enabled: true
+      apiKeySecret: dd-api-key
+      appKeySecret: dd-app-key
+      tags:
+        - "env:prod"
+        - "db:postgres"
+    webhook:
+      enabled: true
+      url: https://hooks.slack.com/services/XXX
+      triggerOn:
+        - HighLag
+        - NoEvents
+  dashboard:
+    enabled: true
+    retention: 72h

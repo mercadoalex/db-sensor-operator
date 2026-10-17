@@ -11,10 +11,35 @@ spec:
     kind: DatabaseSensor
     listKind: DatabaseSensorList
     plural: databasesensors
+    shortNames:
+    - dbsensor
     singular: databasesensor
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.lag
+      name: Lag
+      type: string
+    - jsonPath: .status.eventsPerMin
+      name: Events/Min
+      type: number
+    - jsonPath: .spec.database.type
+      name: DB Type
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].message
+      name: Last Error
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: DatabaseSensor is the Schema for the databasesensors API
@@ -39,25 +64,186 @@ spec:
           spec:
             description: spec defines the desired state of DatabaseSensor
             properties:
-              foo:
-                description: foo is an example field of DatabaseSensor. Edit databasesensor_types.go
-                  to remove/update
-                type: string
+              dashboard:
+                description: dashboard configures the optional embedded dashboard.
+                properties:
+                  enabled:
+                    default: false
+                    description: enabled turns the embedded dashboard (/dashboard,
+                      /api/events) on.
+                    type: boolean
+                  retention:
+                    description: |-
+                      retention is how long recent events are kept for the dashboard
+                      (for example "72h").
+                    type: string
+                type: object
+              database:
+                description: database is the connection to the database to monitor.
+                properties:
+                  host:
+                    description: host is the database hostname or service address.
+                    minLength: 1
+                    type: string
+                  passwordSecret:
+                    description: |-
+                      passwordSecret is the name of a Kubernetes Secret, in the same namespace
+                      as the DatabaseSensor, that holds the database password.
+                    minLength: 1
+                    type: string
+                  port:
+                    description: port is the database port.
+                    format: int32
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  type:
+                    description: |-
+                      type is the database engine to monitor. The value selects the Debezium
+                      connector class and any engine-specific configuration.
+                    enum:
+                    - postgresql
+                    - mysql
+                    - mongodb
+                    - sqlserver
+                    - oracle
+                    - db2
+                    - cassandra
+                    type: string
+                  user:
+                    description: user is the database user Debezium connects as.
+                    minLength: 1
+                    type: string
+                required:
+                - host
+                - passwordSecret
+                - port
+                - type
+                - user
+                type: object
+              sink:
+                description: sink configures the observability backends alerts and
+                  metrics fan out to.
+                properties:
+                  datadog:
+                    description: datadog configures the Datadog sink.
+                    properties:
+                      apiKeySecret:
+                        description: apiKeySecret is the name of a Kubernetes Secret
+                          holding the Datadog API key.
+                        type: string
+                      appKeySecret:
+                        description: appKeySecret is the name of a Kubernetes Secret
+                          holding the Datadog app key.
+                        type: string
+                      enabled:
+                        description: enabled turns the Datadog sink on.
+                        type: boolean
+                      tags:
+                        description: tags are extra tags attached to metrics and alerts
+                          pushed to Datadog.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  prometheus:
+                    description: prometheus configures the Prometheus sink.
+                    properties:
+                      alertRules:
+                        description: alertRules are the alerting rules rendered into
+                          a PrometheusRule.
+                        items:
+                          description: AlertRule maps a Prometheus alerting rule into
+                            a generated PrometheusRule.
+                          properties:
+                            expr:
+                              description: expr is the PromQL expression that triggers
+                                the alert.
+                              minLength: 1
+                              type: string
+                            for:
+                              description: |-
+                                for is the duration the expression must be true before the alert fires
+                                (for example "5m").
+                              minLength: 1
+                              type: string
+                            name:
+                              description: name is the alert name.
+                              minLength: 1
+                              type: string
+                            severity:
+                              description: severity is the alert severity label.
+                              enum:
+                              - warning
+                              - critical
+                              type: string
+                          required:
+                          - expr
+                          - for
+                          - name
+                          - severity
+                          type: object
+                        type: array
+                      namespace:
+                        description: |-
+                          namespace is where the ServiceMonitor is created. Defaults to the
+                          operator Service namespace when empty.
+                        type: string
+                      serviceMonitor:
+                        description: |-
+                          serviceMonitor controls whether a ServiceMonitor (and its backing
+                          Service) is created for Prometheus to scrape the operator.
+                        type: boolean
+                    type: object
+                  type:
+                    description: type selects which sinks are active.
+                    enum:
+                    - prometheus
+                    - datadog
+                    - webhook
+                    - all
+                    type: string
+                  webhook:
+                    description: webhook configures the webhook sink.
+                    properties:
+                      enabled:
+                        description: enabled turns the webhook sink on.
+                        type: boolean
+                      triggerOn:
+                        description: triggerOn lists the alert names whose firing
+                          triggers a webhook POST.
+                        items:
+                          type: string
+                        type: array
+                      url:
+                        description: url is the webhook endpoint that receives the
+                          alert JSON payload.
+                        type: string
+                    type: object
+                type: object
+              tables:
+                description: tables are the tables to capture changes from.
+                items:
+                  type: string
+                minItems: 1
+                type: array
+            required:
+            - database
+            - tables
             type: object
           status:
             description: status defines the observed state of DatabaseSensor
             properties:
               conditions:
                 description: |-
-                  conditions represent the current state of the DatabaseSensor resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
+                  conditions represent the current state of the DatabaseSensor resource and
+                  are the source of truth for health and readiness. Error state is carried
+                  by a condition's reason/message rather than a dedicated field.
 
                   Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                  - "Ready": the sensor is healthy end-to-end
+                  - "DebeziumAvailable": the child DebeziumServer pod is running
+                  - "ReceivingEvents": CDC events have arrived within the no-event timeout
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -116,6 +302,27 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              debeziumServer:
+                description: debeziumServer is the name of the managed DebeziumServer
+                  resource.
+                type: string
+              eventsPerMin:
+                description: eventsPerMin is the current CDC event rate per minute.
+                type: number
+              lag:
+                description: lag is the current replication lag as a duration string
+                  (for example "1m30s").
+                type: string
+              lastEvent:
+                description: lastEvent is the timestamp of the most recent CDC event
+                  received.
+                format: date-time
+                type: string
+              phase:
+                description: |-
+                  phase is a convenience summary derived from Conditions on each reconcile.
+                  One of: Pending, Running, Degraded, Failed.
+                type: string
             type: object
         required:
         - spec

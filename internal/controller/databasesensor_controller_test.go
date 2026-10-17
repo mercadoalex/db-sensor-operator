@@ -54,7 +54,16 @@ var _ = Describe("DatabaseSensor Controller", func() {
 						Name:      resourceName,
 						Namespace: resourceNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: sensoriov1.DatabaseSensorSpec{
+						Database: sensoriov1.DatabaseConfig{
+							Type:           "postgresql",
+							Host:           "postgres-svc.default",
+							Port:           5432,
+							User:           "debezium",
+							PasswordSecret: "db-creds",
+						},
+						Tables: []string{"orders"},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

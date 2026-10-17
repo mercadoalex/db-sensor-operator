@@ -24,43 +24,220 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// DatabaseConfig describes the database that Debezium captures changes from.
+type DatabaseConfig struct {
+	// type is the database engine to monitor. The value selects the Debezium
+	// connector class and any engine-specific configuration.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=postgresql;mysql;mongodb;sqlserver;oracle;db2;cassandra
+	Type string `json:"type"`
+
+	// host is the database hostname or service address.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Host string `json:"host"`
+
+	// port is the database port.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	Port int32 `json:"port"`
+
+	// user is the database user Debezium connects as.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	User string `json:"user"`
+
+	// passwordSecret is the name of a Kubernetes Secret, in the same namespace
+	// as the DatabaseSensor, that holds the database password.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	PasswordSecret string `json:"passwordSecret"`
+}
+
+// AlertRule maps a Prometheus alerting rule into a generated PrometheusRule.
+type AlertRule struct {
+	// name is the alert name.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// expr is the PromQL expression that triggers the alert.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Expr string `json:"expr"`
+
+	// for is the duration the expression must be true before the alert fires
+	// (for example "5m").
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	For string `json:"for"`
+
+	// severity is the alert severity label.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=warning;critical
+	Severity string `json:"severity"`
+}
+
+// PrometheusSink configures the always-on Prometheus observability backend.
+type PrometheusSink struct {
+	// namespace is where the ServiceMonitor is created. Defaults to the
+	// operator Service namespace when empty.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// serviceMonitor controls whether a ServiceMonitor (and its backing
+	// Service) is created for Prometheus to scrape the operator.
+	// +optional
+	ServiceMonitor bool `json:"serviceMonitor,omitempty"`
+
+	// alertRules are the alerting rules rendered into a PrometheusRule.
+	// +optional
+	AlertRules []AlertRule `json:"alertRules,omitempty"`
+}
+
+// DatadogSink configures pushing metrics and alerts to Datadog.
+type DatadogSink struct {
+	// enabled turns the Datadog sink on.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// apiKeySecret is the name of a Kubernetes Secret holding the Datadog API key.
+	// +optional
+	APIKeySecret string `json:"apiKeySecret,omitempty"`
+
+	// appKeySecret is the name of a Kubernetes Secret holding the Datadog app key.
+	// +optional
+	AppKeySecret string `json:"appKeySecret,omitempty"`
+
+	// tags are extra tags attached to metrics and alerts pushed to Datadog.
+	// +optional
+	Tags []string `json:"tags,omitempty"`
+}
+
+// WebhookSink configures delivering alerts as HTTP POSTs.
+type WebhookSink struct {
+	// enabled turns the webhook sink on.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+
+	// url is the webhook endpoint that receives the alert JSON payload.
+	// +optional
+	URL string `json:"url,omitempty"`
+
+	// triggerOn lists the alert names whose firing triggers a webhook POST.
+	// +optional
+	TriggerOn []string `json:"triggerOn,omitempty"`
+}
+
+// SinkConfig selects and configures the observability backends. The Prometheus
+// `/metrics` endpoint is always served regardless of this value; the other
+// sinks are additive.
+type SinkConfig struct {
+	// type selects which sinks are active.
+	// +optional
+	// +kubebuilder:validation:Enum=prometheus;datadog;webhook;all
+	Type string `json:"type,omitempty"`
+
+	// prometheus configures the Prometheus sink.
+	// +optional
+	Prometheus *PrometheusSink `json:"prometheus,omitempty"`
+
+	// datadog configures the Datadog sink.
+	// +optional
+	Datadog *DatadogSink `json:"datadog,omitempty"`
+
+	// webhook configures the webhook sink.
+	// +optional
+	Webhook *WebhookSink `json:"webhook,omitempty"`
+}
+
+// DashboardConfig configures the optional embedded dashboard.
+type DashboardConfig struct {
+	// enabled turns the embedded dashboard (/dashboard, /api/events) on.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// retention is how long recent events are kept for the dashboard
+	// (for example "72h").
+	// +optional
+	Retention string `json:"retention,omitempty"`
+}
+
 // DatabaseSensorSpec defines the desired state of DatabaseSensor
 type DatabaseSensorSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// database is the connection to the database to monitor.
+	// +kubebuilder:validation:Required
+	Database DatabaseConfig `json:"database"`
 
-	// foo is an example field of DatabaseSensor. Edit databasesensor_types.go to remove/update
+	// tables are the tables to capture changes from.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	Tables []string `json:"tables"`
+
+	// sink configures the observability backends alerts and metrics fan out to.
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	Sink SinkConfig `json:"sink,omitempty"`
+
+	// dashboard configures the optional embedded dashboard.
+	// +optional
+	Dashboard *DashboardConfig `json:"dashboard,omitempty"`
 }
 
 // DatabaseSensorStatus defines the observed state of DatabaseSensor.
+//
+// This is a hybrid status (see docs/adr/ADR-011-hybrid-status-design.md):
+// Conditions are the source of truth for health/readiness state; measurement
+// fields (Lag, EventsPerMin, LastEvent, DebeziumServer) stay plain because they
+// are point-in-time values; Phase is derived from Conditions as a convenience
+// column for `kubectl get`.
 type DatabaseSensorStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the DatabaseSensor resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
+	// conditions represent the current state of the DatabaseSensor resource and
+	// are the source of truth for health and readiness. Error state is carried
+	// by a condition's reason/message rather than a dedicated field.
 	//
 	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
+	// - "Ready": the sensor is healthy end-to-end
+	// - "DebeziumAvailable": the child DebeziumServer pod is running
+	// - "ReceivingEvents": CDC events have arrived within the no-event timeout
+	// +optional
 	// +listType=map
 	// +listMapKey=type
-	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// phase is a convenience summary derived from Conditions on each reconcile.
+	// One of: Pending, Running, Degraded, Failed.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// lag is the current replication lag as a duration string (for example "1m30s").
+	// +optional
+	Lag string `json:"lag,omitempty"`
+
+	// eventsPerMin is the current CDC event rate per minute.
+	// +optional
+	EventsPerMin float64 `json:"eventsPerMin,omitempty"`
+
+	// lastEvent is the timestamp of the most recent CDC event received.
+	// +optional
+	LastEvent *metav1.Time `json:"lastEvent,omitempty"`
+
+	// debeziumServer is the name of the managed DebeziumServer resource.
+	// +optional
+	DebeziumServer string `json:"debeziumServer,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced,shortName=dbsensor
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=='Ready')].status`
+// +kubebuilder:printcolumn:name="Lag",type=string,JSONPath=`.status.lag`
+// +kubebuilder:printcolumn:name="Events/Min",type=number,JSONPath=`.status.eventsPerMin`
+// +kubebuilder:printcolumn:name="DB Type",type=string,JSONPath=`.spec.database.type`
+// +kubebuilder:printcolumn:name="Last Error",type=string,priority=1,JSONPath=`.status.conditions[?(@.type=='Ready')].message`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // DatabaseSensor is the Schema for the databasesensors API
 type DatabaseSensor struct {
