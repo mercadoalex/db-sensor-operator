@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -89,8 +90,26 @@ var _ = Describe("DatabaseSensor Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			By("Deriving a Pending phase from a Ready=Unknown condition")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				g.Expect(fetched.Status.Phase).To(Equal("Pending"))
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionUnknown))
+				g.Expect(ready.Reason).To(Equal("Reconciling"))
+			}).Should(Succeed())
+
+			By("Reconciling a second time without error or status thrash")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			fetched := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			Expect(fetched.Status.Phase).To(Equal("Pending"))
 		})
 	})
 })
