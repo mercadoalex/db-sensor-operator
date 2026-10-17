@@ -139,7 +139,6 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// function rather than a reconciler field: it has no state of its own, so
 	// injecting it would add a dependency without a payoff. The result drives the
 	// Ready condition set below.
-	// TODO(Task 10): r.Metrics.EnsureAlertRules(ctx, &sensor)
 	ensureErr := deployer.EnsureDebeziumServer(ctx, r.Client, r.Scheme, &sensor)
 
 	// A transient (non-mapped) error is returned so controller-runtime backs off
@@ -165,6 +164,36 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := metrics.EnsureServiceMonitor(ctx, r.Client, r.Scheme, &sensor); err != nil {
 		log.Error(err, "Failed to ensure ServiceMonitor")
 		return ctrl.Result{}, err
+	}
+
+	// Ensure the PrometheusRule from spec.sink.prometheus.alertRules (Task 10,
+	// US-4.1). Unlike the Service/ServiceMonitor (plain K8s objects that back off
+	// on error), Task 10 requires surfacing a failure via Ready=False so it is
+	// visible on the CR. Capture the error and, if non-nil, write a
+	// Ready=False/AlertRulesFailed condition (which derivePhase maps to Failed)
+	// and requeue; the normal health path below runs only when alertErr == nil.
+	alertErr := metrics.EnsureAlertRules(ctx, r.Client, r.Scheme, &sensor)
+	if alertErr != nil {
+		log.Error(alertErr, "Failed to ensure PrometheusRule")
+		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var fresh sensoriov1.DatabaseSensor
+			if err := r.Get(ctx, types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}, &fresh); err != nil {
+				return err
+			}
+			meta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
+				Type:               conditionTypeReady,
+				Status:             metav1.ConditionFalse,
+				Reason:             "AlertRulesFailed",
+				Message:            fmt.Sprintf("Failed to ensure PrometheusRule: %v", alertErr),
+				ObservedGeneration: fresh.Generation,
+			})
+			fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
+			return r.Status().Update(ctx, &fresh)
+		}); err != nil {
+			log.Error(err, "Failed to update DatabaseSensor status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, alertErr
 	}
 
 	// Health check (Task 9). Only on the non-mapped-failure path: a mapped
@@ -309,6 +338,7 @@ func healthConditions(res health.HealthResult) []metav1.Condition {
 var failureReasons = map[string]bool{
 	"SecretNotFound":                 true,
 	"UnsupportedDBType":              true,
+	"AlertRulesFailed":               true,
 	health.ReasonPodCrashLoopBackOff: true,
 	health.ReasonLagAboveCritical:    true,
 	health.ReasonNoEventsStale:       true,
@@ -370,6 +400,11 @@ func (r *DatabaseSensorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// owner ref (K8s forbids cross-namespace owner refs), so .Owns does not
 		// watch them; they are reconciled on the 30s requeue cadence (DECISION 2/3).
 		Owns(&monitoringv1.ServiceMonitor{}).
+		// Same-namespace PrometheusRules carry an owner ref, so .Owns re-enqueues
+		// the sensor when they drift (Task 10). Cross-namespace PrometheusRules
+		// have no owner ref (K8s forbids cross-namespace owner refs), so .Owns
+		// does not watch them; they are reconciled on the 30s requeue cadence.
+		Owns(&monitoringv1.PrometheusRule{}).
 		Named("databasesensor").
 		Complete(r)
 }

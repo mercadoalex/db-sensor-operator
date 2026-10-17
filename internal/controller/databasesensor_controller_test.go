@@ -119,6 +119,15 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			if err := k8sClient.Get(ctx, metricsKey, sm); err == nil {
 				Expect(k8sClient.Delete(ctx, sm)).To(Succeed())
 			}
+
+			By("Cleanup the PrometheusRule if present")
+			// Same reason: no GC in envtest, so delete the owned Task 10
+			// PrometheusRule explicitly to isolate specs.
+			alertsKey := types.NamespacedName{Name: "db-sensor-" + resourceName + "-alerts", Namespace: resourceNamespace}
+			pr := &monitoringv1.PrometheusRule{}
+			if err := k8sClient.Get(ctx, alertsKey, pr); err == nil {
+				Expect(k8sClient.Delete(ctx, pr)).To(Succeed())
+			}
 		})
 
 		It("should create an owned DebeziumServer when the Secret exists (US-1.1/1.2)", func() {
@@ -473,6 +482,79 @@ var _ = Describe("DatabaseSensor Controller", func() {
 
 			By("Cleaning up the cross-namespace ServiceMonitor")
 			Expect(k8sClient.Delete(ctx, sm)).To(Succeed())
+		})
+
+		It("should create an owned same-namespace PrometheusRule from alertRules (US-4.1)", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Declaring alert rules on the Prometheus sink")
+			fetched := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			fetched.Spec.Sink.Prometheus = &sensoriov1.PrometheusSink{
+				AlertRules: []sensoriov1.AlertRule{
+					{Name: "HighLag", Expr: "debezium_lag_seconds > 60", For: "5m", Severity: "warning"},
+					{Name: "NoEvents", Expr: "rate(debezium_events_total[5m]) == 0", For: "15m", Severity: "critical"},
+				},
+			}
+			Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
+
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Finding a db-sensor-<name>-alerts PrometheusRule in the sensor namespace owned by the sensor")
+			pr := &monitoringv1.PrometheusRule{}
+			alertsKey := types.NamespacedName{Name: "db-sensor-" + resourceName + "-alerts", Namespace: resourceNamespace}
+			Expect(k8sClient.Get(ctx, alertsKey, pr)).To(Succeed())
+
+			Expect(pr.Spec.Groups).To(HaveLen(1))
+			Expect(pr.Spec.Groups[0].Name).To(Equal("db-sensor.alerts"))
+			Expect(pr.Spec.Groups[0].Rules).To(HaveLen(2))
+			r0 := pr.Spec.Groups[0].Rules[0]
+			Expect(r0.Alert).To(Equal("HighLag"))
+			Expect(r0.Expr.String()).To(Equal("debezium_lag_seconds > 60"))
+			Expect(r0.For).NotTo(BeNil())
+			Expect(string(*r0.For)).To(Equal("5m"))
+			Expect(r0.Labels).To(HaveKeyWithValue("severity", "warning"))
+
+			owners := pr.GetOwnerReferences()
+			Expect(owners).To(HaveLen(1))
+			Expect(owners[0].Name).To(Equal(resourceName))
+			Expect(owners[0].Kind).To(Equal("DatabaseSensor"))
+
+			By("Reconciling a second time converges without duplicating the PrometheusRule (idempotency)")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+			list := &monitoringv1.PrometheusRuleList{}
+			Expect(k8sClient.List(ctx, list, client.InNamespace(resourceNamespace))).To(Succeed())
+			Expect(list.Items).To(HaveLen(1))
+		})
+
+		It("should not create a PrometheusRule when alertRules are absent (US-4.1 opt-in)", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Finding no db-sensor-<name>-alerts PrometheusRule")
+			pr := &monitoringv1.PrometheusRule{}
+			alertsKey := types.NamespacedName{Name: "db-sensor-" + resourceName + "-alerts", Namespace: resourceNamespace}
+			Expect(errors.IsNotFound(k8sClient.Get(ctx, alertsKey, pr))).To(BeTrue())
 		})
 	})
 })
