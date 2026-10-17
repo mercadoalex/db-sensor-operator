@@ -1,0 +1,48 @@
+Thank you for installing {{ .Chart.Name }} (Lactiflluus).
+
+Your release is named {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+The controller manager and the DatabaseSensor CRD have been installed. The CRD is
+templated (toggle with crd.enabled; crd.keep={{ .Values.crd.keep }} controls whether it
+survives a `helm uninstall`).
+
+The documented install command uses the db-sensor namespace:
+
+  helm install db-sensor ./charts/db-sensor-operator -n db-sensor --create-namespace
+
+Remember --create-namespace on the first install, or create the namespace beforehand.
+
+PREREQUISITES (installed separately — this chart does NOT bundle them):
+  * Debezium Operator — manages the DebeziumServer resources this operator creates.
+  * Prometheus Operator — provides the ServiceMonitor and PrometheusRule CRDs used by
+    the prometheus sink.
+
+VERIFY the manager is running:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l control-plane=controller-manager
+  kubectl get customresourcedefinitions databasesensors.sensor.io
+
+{{- if .Values.operatorHttp.enabled }}
+
+OPERATOR HTTP ENDPOINTS are served on port {{ .Values.operatorHttp.port }} (Service
+{{ include "db-sensor-operator.resourceName" (dict "suffix" "operator-http" "context" $) }}):
+  /metrics      Prometheus metrics derived from CDC events
+  /dashboard    embedded live dashboard (when a DatabaseSensor enables it)
+  /api/events   recent CDC events as JSON
+  /healthz, /readyz
+{{- end }}
+
+APPLY a DatabaseSensor to start monitoring. A full example (all sinks) and a minimal
+prometheus-only example ship under config/samples/:
+
+  kubectl apply -n {{ .Release.Namespace }} -f config/samples/v1_databasesensor_basic.yaml
+  kubectl get databasesensors -n {{ .Release.Namespace }}
+
+Inspect status (Phase, Ready, Lag, Events/Min) with:
+
+  kubectl get dbsensor -n {{ .Release.Namespace }}
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}

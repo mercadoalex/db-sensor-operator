@@ -1,0 +1,22 @@
+{{- if .Values.operatorHttp.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ include "db-sensor-operator.name" . }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    control-plane: controller-manager
+  name: {{ include "db-sensor-operator.resourceName" (dict "suffix" "operator-http" "context" $) }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: operator-http
+    port: {{ .Values.operatorHttp.port }}
+    protocol: TCP
+    targetPort: operator-http
+  selector:
+    app.kubernetes.io/name: {{ include "db-sensor-operator.name" . }}
+    control-plane: controller-manager
+{{- end }}

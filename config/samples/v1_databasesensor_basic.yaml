@@ -1,0 +1,24 @@
+# Minimal prometheus-only DatabaseSensor sample.
+# TODO(Task 20): add a mysql variant alongside this basic and the full sample.
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  labels:
+    app.kubernetes.io/name: db-sensor-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: databasesensor-basic
+spec:
+  database:
+    type: postgresql
+    host: postgres-svc.prod
+    port: 5432
+    user: debezium
+    passwordSecret: db-creds
+  tables:
+    - orders
+    - users
+  # transport defaults to http (no broker required); omitted here.
+  sink:
+    type: prometheus
+    prometheus:
+      serviceMonitor: true

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: db-sensor-operator
+description: Lactiflluus — a Kubernetes operator that turns Debezium CDC into database observability (metrics, multi-sink alerting, DDL detection) via the DatabaseSensor custom resource.
+type: application
+
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - kubernetes
+  - operator
+
+annotations:
+  kubebuilder.io/generated-by: kubebuilder
