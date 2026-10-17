@@ -37,6 +37,14 @@ El oficial (Apache 2.0, Java) solo gestiona el lifecycle de Debezium Server (dep
 
 ## Arquitectura
 
+<p align="center">
+  <img src="assets/architecture.jpeg" alt="Arquitectura de Lactiflluus: el CR DatabaseSensor es reconciliado por el operator, que crea un DebeziumServer (gestionado por el Debezium Operator oficial), consume los eventos CDC, deriva métricas y hace fan-out a Prometheus, Datadog y Webhook/Dashboard" width="900">
+</p>
+
+El diagrama de arriba muestra el flujo completo: aplicas un CR `DatabaseSensor`, el reconciler (cada 30s) crea un `DebeziumServer` que el operator oficial de Debezium despliega, los eventos CDC se consumen (Kafka o HTTP), se derivan métricas (`insert_rate`, `lag`, `schema_changes`), se expone siempre `/metrics` en formato Prometheus, y según `spec.sink` se hace fan-out a múltiples backends. Todos los recursos hijos usan owner references, así que borrar el `DatabaseSensor` limpia todo en cascada.
+
+El detalle del bucle de reconciliación:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ User aplica DatabaseSensor CR                                │
