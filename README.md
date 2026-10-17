@@ -159,26 +159,83 @@ El CR expone un status enriquecido con el subresource de status:
 - `github.com/DataDog/datadog-api-client-go` — Datadog API
 - Docker multi-stage (`golang:1.22` → `distroless/static`) + Helm chart
 
-## Instalación
+## Quick start
+
+### Prerequisitos
+
+Estos operators se instalan **por separado** — el chart de Lactiflluus no los incluye:
+
+- Un cluster de Kubernetes.
+- **Debezium Operator oficial** (gestiona el lifecycle de Debezium Server).
+- **Prometheus Operator** (para los CRDs `ServiceMonitor` y `PrometheusRule`).
+- Kafka / Redpanda **opcional** (solo si usas el transporte Kafka; con HTTP, el default, no se necesita broker).
+
+### Instalación
 
 ```bash
 # 1. Instalar el Debezium Operator oficial
 helm repo add debezium https://charts.debezium.io
 helm install debezium-operator debezium/debezium-operator -n debezium
 
-# 2. Instalar Lactiflluus
-helm install db-sensor ./charts/db-sensor-operator -n db-sensor
+# 2. Instalar Lactiflluus (crea el namespace en el primer install)
+helm install db-sensor ./charts/db-sensor-operator -n db-sensor --create-namespace
 
-# 3. Crear tu CR
-kubectl apply -f config/samples/v1_databasesensor.yaml
+# 3. Aplicar un CR de ejemplo
+kubectl apply -n db-sensor -f config/samples/v1_databasesensor_basic.yaml
+
+# 4. Ver el status del sensor (shortname: dbsensor)
+kubectl get databasesensor -n db-sensor
+# NAME                   PHASE     READY   LAG   EVENTS/MIN   DB TYPE
+# databasesensor-basic   Pending   False               0     postgresql
 ```
 
-### Prerequisitos
+### Samples
 
-- Un cluster de Kubernetes.
-- **Prometheus Operator** (para los CRDs `ServiceMonitor` y `PrometheusRule`).
-- **Debezium Operator oficial** (gestiona el lifecycle de Debezium Server).
-- Kafka / Redpanda opcional (si el sink de Debezium es Kafka; si es HTTP, no se necesita).
+Tres ejemplos listos para `kubectl apply` viven en [`config/samples/`](config/samples/):
+
+| Sample | Qué muestra |
+|---|---|
+| [`v1_databasesensor_basic.yaml`](config/samples/v1_databasesensor_basic.yaml) | mínimo, sink prometheus-only |
+| [`v1_databasesensor.yaml`](config/samples/v1_databasesensor.yaml) | completo: todos los sinks + dashboard + transport |
+| [`v1_databasesensor_mysql.yaml`](config/samples/v1_databasesensor_mysql.yaml) | engine MySQL, sink webhook, transport HTTP |
+
+### Endpoints y puertos
+
+El manager y el servidor HTTP del operator exponen puertos distintos:
+
+| Puerto | Qué sirve |
+|---|---|
+| `:8080` | servidor HTTP del operator: `/metrics` (siempre), `/dashboard` + `/api/events` (gated por `dashboard.enabled`, 404 cuando está off), `/cdc`, `/healthz`, `/readyz` |
+| `:8081` | health probes del manager: `/healthz`, `/readyz` |
+| `:8443` | métricas del manager protegidas por kube-RBAC |
+
+### Transporte de eventos
+
+El ingreso de eventos CDC usa **HTTP por defecto** (sin broker, ideal para test/e2e). Para usar Kafka,
+basta con cambiar `spec.transport.type: kafka` y rellenar el bloque `kafka` del CR — sin refactor, ya que
+downstream solo ve un `CDCEvent`. Es ortogonal a `spec.sink` (la salida de métricas/alertas). Ver
+[ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md).
+
+### NetworkPolicy & CNI
+
+El chart puede desplegar **opcionalmente** una `NetworkPolicy` que restringe el ingress al puerto de
+métricas del operator. Está **OFF por defecto**; se activa con `--set networkPolicy.enabled=true`.
+
+Requiere un **CNI que haga enforcement** de NetworkPolicy (Calico, Cilium, Antrea, Azure CNI). En un CNI
+que no lo hace (Flannel plano, el `kindnet` por defecto de kind) la política se instala pero es un **no-op
+silencioso** — no bloquea nada. Para verificar que tu CNI aplica políticas, corre un test funcional rápido
+de *default-deny* (crea una policy que niegue todo y confirma que el tráfico efectivamente se corta). Para
+una auditoría completa contra la spec de NetworkPolicy, usa [Sonobuoy](https://sonobuoy.io/)
+(`sonobuoy run --mode e2e --e2e-focus "\[NetworkPolicy\]"`) o
+[Cyclonus](https://github.com/mattfenwick/cyclonus). Estas herramientas de auditoría son **referencias**;
+este repo no las ejecuta.
+
+### Más documentación
+
+- [DESIGN.MD](DESIGN.MD) — diseño completo (ADRs, diagramas, manejo de errores).
+- [docs/TESTING.md](docs/TESTING.md) — guía práctica de testing.
+- [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — status híbrido (conditions + mediciones + phase).
+- [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — transporte HTTP default / Kafka opcional.
 
 ## Desarrollo
 

@@ -2,4 +2,5 @@
 resources:
 - v1_databasesensor.yaml
 - v1_databasesensor_basic.yaml
+- v1_databasesensor_mysql.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

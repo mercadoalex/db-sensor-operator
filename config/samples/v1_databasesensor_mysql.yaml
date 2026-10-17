@@ -1,0 +1,39 @@
+# MySQL DatabaseSensor sample. Completes the basic/full/mysql trio:
+#   v1_databasesensor_basic.yaml  prometheus-only (minimal)
+#   v1_databasesensor.yaml        all sinks + dashboard (full)
+#   v1_databasesensor_mysql.yaml  mysql engine, webhook sink, HTTP transport
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  labels:
+    app.kubernetes.io/name: db-sensor-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: databasesensor-mysql
+spec:
+  database:
+    type: mysql
+    host: mysql-svc.prod
+    port: 3306
+    user: debezium
+    passwordSecret: mysql-creds
+  tables:
+    - orders
+    - inventory
+  # transport is the Debezium event ingress (ADR-012); http needs no broker.
+  transport:
+    type: http # http | kafka
+  sink:
+    type: webhook # prometheus | datadog | webhook | all
+    prometheus:
+      namespace: monitoring
+      serviceMonitor: true
+      alertRules:
+        - name: BulkDelete
+          expr: 'rate(debezium_events_total{op="d"}[5m]) > 100'
+          for: 2m
+          severity: warning
+    webhook:
+      enabled: true
+      url: https://hooks.slack.com/services/XXX
+      triggerOn:
+        - BulkDelete

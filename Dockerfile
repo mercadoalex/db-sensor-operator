@@ -30,4 +30,16 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
+# Port documentation (EXPOSE is informational only — distroless has no runtime
+# that acts on it, and the actual bind addresses are set via manager flags such
+# as --operator-http-bind-address, --health-probe-bind-address and
+# --metrics-bind-address). The manager runs as nonroot (USER 65532 above).
+#   8080  operator HTTP server: /metrics (always on), /dashboard + /api/events
+#         (gated by dashboard.enabled), /cdc, /healthz, /readyz
+#   8081  manager health probes: /healthz, /readyz
+#   8443  manager kube-RBAC-protected metrics
+EXPOSE 8080
+EXPOSE 8081
+EXPOSE 8443
+
 ENTRYPOINT ["/manager"]

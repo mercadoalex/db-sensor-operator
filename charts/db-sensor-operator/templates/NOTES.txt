@@ -32,6 +32,11 @@ OPERATOR HTTP ENDPOINTS are served on port {{ .Values.operatorHttp.port }} (Serv
   /healthz, /readyz
 {{- end }}
 
+NETWORKPOLICY (optional, OFF by default): this chart can deploy a NetworkPolicy that restricts
+ingress to the metrics port. Enable it with --set networkPolicy.enabled=true. It requires a
+policy-ENFORCING CNI (Calico, Cilium, Antrea, Azure CNI); on a non-enforcing CNI (plain Flannel,
+default kindnet) it installs but is a silent no-op.
+
 APPLY a DatabaseSensor to start monitoring. A full example (all sinks) and a minimal
 prometheus-only example ship under config/samples/:
 

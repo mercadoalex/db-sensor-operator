@@ -12,3 +12,8 @@
 # Re-include Go module files
 !go.mod
 !go.sum
+
+# Re-include assets embedded via //go:embed (e.g. the dashboard page served by
+# internal/dashboard). These are not *.go files, so the catch-all ** above would
+# drop them and `go build` would fail with "pattern index.html: no matching files".
+!internal/dashboard/index.html

@@ -140,6 +140,33 @@ User          K8s API       Reconciler      Debezium Op     Prometheus    Alertm
 
 > **Nota:** el `DatabaseSensorStatus` plano mostrado más abajo (§6) queda reemplazado por el diseño híbrido de ADR-11. US-5 se sigue cumpliendo (`phase`, `lag`, `eventsPerMin`, `lastEvent` como campos/printcolumns; `lastError` vía el `message` de una condition).
 
+### Decisiones finales / estado de implementación
+
+Resumen de lo que **realmente se construyó** (el resto del documento recoge el diseño original; esta
+nota lo reconcilia con el código final). Las secciones de arriba siguen siendo válidas salvo donde esta
+nota las anota.
+
+- **Status híbrido (ADR-11):** `[]metav1.Condition` como fuente de verdad + mediciones planas
+  (`lag`, `eventsPerMin`, `lastEvent`) + `phase` derivado en cada reconcile. `lastError` se transporta
+  vía el `message`/`reason` de una condition, no como campo propio. Ver
+  [docs/adr/ADR-011-hybrid-status-design.md](docs/adr/ADR-011-hybrid-status-design.md).
+- **Transporte HTTP por defecto, Kafka opcional (ADR-12):** ambos detrás de la interface `Consumer`,
+  seleccionado por `spec.transport.type` (ortogonal a `spec.sink`). HTTP no requiere broker. Ver
+  [docs/adr/ADR-012-event-transport-http-default-kafka-optional.md](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md).
+- **DebeziumServer como objeto `unstructured`:** el `DebeziumServer` del operator oficial se crea/actualiza
+  como `unstructured.Unstructured` (sin importar sus tipos Go), con owner reference al `DatabaseSensor`.
+- **Servidor HTTP unificado del operator en `:8080`:** sirve `/metrics` (siempre), `/dashboard` +
+  `/api/events` (gated por `dashboard.enabled`, 404 cuando está off), `/cdc`, `/healthz`, `/readyz`.
+  Mapa de puertos: `:8080` HTTP del operator, `:8081` health probes del manager, `:8443` métricas del
+  manager protegidas por kube-RBAC.
+- **Cliente Datadog thin-HTTP:** el sink Datadog hace POST directo a la API HTTP (sin SDK pesado),
+  leyendo las keys desde Secrets de K8s.
+- **ServiceMonitor/PrometheusRule cross-namespace vía owner refs:** cada sensor obtiene un `Service`
+  propio y los `ServiceMonitor`/`PrometheusRule` se enlazan por owner reference para cascade deletion.
+- **NetworkPolicy opt-in (default off):** el chart puede desplegar una `NetworkPolicy` que restringe el
+  ingress al puerto de métricas; se activa con `--set networkPolicy.enabled=true` y requiere un CNI que
+  haga enforcement (Calico, Cilium, Antrea, Azure CNI).
+
 ---
 ### TDD para un Operator
 ## La piramide de tests
