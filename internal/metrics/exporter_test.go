@@ -32,6 +32,12 @@ import (
 	"github.com/mercadoalex/db-sensor-operator/internal/events"
 )
 
+// Shared literals used across the exporter tests.
+const (
+	tableOrders = "orders"
+	opDDL       = "ddl"
+)
+
 // fixedClock returns a controllable clock for deterministic lag and rate tests.
 func fixedClock(t *time.Time) func() time.Time {
 	return func() time.Time { return *t }
@@ -42,14 +48,14 @@ func TestExporterCountsByOp(t *testing.T) {
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
 
 	ts := now.Add(-time.Second).UnixMilli()
-	for i := 0; i < 3; i++ {
-		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: ts})
+	for range 3 {
+		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: ts})
 	}
-	exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: "orders", TsMs: ts})
+	exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: tableOrders, TsMs: ts})
 	exp.OnEvent(events.CDCEvent{Op: "d", DB: "pg", Table: "customers", TsMs: ts})
 
-	assert.Equal(t, 3.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("c", "pg", "orders")))
-	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("u", "pg", "orders")))
+	assert.Equal(t, 3.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("c", "pg", tableOrders)))
+	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("u", "pg", tableOrders)))
 	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("d", "pg", "customers")))
 }
 
@@ -57,21 +63,21 @@ func TestExporterSchemaChanges(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
 
-	exp.OnEvent(events.CDCEvent{Op: "ddl", DB: "pg", Table: "orders", TsMs: now.UnixMilli()})
-	exp.OnEvent(events.CDCEvent{Op: "ddl", DB: "pg", Table: "orders", TsMs: now.UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: opDDL, DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: opDDL, DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
 
-	assert.Equal(t, 2.0, testutil.ToFloat64(exp.schemaChanges.WithLabelValues("pg", "orders")))
+	assert.Equal(t, 2.0, testutil.ToFloat64(exp.schemaChanges.WithLabelValues("pg", tableOrders)))
 	// A DDL event is not counted as a data-change event.
-	assert.Equal(t, 0.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("ddl", "pg", "orders")))
+	assert.Equal(t, 0.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues(opDDL, "pg", tableOrders)))
 }
 
 func TestExporterLagSeconds(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
 
-	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: now.Add(-30 * time.Second).UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.Add(-30 * time.Second).UnixMilli()})
 
-	assert.InDelta(t, 30.0, testutil.ToFloat64(exp.lagSeconds.WithLabelValues("pg", "orders")), 0.001)
+	assert.InDelta(t, 30.0, testutil.ToFloat64(exp.lagSeconds.WithLabelValues("pg", tableOrders)), 0.001)
 }
 
 func TestExporterEventsPerMinuteWindow(t *testing.T) {
@@ -79,23 +85,23 @@ func TestExporterEventsPerMinuteWindow(t *testing.T) {
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
 
 	// Burst of 10 events in the current second.
-	for i := 0; i < 10; i++ {
-		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: now.UnixMilli()})
+	for range 10 {
+		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
 	}
-	assert.Equal(t, 10.0, testutil.ToFloat64(exp.eventsPerMin.WithLabelValues("pg", "orders")))
+	assert.Equal(t, 10.0, testutil.ToFloat64(exp.eventsPerMin.WithLabelValues("pg", tableOrders)))
 
 	// Advance beyond the 60s window: the burst has aged out, a new event reads 1.
 	now = now.Add(61 * time.Second)
-	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: now.UnixMilli()})
-	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsPerMin.WithLabelValues("pg", "orders")))
+	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
+	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsPerMin.WithLabelValues("pg", tableOrders)))
 }
 
 func TestExporterHandlerScrape(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
 
-	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: now.Add(-time.Second).UnixMilli()})
-	exp.OnEvent(events.CDCEvent{Op: "ddl", DB: "pg", Table: "orders", TsMs: now.UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.Add(-time.Second).UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: opDDL, DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
 
 	srv := httptest.NewServer(exp.Handler())
 	defer srv.Close()
@@ -131,7 +137,7 @@ func TestExporterRegistersEachFamilyOnce(t *testing.T) {
 	// use so all four surface, then re-gather.
 	exp := NewExporterWithClock(prometheus.NewRegistry(), time.Now)
 	exp.OnEvent(events.CDCEvent{Op: "c", DB: "d", Table: "t", TsMs: time.Now().UnixMilli()})
-	exp.OnEvent(events.CDCEvent{Op: "ddl", DB: "d", Table: "t", TsMs: time.Now().UnixMilli()})
+	exp.OnEvent(events.CDCEvent{Op: opDDL, DB: "d", Table: "t", TsMs: time.Now().UnixMilli()})
 	used, err := exp.reg.(*prometheus.Registry).Gather()
 	require.NoError(t, err)
 	for _, mf := range used {

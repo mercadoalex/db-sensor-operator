@@ -36,6 +36,12 @@ import (
 
 const insertFixture = `{"payload":{"op":"c","ts_ms":1700000000000,"source":{"db":"pg","table":"orders"}}}`
 
+// Common fixture literals shared across the event-package tests.
+const (
+	tableOrders = "orders"
+	dbOrders    = "orders_db"
+)
+
 func TestHTTPConsumerHandler(t *testing.T) {
 	var got []CDCEvent
 	h := (&HTTPConsumer{}).Handler(func(ev CDCEvent) { got = append(got, ev) })
@@ -48,7 +54,7 @@ func TestHTTPConsumerHandler(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	require.Len(t, got, 1)
-	assert.Equal(t, CDCEvent{Op: "c", DB: "pg", Table: "orders", TsMs: 1700000000000}, got[0])
+	assert.Equal(t, CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: 1700000000000}, got[0])
 }
 
 func TestHTTPConsumerHandlerMalformed(t *testing.T) {

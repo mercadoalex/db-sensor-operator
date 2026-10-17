@@ -34,19 +34,19 @@ func TestParse(t *testing.T) {
 			name: "insert in payload envelope",
 			raw: `{"payload":{"op":"c","ts_ms":1700000000000,
 				"source":{"db":"orders_db","table":"orders"}}}`,
-			want: CDCEvent{Op: "c", DB: "orders_db", Table: "orders", TsMs: 1700000000000},
+			want: CDCEvent{Op: "c", DB: dbOrders, Table: tableOrders, TsMs: 1700000000000},
 		},
 		{
 			name: "update",
 			raw: `{"payload":{"op":"u","ts_ms":1700000001000,
 				"source":{"db":"orders_db","table":"customers"}}}`,
-			want: CDCEvent{Op: "u", DB: "orders_db", Table: "customers", TsMs: 1700000001000},
+			want: CDCEvent{Op: "u", DB: dbOrders, Table: "customers", TsMs: 1700000001000},
 		},
 		{
 			name: "delete",
 			raw: `{"payload":{"op":"d","ts_ms":1700000002000,
 				"source":{"db":"orders_db","table":"orders"}}}`,
-			want: CDCEvent{Op: "d", DB: "orders_db", Table: "orders", TsMs: 1700000002000},
+			want: CDCEvent{Op: "d", DB: dbOrders, Table: tableOrders, TsMs: 1700000002000},
 		},
 		{
 			name: "top-level op without payload wrapper",
@@ -57,13 +57,13 @@ func TestParse(t *testing.T) {
 			name: "ddl via payload.ddl",
 			raw: `{"payload":{"ddl":"ALTER TABLE orders ADD COLUMN note text","ts_ms":1700000004000,
 				"source":{"db":"orders_db","table":"orders"}}}`,
-			want: CDCEvent{Op: "ddl", DB: "orders_db", Table: "orders", TsMs: 1700000004000},
+			want: CDCEvent{Op: "ddl", DB: dbOrders, Table: tableOrders, TsMs: 1700000004000},
 		},
 		{
 			name: "ddl via schema-history historyRecord marker",
 			raw: `{"payload":{"historyRecord":"{}","ts_ms":1700000005000,
 				"source":{"db":"orders_db","table":"orders"}}}`,
-			want: CDCEvent{Op: "ddl", DB: "orders_db", Table: "orders", TsMs: 1700000005000},
+			want: CDCEvent{Op: "ddl", DB: dbOrders, Table: tableOrders, TsMs: 1700000005000},
 		},
 		{
 			name: "mongodb collection maps to table",
@@ -103,7 +103,6 @@ func TestParseMalformedDoesNotPanic(t *testing.T) {
 		nil,
 	}
 	for _, b := range bad {
-		b := b
 		assert.NotPanics(t, func() {
 			ev, err := Parse(b)
 			require.Error(t, err)

@@ -47,6 +47,9 @@ const (
 
 	// rateBuckets is the number of 1-second buckets in the sliding window.
 	rateBuckets = 60
+
+	// labelTable is the metric label name for the source table.
+	labelTable = "table"
 )
 
 // Exporter registers and updates the four Task 6 metric families on a single
@@ -86,19 +89,19 @@ func NewExporterWithClock(reg prometheus.Registerer, now func() time.Time) *Expo
 		eventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Name: "debezium_events_total",
 			Help: "Total CDC data-change events by operation, database, and table.",
-		}, []string{"op", "db", "table"}),
+		}, []string{"op", "db", labelTable}),
 		schemaChanges: factory.NewCounterVec(prometheus.CounterOpts{
 			Name: "debezium_schema_changes_total",
 			Help: "Total CDC schema-change (DDL) events by database and table.",
-		}, []string{"db", "table"}),
+		}, []string{"db", labelTable}),
 		lagSeconds: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "debezium_lag_seconds",
 			Help: "Age in seconds of the most recent CDC event by database and table.",
-		}, []string{"db", "table"}),
+		}, []string{"db", labelTable}),
 		eventsPerMin: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "debezium_events_per_minute",
 			Help: "Rolling 60-second rate of CDC data-change events by database and table.",
-		}, []string{"db", "table"}),
+		}, []string{"db", labelTable}),
 		rates: make(map[string]*rateWindow),
 	}
 }
