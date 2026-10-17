@@ -1,0 +1,234 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package deployer builds and reconciles the child resources a DatabaseSensor
+// manages. Task 4 covers the DebeziumServer custom resource.
+//
+// Step 0 dependency decision (resolved during planning, see
+// .agents/tasks/task4-plan.md): there is NO importable Go module for the
+// DebeziumServer API types. The official Debezium Operator is Java/Quarkus and
+// publishes no Go API module (the path in tech.md does not resolve on the proxy).
+// Therefore we model the DebeziumServer as an *unstructured.Unstructured carrying
+// the correct GVK. controllerutil.SetControllerReference and CreateOrUpdate both
+// work on unstructured objects once the owner scheme and the child GVK are known.
+// If a typed module is ever published, the unstructured object can be swapped for
+// typed structs without changing the reconciler contract.
+package deployer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"hash/fnv"
+	"regexp"
+	"strconv"
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
+)
+
+// DebeziumServerGVK is the GroupVersionKind of the DebeziumServer custom resource
+// managed by the official Debezium Operator. Verified against the upstream CRD
+// debeziumservers.debezium.io: group debezium.io, the only served+storage version
+// is v1alpha1, kind DebeziumServer (plural debeziumservers, scope Namespaced).
+var DebeziumServerGVK = schema.GroupVersionKind{
+	Group:   "debezium.io",
+	Version: "v1alpha1",
+	Kind:    "DebeziumServer",
+}
+
+// passwordPlaceholder is written into the DebeziumServer source config instead of
+// the real password (NFR-4: credentials are never inlined). Later tasks wire the
+// actual env/secret injection into the Debezium runtime; Task 4 only guarantees
+// the referenced Secret exists and is not embedded.
+const passwordPlaceholder = "${DATABASE_PASSWORD}"
+
+// ErrSecretNotFound is returned by EnsureDebeziumServer when the Secret named by
+// spec.database.passwordSecret does not exist (US-1.3). The controller maps it to
+// a Ready=False / Reason=SecretNotFound condition and derives Phase=Failed.
+var ErrSecretNotFound = errors.New("database password secret not found")
+
+// ErrUnsupportedDBType is returned by BuildDebeziumServer when spec.database.type
+// is not a recognised Debezium connector. The CRD enum already guards the API, so
+// this is defense-in-depth; the controller surfaces it as a Ready=False condition.
+var ErrUnsupportedDBType = errors.New("unsupported database type")
+
+// connectorClasses maps spec.database.type to the fully-qualified Debezium
+// connector Java class (US-8).
+var connectorClasses = map[string]string{
+	"postgresql": "io.debezium.connector.postgresql.PostgresConnector",
+	"mysql":      "io.debezium.connector.mysql.MySqlConnector",
+	"mongodb":    "io.debezium.connector.mongodb.MongoDbConnector",
+	"sqlserver":  "io.debezium.connector.sqlserver.SqlServerConnector",
+	"oracle":     "io.debezium.connector.oracle.OracleConnector",
+	"db2":        "io.debezium.connector.db2.Db2Connector",
+	"cassandra":  "io.debezium.connector.cassandra.CassandraConnector",
+}
+
+// BuildDebeziumServer maps a DatabaseSensor spec onto a DebeziumServer object.
+// It is a pure function (no cluster I/O) so the mapping is unit-testable without
+// envtest.
+//
+// Child naming: metadata.name == sensor.Name (no suffix) for a 1:1 mental model
+// between a DatabaseSensor and its DebeziumServer. Derived identifiers
+// (topic.prefix, slot.name, database.server.id) are computed deterministically
+// from namespace+name so repeated reconciles converge without churn (idempotency)
+// and distinct sensors do not collide.
+func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstructured, error) {
+	class, ok := connectorClasses[sensor.Spec.Database.Type]
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrUnsupportedDBType, sensor.Spec.Database.Type)
+	}
+
+	db := sensor.Spec.Database
+	config := map[string]any{
+		"connector.class":   class,
+		"database.hostname": db.Host,
+		"database.port":     strconv.Itoa(int(db.Port)),
+		"database.user":     db.User,
+		// NFR-4: reference, never the real value. The concrete credential is
+		// injected from the referenced Secret by a later task.
+		"database.password": passwordPlaceholder,
+		"topic.prefix":      topicPrefix(sensor),
+	}
+
+	// Table/collection filters (US-1.1). MongoDB filters by collection; the
+	// relational connectors use table.include.list.
+	if len(sensor.Spec.Tables) > 0 {
+		joined := strings.Join(sensor.Spec.Tables, ",")
+		if sensor.Spec.Database.Type == "mongodb" {
+			config["collection.include.list"] = joined
+		} else {
+			config["table.include.list"] = joined
+		}
+	}
+
+	// Per-type extras (US-8).
+	switch sensor.Spec.Database.Type {
+	case "postgresql":
+		config["slot.name"] = slotName(sensor)
+	case "mysql":
+		config["database.server.id"] = strconv.FormatUint(uint64(serverID(sensor)), 10)
+	}
+
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(DebeziumServerGVK)
+	obj.SetName(sensor.Name)
+	obj.SetNamespace(sensor.Namespace)
+	if err := unstructured.SetNestedMap(obj.Object, config, "spec", "source", "config"); err != nil {
+		return nil, fmt.Errorf("setting source config: %w", err)
+	}
+	if err := unstructured.SetNestedField(obj.Object, class, "spec", "source", "class"); err != nil {
+		return nil, fmt.Errorf("setting source class: %w", err)
+	}
+	// Minimal, self-consistent sink placeholder. A real sink is out of Task 4 scope.
+	if err := unstructured.SetNestedField(obj.Object, "none", "spec", "sink", "type"); err != nil {
+		return nil, fmt.Errorf("setting sink type: %w", err)
+	}
+
+	return obj, nil
+}
+
+// EnsureDebeziumServer reconciles the DebeziumServer for a DatabaseSensor:
+// it verifies the referenced password Secret exists (US-1.3), then creates or
+// updates the DebeziumServer with an owner reference back to the sensor
+// (US-1.2 → enables US-1.4 cascade delete). It is idempotent via CreateOrUpdate.
+func EnsureDebeziumServer(ctx context.Context, c client.Client, scheme *runtime.Scheme, sensor *sensoriov1.DatabaseSensor) error {
+	// US-1.3: the Secret must exist. We only check presence; we never read or log
+	// its data (NFR-4).
+	var secret corev1.Secret
+	secretKey := types.NamespacedName{Name: sensor.Spec.Database.PasswordSecret, Namespace: sensor.Namespace}
+	if err := c.Get(ctx, secretKey, &secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("%w: %q", ErrSecretNotFound, sensor.Spec.Database.PasswordSecret)
+		}
+		return fmt.Errorf("getting password secret %q: %w", sensor.Spec.Database.PasswordSecret, err)
+	}
+
+	desired, err := BuildDebeziumServer(sensor)
+	if err != nil {
+		return err
+	}
+
+	// CreateOrUpdate needs an object carrying only the identity (GVK + name +
+	// namespace); the mutate closure applies the desired spec and owner ref so the
+	// operation is idempotent and conflict-safe.
+	target := &unstructured.Unstructured{}
+	target.SetGroupVersionKind(DebeziumServerGVK)
+	target.SetName(sensor.Name)
+	target.SetNamespace(sensor.Namespace)
+
+	_, err = controllerutil.CreateOrUpdate(ctx, c, target, func() error {
+		spec, _, _ := unstructured.NestedMap(desired.Object, "spec")
+		if err := unstructured.SetNestedMap(target.Object, spec, "spec"); err != nil {
+			return fmt.Errorf("setting desired spec: %w", err)
+		}
+		return controllerutil.SetControllerReference(sensor, target, scheme)
+	})
+	if err != nil {
+		return fmt.Errorf("ensuring DebeziumServer %q: %w", sensor.Name, err)
+	}
+	return nil
+}
+
+// topicPrefix derives a stable, DNS-safe Debezium topic prefix from the sensor's
+// namespace and name.
+func topicPrefix(sensor *sensoriov1.DatabaseSensor) string {
+	return sanitize(sensor.Namespace + "-" + sensor.Name)
+}
+
+var invalidSlotChars = regexp.MustCompile(`[^a-z0-9_]`)
+
+// slotName derives a stable Postgres replication slot name from the sensor name.
+// Postgres slot names must be lowercase alphanumerics or underscores and at most
+// 63 characters.
+func slotName(sensor *sensoriov1.DatabaseSensor) string {
+	name := strings.ToLower(sensor.Namespace + "_" + sensor.Name)
+	name = invalidSlotChars.ReplaceAllString(name, "_")
+	if len(name) > 63 {
+		name = name[:63]
+	}
+	return name
+}
+
+var invalidDNSChars = regexp.MustCompile(`[^a-z0-9-]`)
+
+// sanitize lowercases and replaces characters outside the DNS-safe set.
+func sanitize(s string) string {
+	return invalidDNSChars.ReplaceAllString(strings.ToLower(s), "-")
+}
+
+// serverID derives a stable, non-zero MySQL server id in the range
+// [1, 4294967295] from the sensor's namespace and name. The same input always
+// yields the same id so reconciles do not churn.
+func serverID(sensor *sensoriov1.DatabaseSensor) uint32 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(sensor.Namespace + "/" + sensor.Name))
+	id := h.Sum32()
+	if id == 0 {
+		id = 1
+	}
+	return id
+}

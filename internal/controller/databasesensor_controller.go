@@ -18,11 +18,14 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -31,6 +34,15 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
+	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
+)
+
+// Condition types and derived phases.
+const (
+	conditionTypeReady = "Ready"
+	phasePending       = "Pending"
+	phaseRunning       = "Running"
+	phaseFailed        = "Failed"
 )
 
 // DatabaseSensorReconciler reconciles a DatabaseSensor object
@@ -42,6 +54,8 @@ type DatabaseSensorReconciler struct {
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors/finalizers,verbs=update
+// +kubebuilder:rbac:groups=debezium.io,resources=debeziumservers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -79,28 +93,41 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	// Placeholder reconcile steps, in DESIGN.MD §6 / tasks.md order. These are
-	// no-ops in the skeleton and are implemented in later tasks.
-	// TODO(Task 4): r.Deployer.EnsureDebeziumServer(ctx, &sensor)
+	// Ensure the child DebeziumServer (Task 4). The deployer is a package-level
+	// function rather than a reconciler field: it has no state of its own, so
+	// injecting it would add a dependency without a payoff. The result drives the
+	// Ready condition set below.
 	// TODO(Task 5): r.Metrics.EnsureService / EnsureServiceMonitor(ctx, &sensor)
 	// TODO(Task 10): r.Metrics.EnsureAlertRules(ctx, &sensor)
 	// TODO(Task 9): phase, lag := r.Health.Check(ctx, &sensor)
+	ensureErr := deployer.EnsureDebeziumServer(ctx, r.Client, r.Scheme, &sensor)
 
-	// Establish the initial hybrid status (ADR-011): conditions are the source
-	// of truth and Phase is derived from them. Persist with conflict retry,
-	// re-fetching the latest object inside the closure per AGENTS.md.
+	// A transient (non-mapped) error is returned so controller-runtime backs off
+	// and retries; it must not take the status path below (DESIGN "API server
+	// timeout" row).
+	if ensureErr != nil &&
+		!errors.Is(ensureErr, deployer.ErrSecretNotFound) &&
+		!errors.Is(ensureErr, deployer.ErrUnsupportedDBType) {
+		log.Error(ensureErr, "Failed to ensure DebeziumServer")
+		return ctrl.Result{}, ensureErr
+	}
+
+	// Translate the ensure result into the hybrid status (ADR-011): conditions
+	// are the source of truth and Phase is derived from them. Persist with
+	// conflict retry, re-fetching the latest object inside the closure per
+	// AGENTS.md. All status writes live in this single block.
+	condition := readyConditionFor(ensureErr)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var fresh sensoriov1.DatabaseSensor
 		if err := r.Get(ctx, types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}, &fresh); err != nil {
 			return err
 		}
-		meta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
-			Type:               "Ready",
-			Status:             metav1.ConditionUnknown,
-			Reason:             "Reconciling",
-			Message:            "Initializing sensor",
-			ObservedGeneration: fresh.Generation,
-		})
+		condition.ObservedGeneration = fresh.Generation
+		meta.SetStatusCondition(&fresh.Status.Conditions, condition)
+		if ensureErr == nil {
+			// US-1.1: record the managed child name on success.
+			fresh.Status.DebeziumServer = fresh.Name
+		}
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
 		return r.Status().Update(ctx, &fresh)
 	}); err != nil {
@@ -108,29 +135,96 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	// Requeue for the periodic health-check loop (US-7.1).
+	// Requeue for the periodic health-check loop (US-7.1). A mapped failure
+	// (SecretNotFound/UnsupportedDBType) returns nil here on purpose so the
+	// reconcile does not hot-loop; it re-runs on the 30s cadence and recovers
+	// once the Secret appears.
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+// readyConditionFor maps the EnsureDebeziumServer result to the Ready condition.
+// nil → Ready=Unknown/DebeziumServerEnsured (pod health is Task 9). A mapped
+// failure → Ready=False with a specific reason that derivePhase turns into
+// Failed.
+func readyConditionFor(err error) metav1.Condition {
+	switch {
+	case err == nil:
+		return metav1.Condition{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "DebeziumServerEnsured",
+			Message: "DebeziumServer ensured; pod health is evaluated by a later task",
+		}
+	case errors.Is(err, deployer.ErrSecretNotFound):
+		return metav1.Condition{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "SecretNotFound",
+			Message: fmt.Sprintf("Database password secret not found: %v", err),
+		}
+	case errors.Is(err, deployer.ErrUnsupportedDBType):
+		return metav1.Condition{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "UnsupportedDBType",
+			Message: fmt.Sprintf("Unsupported database type: %v", err),
+		}
+	default:
+		// Should not reach here: transient errors are handled before this call.
+		return metav1.Condition{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "ReconcileError",
+			Message: err.Error(),
+		}
+	}
+}
+
+// failureReasons are Ready=False reasons that represent a terminal/misconfigured
+// state rather than a transient one, so Phase is derived as Failed.
+var failureReasons = map[string]bool{
+	"SecretNotFound":    true,
+	"UnsupportedDBType": true,
 }
 
 // derivePhase computes the convenience Phase column from the condition set
 // (ADR-011: conditions are the source of truth, Phase is always derived).
+// It is a pure function.
 //
-// Skeleton logic: until the Ready condition is True, the sensor is Pending.
-// TODO(Task 9): extend this to derive Running/Degraded/Failed from the full
-// condition set (DebeziumAvailable, ReceivingEvents, lag thresholds).
+// Ready=True → Running. Ready=False with a failure reason → Failed. Ready=False
+// without such a reason, Ready=Unknown, or no Ready condition → Pending.
+// TODO(Task 9): extend to Degraded/Running from the full condition set
+// (DebeziumAvailable, ReceivingEvents, lag thresholds).
 func derivePhase(conditions []metav1.Condition) string {
-	ready := meta.FindStatusCondition(conditions, "Ready")
-	if ready == nil || ready.Status != metav1.ConditionTrue {
-		return "Pending"
+	ready := meta.FindStatusCondition(conditions, conditionTypeReady)
+	if ready == nil {
+		return phasePending
 	}
-	return "Running"
+	switch ready.Status {
+	case metav1.ConditionTrue:
+		return phaseRunning
+	case metav1.ConditionFalse:
+		if failureReasons[ready.Reason] {
+			return phaseFailed
+		}
+		return phasePending
+	default:
+		return phasePending
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DatabaseSensorReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// The DebeziumServer type has no importable Go module (Step 0 decision), so
+	// watch it as an unstructured object carrying the DebeziumServer GVK. This
+	// gives owner-reference-driven requeues on child changes (US-1.4 cascade is
+	// GC; this .Owns re-reconciles the sensor when the child drifts).
+	debeziumServer := &unstructured.Unstructured{}
+	debeziumServer.SetGroupVersionKind(deployer.DebeziumServerGVK)
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sensoriov1.DatabaseSensor{}).
-		// TODO(Task 4): .Owns(&debeziumv1.DebeziumServer{}) — type not imported yet
+		Owns(debeziumServer).
 		// TODO(Task 5): .Owns(&corev1.Service{}) — Service created in Task 5
 		Named("databasesensor").
 		Complete(r)

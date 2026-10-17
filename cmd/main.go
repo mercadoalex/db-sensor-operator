@@ -25,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,6 +38,7 @@ import (
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/controller"
+	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -49,6 +51,15 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(sensoriov1.AddToScheme(scheme))
+
+	// Register the DebeziumServer GVK as an unstructured type (Step 0 decision:
+	// no importable Go module for the Debezium API). This lets
+	// SetControllerReference resolve the owner's scheme and the unstructured
+	// .Owns watch resolve the child kind.
+	scheme.AddKnownTypeWithName(deployer.DebeziumServerGVK, &unstructured.Unstructured{})
+	debeziumListGVK := deployer.DebeziumServerGVK
+	debeziumListGVK.Kind += "List"
+	scheme.AddKnownTypeWithName(debeziumListGVK, &unstructured.UnstructuredList{})
 	// +kubebuilder:scaffold:scheme
 }
 

@@ -32,7 +32,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
+	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -62,11 +65,22 @@ var _ = BeforeSuite(func() {
 	err = sensoriov1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	// Register the DebeziumServer GVK as unstructured (mirrors cmd/main.go) so the
+	// client can create/get the child object in envtest.
+	scheme.Scheme.AddKnownTypeWithName(deployer.DebeziumServerGVK, &unstructured.Unstructured{})
+	debeziumListGVK := deployer.DebeziumServerGVK
+	debeziumListGVK.Kind += "List"
+	scheme.Scheme.AddKnownTypeWithName(debeziumListGVK, &unstructured.UnstructuredList{})
+
 	// +kubebuilder:scaffold:scheme
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "config", "crd", "bases"),
+			// Minimal DebeziumServer CRD for the child-resource reconcile tests.
+			filepath.Join("testdata", "crd"),
+		},
 		ErrorIfCRDPathMissing: true,
 	}
 
