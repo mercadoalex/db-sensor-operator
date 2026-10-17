@@ -96,6 +96,40 @@ func TestExporterEventsPerMinuteWindow(t *testing.T) {
 	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsPerMin.WithLabelValues("pg", tableOrders)))
 }
 
+func TestExporterEventsPerMinForDB(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))
+
+	// Two tables of db "pg" plus one event for a different db "other".
+	for range 3 {
+		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
+	}
+	for range 2 {
+		exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: "customers", TsMs: now.UnixMilli()})
+	}
+	exp.OnEvent(events.CDCEvent{Op: "c", DB: "other", Table: tableOrders, TsMs: now.UnixMilli()})
+
+	// Aggregates across pg's tables (3 + 2) and excludes "other".
+	assert.Equal(t, 5.0, exp.EventsPerMinForDB("pg"))
+	assert.Equal(t, 1.0, exp.EventsPerMinForDB("other"))
+
+	// Unknown db reads 0.
+	assert.Equal(t, 0.0, exp.EventsPerMinForDB("missing"))
+
+	// The accessor is read-only: reading does not expire the windows, so a
+	// repeated read returns the same aggregate.
+	assert.Equal(t, 5.0, exp.EventsPerMinForDB("pg"))
+
+	// Advance past the 60s window: the burst ages out and the aggregate drops to
+	// 0 (confirming countAt honours the trailing window).
+	now = now.Add(61 * time.Second)
+	assert.Equal(t, 0.0, exp.EventsPerMinForDB("pg"))
+
+	// A fresh event after the window reads just that event.
+	exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
+	assert.Equal(t, 1.0, exp.EventsPerMinForDB("pg"))
+}
+
 func TestExporterHandlerScrape(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	exp := NewExporterWithClock(prometheus.NewRegistry(), fixedClock(&now))

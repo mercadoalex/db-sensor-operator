@@ -29,6 +29,7 @@ package metrics
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,6 +128,35 @@ func (e *Exporter) OnEvent(ev events.CDCEvent) {
 	}
 }
 
+// EventsPerMinForDB returns the current aggregate CDC event rate per minute for
+// a database host, summed across every table of that host the Exporter has
+// observed (Task 13, Decision D1). The DatabaseSensor status is a per-sensor
+// summary and a sensor targets one spec.database.host across its spec.tables, so
+// summing the per-{db,table} rolling windows for that host yields one meaningful
+// events/min number without the reconciler enumerating tables.
+//
+// It is concurrency-safe and READ-ONLY with respect to the rolling windows: it
+// reads each window's count at e.now() via countAt without expiring buckets, so
+// it never corrupts the state OnEvent mutates. An unknown host returns 0.
+func (e *Exporter) EventsPerMinForDB(db string) float64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	nowSec := e.now().Unix()
+	var total int64
+	for key, w := range e.rates {
+		// key is db + "\x00" + table; match on the db segment.
+		keyDB, _, ok := strings.Cut(key, "\x00")
+		if !ok {
+			continue
+		}
+		if keyDB == db {
+			total += w.countAt(nowSec)
+		}
+	}
+	return float64(total)
+}
+
 // Handler returns an http.Handler that serves this Exporter's registry in
 // Prometheus text format. Task 15 mounts it at /metrics on the operator's HTTP
 // server; this method intentionally does not build the full ServeMux.
@@ -195,6 +225,22 @@ func (w *rateWindow) observe(t time.Time) int64 {
 	w.counts[idx]++
 
 	return w.sum(sec)
+}
+
+// countAt totals the buckets whose second is within the trailing window ending
+// at nowSec WITHOUT expiring stale buckets. It is the read-only counterpart of
+// sum, used by EventsPerMinForDB so a status read never mutates the window that
+// OnEvent maintains. The cutoff math mirrors sum exactly.
+func (w *rateWindow) countAt(nowSec int64) int64 {
+	cutoff := nowSec - int64(ratePerMinWindow/time.Second) + 1
+	var total int64
+	for i := range w.counts {
+		if w.bucketSec[i] < cutoff {
+			continue
+		}
+		total += w.counts[i]
+	}
+	return total
 }
 
 // sum totals the buckets whose second is within the trailing window ending at

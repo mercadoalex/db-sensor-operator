@@ -87,12 +87,23 @@ func CriticalLag() time.Duration { return criticalLagThreshold }
 func NoEventWarn() time.Duration { return noEventWarnTimeout }
 func NoEventFail() time.Duration { return noEventFailTimeout }
 
-// Phase values. Mirror the controller's phase constants (ADR-011).
+// Phase values (ADR-011). Exported so the reconciler, checker, and tests share a
+// single source of truth for the four DatabaseSensor phases instead of each
+// package re-declaring the string literals.
 const (
-	phasePending  = "Pending"
-	phaseRunning  = "Running"
-	phaseDegraded = "Degraded"
-	phaseFailed   = "Failed"
+	PhasePending  = "Pending"
+	PhaseRunning  = "Running"
+	PhaseDegraded = "Degraded"
+	PhaseFailed   = "Failed"
+)
+
+// Unexported aliases kept so the local decidePhase arms read tersely; they are
+// the exported constants, not independent values.
+const (
+	phasePending  = PhasePending
+	phaseRunning  = PhaseRunning
+	phaseDegraded = PhaseDegraded
+	phaseFailed   = PhaseFailed
 )
 
 // Condition types the Checker reports back to the reconciler.
@@ -366,6 +377,12 @@ func decidePhase(in phaseInputs, warningLag, criticalLag, noEventWarn, noEventFa
 	}
 
 	// Events are recent (sinceLastEvent < noEventWarn). The lag arm decides.
+	//
+	// Boundaries (Task 13 D4): Degraded on lag >= warningLag, Failed on lag >
+	// criticalLag. This is consistent with DESIGN's severity table (warn >30s,
+	// crit >120s) except for the single instant lag == warningLag, which lands
+	// Degraded here; that 1-tick edge is cosmetic, covered by existing tests, and
+	// intentionally left as-is rather than churned.
 	receiving := ConditionInput{metav1.ConditionTrue, ReasonEventsFlowing, "CDC events are flowing"}
 	switch {
 	case in.lag > criticalLag:

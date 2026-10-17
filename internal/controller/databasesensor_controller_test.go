@@ -38,9 +38,13 @@ import (
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
+	"github.com/mercadoalex/db-sensor-operator/internal/events"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
+	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
 )
 
 var _ = Describe("DatabaseSensor Controller", func() {
@@ -59,6 +63,7 @@ var _ = Describe("DatabaseSensor Controller", func() {
 		const secretName = "db-creds"
 		const secretPasswordKey = "password"
 		const secretPasswordVal = "s3cret"
+		const tableOrders = "orders"
 
 		databasesensor := &sensoriov1.DatabaseSensor{}
 
@@ -79,7 +84,7 @@ var _ = Describe("DatabaseSensor Controller", func() {
 							User:           "debezium",
 							PasswordSecret: secretName,
 						},
-						Tables: []string{"orders"},
+						Tables: []string{tableOrders},
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
@@ -234,6 +239,199 @@ var _ = Describe("DatabaseSensor Controller", func() {
 				g.Expect(ready).NotTo(BeNil())
 				g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(fetched.Status.LastEvent).NotTo(BeNil())
+			}).Should(Succeed())
+		})
+
+		It("should converge the full US-5.5 status surface on a healthy sensor", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Wiring an Exporter and LagTracker on a shared fixed clock and feeding synthetic events")
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			clock := func() time.Time { return now }
+			lt := health.NewLagTrackerWithClock(clock)
+			exporter := metrics.NewExporterWithClock(prometheus.NewRegistry(), clock)
+			// Feed a few recent data-change events for the sensor's db host so the
+			// rolling rate is > 0 and the lag is small/healthy. The db label must
+			// equal spec.database.host, which the accessor keys off.
+			const dbHost = "postgres-svc.default"
+			eventTs := now.Add(-5 * time.Second).UnixMilli()
+			for range 4 {
+				exporter.OnEvent(events.CDCEvent{Op: "c", DB: dbHost, Table: tableOrders, TsMs: eventTs})
+			}
+			lt.OnEvent(eventTs)
+
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Lag:      lt,
+				Exporter: exporter,
+				Health:   health.NewCheckerWithClock(k8sClient, lt, clock),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Fabricating a running pod status on the child")
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling again so the health path writes the full status surface")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Asserting every US-5.5 field is populated on a healthy sensor")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				// phase (derived)
+				g.Expect(fetched.Status.Phase).To(Equal("Running"))
+				// lag: human-readable duration, non-empty, not a bogus value.
+				g.Expect(fetched.Status.Lag).NotTo(BeEmpty())
+				g.Expect(fetched.Status.Lag).To(Equal((5 * time.Second).String()))
+				// eventsPerMin: reflects the fed events (> 0).
+				g.Expect(fetched.Status.EventsPerMin).To(BeNumerically(">", 0))
+				g.Expect(fetched.Status.EventsPerMin).To(Equal(4.0))
+				// lastEvent: a real timestamp, set.
+				g.Expect(fetched.Status.LastEvent).NotTo(BeNil())
+				// debeziumServer: populated once the child is ensured.
+				g.Expect(fetched.Status.DebeziumServer).To(Equal(resourceName))
+				// Ready condition present and True; its message (the Last Error
+				// printcolumn source) is the healthy message, not an error.
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(ready.Reason).To(Equal("HealthyEndToEnd"))
+				g.Expect(ready.Message).To(Equal("Sensor is healthy end-to-end"))
+			}).Should(Succeed())
+		})
+
+		It("should converge the US-5.5 surface to Degraded on warning-band lag", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Wiring an Exporter and LagTracker with a last event ~45s ago (warning band)")
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			clock := func() time.Time { return now }
+			lt := health.NewLagTrackerWithClock(clock)
+			exporter := metrics.NewExporterWithClock(prometheus.NewRegistry(), clock)
+			const dbHost = "postgres-svc.default"
+			eventTs := now.Add(-45 * time.Second).UnixMilli()
+			exporter.OnEvent(events.CDCEvent{Op: "c", DB: dbHost, Table: tableOrders, TsMs: eventTs})
+			lt.OnEvent(eventTs)
+
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Lag:      lt,
+				Exporter: exporter,
+				Health:   health.NewCheckerWithClock(k8sClient, lt, clock),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Fabricating a running pod status so lag drives the phase")
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling again so the checker observes the warning-band lag")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Asserting Phase=Degraded with Ready=False/LagAboveWarning and the US-5.5 surface")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				g.Expect(fetched.Status.Phase).To(Equal("Degraded"))
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(ready.Reason).To(Equal("LagAboveWarning"))
+				// lag is a non-empty human-readable duration.
+				g.Expect(fetched.Status.Lag).NotTo(BeEmpty())
+				g.Expect(fetched.Status.Lag).To(Equal((45 * time.Second).String()))
+				// eventsPerMin reflects the fed event when an Exporter is wired.
+				g.Expect(fetched.Status.EventsPerMin).To(Equal(1.0))
+				g.Expect(fetched.Status.LastEvent).NotTo(BeNil())
+			}).Should(Succeed())
+		})
+
+		It("should surface the Last Error source empty when healthy and populated when Failed (US-5.5)", func() {
+			By("Reconciling without the Secret so the sensor fails with SecretNotFound")
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("The Ready condition message (Last Error printcolumn source) names the failure")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				g.Expect(fetched.Status.Phase).To(Equal("Failed"))
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(ready.Reason).To(Equal("SecretNotFound"))
+				// Last Error source is populated with the secret name when Failed.
+				g.Expect(ready.Message).NotTo(BeEmpty())
+				g.Expect(ready.Message).To(ContainSubstring(secretName))
+			}).Should(Succeed())
+
+			By("Creating the Secret and fabricating a healthy pod so the sensor recovers")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			clock := func() time.Time { return now }
+			lt := health.NewLagTrackerWithClock(clock)
+			lt.OnEvent(now.Add(-5 * time.Second).UnixMilli())
+			healthy := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+				Lag:    lt,
+				Health: health.NewCheckerWithClock(k8sClient, lt, clock),
+			}
+			_, err = healthy.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			_, err = healthy.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("The Ready condition message is the healthy message (no error) once recovered")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				g.Expect(fetched.Status.Phase).To(Equal("Running"))
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(ready.Message).NotTo(ContainSubstring(secretName))
+				g.Expect(ready.Message).To(Equal("Sensor is healthy end-to-end"))
 			}).Should(Succeed())
 		})
 

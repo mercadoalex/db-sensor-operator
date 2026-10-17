@@ -42,17 +42,6 @@ import (
 	"github.com/mercadoalex/db-sensor-operator/internal/sink"
 )
 
-// Condition types and derived phases.
-const (
-	conditionTypeReady             = "Ready"
-	conditionTypeDebeziumAvailable = "DebeziumAvailable"
-	conditionTypeReceivingEvents   = "ReceivingEvents"
-	phasePending                   = "Pending"
-	phaseRunning                   = "Running"
-	phaseDegraded                  = "Degraded"
-	phaseFailed                    = "Failed"
-)
-
 // DatabaseSensorReconciler reconciles a DatabaseSensor object
 type DatabaseSensorReconciler struct {
 	client.Client
@@ -182,7 +171,7 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				return err
 			}
 			meta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
-				Type:               conditionTypeReady,
+				Type:               health.ConditionTypeReady,
 				Status:             metav1.ConditionFalse,
 				Reason:             "AlertRulesFailed",
 				Message:            fmt.Sprintf("Failed to ensure PrometheusRule: %v", alertErr),
@@ -263,8 +252,12 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 				t := metav1.NewTime(healthRes.LastEvent)
 				fresh.Status.LastEvent = &t
 			}
-			// TODO(Task 13): set fresh.Status.EventsPerMin from a per-sensor rate
-			// once the CDC consumer lifecycle feeds a per-sensor exporter.
+			// US-5.5: current aggregate CDC event rate per minute for this
+			// sensor's db host (summed across its tables, D1). Nil-safe: envtest
+			// builds the reconciler without an Exporter, so EventsPerMin stays 0.
+			if r.Exporter != nil {
+				fresh.Status.EventsPerMin = r.Exporter.EventsPerMinForDB(sensor.Spec.Database.Host)
+			}
 		}
 
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
@@ -313,6 +306,12 @@ var alertFireSet = map[string]struct {
 // Datadog sink is skipped and the remaining sinks still fire. This is distinct
 // from the DB password Secret, whose absence stays a hard Failed in the deployer
 // path and never reaches here.
+//
+// TODO(Task N): optionally push the derived metrics (EventsPerMinForDB, lag) via
+// CompositeSink.Push each reconcile, mirroring this non-blocking alert fan-out.
+// Left undriven for Task 13 (D5): it adds outbound calls on the 30s cadence with
+// no test harness and no Task 13 acceptance tied to it. The always-on Prometheus
+// /metrics path already exposes these values.
 func (r *DatabaseSensorReconciler) maybeAlert(ctx context.Context, sensor *sensoriov1.DatabaseSensor, res health.HealthResult) time.Duration {
 	log := logf.FromContext(ctx)
 
@@ -389,21 +388,21 @@ func readyConditionFor(err error) metav1.Condition {
 	switch {
 	case err == nil:
 		return metav1.Condition{
-			Type:    conditionTypeReady,
+			Type:    health.ConditionTypeReady,
 			Status:  metav1.ConditionUnknown,
 			Reason:  "DebeziumServerEnsured",
 			Message: "DebeziumServer ensured; pod health is evaluated by a later task",
 		}
 	case errors.Is(err, deployer.ErrSecretNotFound):
 		return metav1.Condition{
-			Type:    conditionTypeReady,
+			Type:    health.ConditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "SecretNotFound",
 			Message: fmt.Sprintf("Database password secret not found: %v", err),
 		}
 	case errors.Is(err, deployer.ErrUnsupportedDBType):
 		return metav1.Condition{
-			Type:    conditionTypeReady,
+			Type:    health.ConditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "UnsupportedDBType",
 			Message: fmt.Sprintf("Unsupported database type: %v", err),
@@ -411,7 +410,7 @@ func readyConditionFor(err error) metav1.Condition {
 	default:
 		// Should not reach here: transient errors are handled before this call.
 		return metav1.Condition{
-			Type:    conditionTypeReady,
+			Type:    health.ConditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "ReconcileError",
 			Message: err.Error(),
@@ -425,19 +424,19 @@ func readyConditionFor(err error) metav1.Condition {
 func healthConditions(res health.HealthResult) []metav1.Condition {
 	return []metav1.Condition{
 		{
-			Type:    conditionTypeDebeziumAvailable,
+			Type:    health.ConditionTypeDebeziumAvailable,
 			Status:  res.DebeziumAvailable.Status,
 			Reason:  res.DebeziumAvailable.Reason,
 			Message: res.DebeziumAvailable.Message,
 		},
 		{
-			Type:    conditionTypeReceivingEvents,
+			Type:    health.ConditionTypeReceivingEvents,
 			Status:  res.ReceivingEvents.Status,
 			Reason:  res.ReceivingEvents.Reason,
 			Message: res.ReceivingEvents.Message,
 		},
 		{
-			Type:    conditionTypeReady,
+			Type:    health.ConditionTypeReady,
 			Status:  res.Ready.Status,
 			Reason:  res.Ready.Reason,
 			Message: res.Ready.Message,
@@ -473,24 +472,24 @@ var degradedReasons = map[string]bool{
 // reason (PodNotFound/PodNotReady/NoEventsYet/DebeziumServerEnsured),
 // Ready=Unknown, or no Ready condition → Pending.
 func derivePhase(conditions []metav1.Condition) string {
-	ready := meta.FindStatusCondition(conditions, conditionTypeReady)
+	ready := meta.FindStatusCondition(conditions, health.ConditionTypeReady)
 	if ready == nil {
-		return phasePending
+		return health.PhasePending
 	}
 	switch ready.Status {
 	case metav1.ConditionTrue:
-		return phaseRunning
+		return health.PhaseRunning
 	case metav1.ConditionFalse:
 		switch {
 		case failureReasons[ready.Reason]:
-			return phaseFailed
+			return health.PhaseFailed
 		case degradedReasons[ready.Reason]:
-			return phaseDegraded
+			return health.PhaseDegraded
 		default:
-			return phasePending
+			return health.PhasePending
 		}
 	default:
-		return phasePending
+		return health.PhasePending
 	}
 }
 
