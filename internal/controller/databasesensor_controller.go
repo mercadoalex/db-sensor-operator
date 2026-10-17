@@ -39,6 +39,7 @@ import (
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
 	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
+	"github.com/mercadoalex/db-sensor-operator/internal/sink"
 )
 
 // Condition types and derived phases.
@@ -218,6 +219,18 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		healthRes = res
 	}
 
+	// Fan the health signal out to the configured alert sinks (Tasks 11/12,
+	// US-4.4/4.5/4.6). Only on the non-mapped-failure path: a mapped
+	// SecretNotFound/UnsupportedDBType never ran the health check, so there is no
+	// health-derived alert to fan out. Sink failures are NON-BLOCKING — maybeAlert
+	// logs warnings and never fails the reconcile or touches Phase. A Datadog 429
+	// may return a requeue hint so the next cycle backs off per the DESIGN error
+	// table.
+	var alertRequeueAfter time.Duration
+	if ensureErr == nil {
+		alertRequeueAfter = r.maybeAlert(ctx, &sensor, healthRes)
+	}
+
 	// Translate the ensure/health result into the hybrid status (ADR-011):
 	// conditions are the source of truth and Phase is derived from them. Persist
 	// with conflict retry, re-fetching the latest object inside the closure per
@@ -264,8 +277,108 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Requeue for the periodic health-check loop (US-7.1). A mapped failure
 	// (SecretNotFound/UnsupportedDBType) returns nil here on purpose so the
 	// reconcile does not hot-loop; it re-runs on the 30s cadence and recovers
-	// once the Secret appears.
-	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	// once the Secret appears. A Datadog 429 (alertRequeueAfter > 0) shortens the
+	// cadence to the parsed Retry-After when it is below the default 30s so the
+	// next push respects the backoff (DESIGN "Datadog 429" row); status is left
+	// unchanged on 429.
+	requeueAfter := 30 * time.Second
+	if alertRequeueAfter > 0 && alertRequeueAfter < requeueAfter {
+		requeueAfter = alertRequeueAfter
+	}
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+// alertFireSet maps a terminal/degraded Ready reason to the Alert that fires for
+// it (Decision 2 of the Task 11/12 plan). A reason absent from the set fires no
+// alert. The Severity field tags the fan-out; the Value/Threshold are filled by
+// maybeAlert from the HealthResult and the health thresholds.
+var alertFireSet = map[string]struct {
+	name     string
+	severity string
+	critical bool // true → threshold is the critical bound, else the warning bound
+	lagBased bool // true → lag alert (Value=Lag); false → no-event alert
+}{
+	health.ReasonLagAboveWarning:  {name: "HighLag", severity: sink.SeverityWarning, critical: false, lagBased: true},
+	health.ReasonLagAboveCritical: {name: "HighLag", severity: sink.SeverityCritical, critical: true, lagBased: true},
+	health.ReasonNoEventsTimeout:  {name: "NoEvents", severity: sink.SeverityWarning, critical: false, lagBased: false},
+	health.ReasonNoEventsStale:    {name: "NoEvents", severity: sink.SeverityCritical, critical: true, lagBased: false},
+}
+
+// maybeAlert builds the Alert for a fired health signal (Decision 2) and fans it
+// out to the configured sinks. It is NON-BLOCKING: it never returns an error up
+// the reconcile and never touches Phase. It returns a requeue hint only for a
+// Datadog 429 (the parsed Retry-After), otherwise 0.
+//
+// A missing Datadog Secret (ErrDatadogSecretMissing) is a SOFT warning: the
+// Datadog sink is skipped and the remaining sinks still fire. This is distinct
+// from the DB password Secret, whose absence stays a hard Failed in the deployer
+// path and never reaches here.
+func (r *DatabaseSensorReconciler) maybeAlert(ctx context.Context, sensor *sensoriov1.DatabaseSensor, res health.HealthResult) time.Duration {
+	log := logf.FromContext(ctx)
+
+	// Only fire when Ready=False with a reason in the fire-set.
+	if res.Ready.Status != metav1.ConditionFalse {
+		return 0
+	}
+	fire, ok := alertFireSet[res.Ready.Reason]
+	if !ok {
+		return 0
+	}
+
+	// Value/Threshold per the fire-set: lag alerts use the current lag and the
+	// matching lag threshold; no-event alerts use the age since the last event
+	// and the matching no-event timeout.
+	var value, threshold float64
+	if fire.lagBased {
+		value = res.Lag.Seconds()
+		if fire.critical {
+			threshold = health.CriticalLag().Seconds()
+		} else {
+			threshold = health.WarningLag().Seconds()
+		}
+	} else {
+		if !res.LastEvent.IsZero() {
+			value = time.Since(res.LastEvent).Seconds()
+		}
+		if fire.critical {
+			threshold = health.NoEventFail().Seconds()
+		} else {
+			threshold = health.NoEventWarn().Seconds()
+		}
+	}
+
+	alert := sink.Alert{
+		Name:      fire.name,
+		DB:        sensor.Spec.Database.Host,
+		Value:     value,
+		Threshold: threshold,
+		Timestamp: time.Now(),
+		Severity:  fire.severity,
+	}
+
+	composite, buildErr := sink.BuildSinks(ctx, r.Client, sensor)
+	if buildErr != nil {
+		if errors.Is(buildErr, sink.ErrDatadogSecretMissing) {
+			// Soft: skip Datadog, keep fanning out the rest. Not a Failed phase.
+			log.Info("Skipped Datadog sink; secret not found", "sensor", sensor.Name, "namespace", sensor.Namespace)
+		} else {
+			log.Error(buildErr, "Failed to build alert sinks", "sensor", sensor.Name)
+		}
+	}
+	if composite.Len() == 0 {
+		return 0
+	}
+
+	if err := composite.Alert(ctx, alert); err != nil {
+		// Non-blocking: a sink failure is logged, never fails the reconcile.
+		log.Error(err, "Failed to deliver alert to one or more sinks",
+			"alert", alert.Name, "sensor", sensor.Name)
+		var rl *sink.RateLimitError
+		if errors.As(err, &rl) && rl.RetryAfter > 0 {
+			return rl.RetryAfter
+		}
+	}
+	return 0
 }
 
 // readyConditionFor maps the EnsureDebeziumServer result to the Ready condition.

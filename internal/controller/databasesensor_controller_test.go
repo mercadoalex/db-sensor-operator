@@ -18,6 +18,10 @@ package controller
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -535,6 +539,125 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			list := &monitoringv1.PrometheusRuleList{}
 			Expect(k8sClient.List(ctx, list, client.InNamespace(resourceNamespace))).To(Succeed())
 			Expect(list.Items).To(HaveLen(1))
+		})
+
+		It("should POST to the webhook when an alert fires and not fail Phase on a webhook error (US-4.4)", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Standing up an httptest webhook that captures the POST")
+			var received atomic.Int32
+			var gotBody []byte
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				received.Add(1)
+				gotBody, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			By("Enabling the webhook sink pointing at the test server")
+			fetched := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			fetched.Spec.Sink.Type = "webhook"
+			fetched.Spec.Sink.Webhook = &sensoriov1.WebhookSink{Enabled: true, URL: srv.URL}
+			Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
+
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			lt := health.NewLagTrackerWithClock(func() time.Time { return now })
+			// Recent event but lag above critical -> Ready=False/LagAboveCritical
+			// -> HighLag alert fires.
+			lt.OnEvent(now.Add(-200 * time.Second).UnixMilli())
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+				Lag:    lt,
+				Health: health.NewCheckerWithClock(k8sClient, lt, func() time.Time { return now }),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Fabricating a running pod status so lag drives the phase")
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling again so the checker fires the alert and the webhook receives the POST")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				g.Expect(received.Load()).To(BeNumerically(">=", 1))
+			}).Should(Succeed())
+			Expect(string(gotBody)).To(ContainSubstring("HighLag"))
+
+			By("Deriving Phase=Failed from the critical lag, not from any webhook result")
+			fetchedAfter := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetchedAfter)).To(Succeed())
+			Expect(fetchedAfter.Status.Phase).To(Equal("Failed"))
+			ready := meta.FindStatusCondition(fetchedAfter.Status.Conditions, "Ready")
+			Expect(ready).NotTo(BeNil())
+			Expect(ready.Reason).To(Equal("LagAboveCritical"))
+		})
+
+		It("should keep Phase derived from health when the webhook endpoint fails (non-blocking)", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Standing up an httptest webhook that always 500s")
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			}))
+			defer srv.Close()
+
+			fetched := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			fetched.Spec.Sink.Type = "webhook"
+			fetched.Spec.Sink.Webhook = &sensoriov1.WebhookSink{Enabled: true, URL: srv.URL}
+			Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
+
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			lt := health.NewLagTrackerWithClock(func() time.Time { return now })
+			// Lag in the warning band -> Ready=False/LagAboveWarning -> Degraded.
+			lt.OnEvent(now.Add(-45 * time.Second).UnixMilli())
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+				Lag:    lt,
+				Health: health.NewCheckerWithClock(k8sClient, lt, func() time.Time { return now }),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling again: the webhook POST fails but the reconcile does not error")
+			result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(30 * time.Second))
+
+			By("Keeping Phase=Degraded from the warning lag; a failed webhook never flips it to Failed")
+			fetchedAfter := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetchedAfter)).To(Succeed())
+			Expect(fetchedAfter.Status.Phase).To(Equal("Degraded"))
+			ready := meta.FindStatusCondition(fetchedAfter.Status.Conditions, "Ready")
+			Expect(ready).NotTo(BeNil())
+			Expect(ready.Reason).To(Equal("LagAboveWarning"))
 		})
 
 		It("should not create a PrometheusRule when alertRules are absent (US-4.1 opt-in)", func() {

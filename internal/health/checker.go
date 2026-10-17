@@ -79,6 +79,14 @@ const (
 	noEventFailTimeout   = 30 * time.Minute
 )
 
+// WarningLag / CriticalLag / NoEventWarn / NoEventFail expose the package
+// threshold constants so the reconciler can fill Alert.Threshold without copying
+// them. They are pure accessors and do not change decidePhase/Check behaviour.
+func WarningLag() time.Duration  { return warningLagThreshold }
+func CriticalLag() time.Duration { return criticalLagThreshold }
+func NoEventWarn() time.Duration { return noEventWarnTimeout }
+func NoEventFail() time.Duration { return noEventFailTimeout }
+
 // Phase values. Mirror the controller's phase constants (ADR-011).
 const (
 	phasePending  = "Pending"
