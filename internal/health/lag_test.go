@@ -26,6 +26,11 @@ import (
 
 func TestLagTrackerZeroBeforeAnyEvent(t *testing.T) {
 	lt := NewLagTracker()
+	// GetLag() must be 0 (not now-epoch) before any OnEvent, and LastEvent()
+	// must be the zero time. This locks the contract the Checker relies on to
+	// distinguish "no events ever" (startup → Pending) from "events stopped"
+	// (large sinceLastEvent → Degraded/Failed): the Checker keys off
+	// LastEvent().IsZero(), never a large GetLag().
 	assert.Equal(t, time.Duration(0), lt.GetLag())
 	assert.True(t, lt.LastEvent().IsZero())
 }

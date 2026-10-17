@@ -43,10 +43,13 @@ import (
 
 // Condition types and derived phases.
 const (
-	conditionTypeReady = "Ready"
-	phasePending       = "Pending"
-	phaseRunning       = "Running"
-	phaseFailed        = "Failed"
+	conditionTypeReady             = "Ready"
+	conditionTypeDebeziumAvailable = "DebeziumAvailable"
+	conditionTypeReceivingEvents   = "ReceivingEvents"
+	phasePending                   = "Pending"
+	phaseRunning                   = "Running"
+	phaseDegraded                  = "Degraded"
+	phaseFailed                    = "Failed"
 )
 
 // DatabaseSensorReconciler reconciles a DatabaseSensor object
@@ -64,6 +67,13 @@ type DatabaseSensorReconciler struct {
 	// Lag.GetLag()/LastEvent() into the hybrid status.
 	Exporter *metrics.Exporter
 	Lag      *health.LagTracker
+
+	// Health derives the DatabaseSensor Phase and conditions from the child
+	// DebeziumServer pod state + the lag/last-event signals (Task 9). OPTIONAL
+	// and nil-safe: when nil, Reconcile constructs a default
+	// health.NewChecker(r.Client, r.Lag) inline so envtest exercises the health
+	// path without changing the test harness.
+	Health *health.Checker
 }
 
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors,verbs=get;list;watch;create;update;patch;delete
@@ -130,7 +140,6 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// injecting it would add a dependency without a payoff. The result drives the
 	// Ready condition set below.
 	// TODO(Task 10): r.Metrics.EnsureAlertRules(ctx, &sensor)
-	// TODO(Task 9): phase, lag := r.Health.Check(ctx, &sensor)
 	ensureErr := deployer.EnsureDebeziumServer(ctx, r.Client, r.Scheme, &sensor)
 
 	// A transient (non-mapped) error is returned so controller-runtime backs off
@@ -158,22 +167,64 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	// Translate the ensure result into the hybrid status (ADR-011): conditions
-	// are the source of truth and Phase is derived from them. Persist with
-	// conflict retry, re-fetching the latest object inside the closure per
+	// Health check (Task 9). Only on the non-mapped-failure path: a mapped
+	// SecretNotFound/UnsupportedDBType keeps today's Ready=False path exactly and
+	// does not consult the checker. The checker is nil-safe: construct a default
+	// inline so the envtest harness (which builds the reconciler with only
+	// Client/Scheme) still exercises the health path. r.Lag is nil in tests → the
+	// event-signal arm is absent → the pod-state arm alone decides the Phase.
+	var healthRes health.HealthResult
+	if ensureErr == nil {
+		checker := r.Health
+		if checker == nil {
+			checker = health.NewChecker(r.Client, r.Lag)
+		}
+		res, herr := checker.Check(ctx, &sensor)
+		if herr != nil {
+			// Genuine API error: back off and retry WITHOUT touching status
+			// (DESIGN "API server timeout" row).
+			log.Error(herr, "Failed to evaluate DatabaseSensor health")
+			return ctrl.Result{}, herr
+		}
+		healthRes = res
+	}
+
+	// Translate the ensure/health result into the hybrid status (ADR-011):
+	// conditions are the source of truth and Phase is derived from them. Persist
+	// with conflict retry, re-fetching the latest object inside the closure per
 	// AGENTS.md. All status writes live in this single block.
-	condition := readyConditionFor(ensureErr)
 	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var fresh sensoriov1.DatabaseSensor
 		if err := r.Get(ctx, types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}, &fresh); err != nil {
 			return err
 		}
-		condition.ObservedGeneration = fresh.Generation
-		meta.SetStatusCondition(&fresh.Status.Conditions, condition)
-		if ensureErr == nil {
+
+		if ensureErr != nil {
+			// Mapped failure (SecretNotFound/UnsupportedDBType): keep today's
+			// path exactly — a single Ready=False condition drives Phase=Failed.
+			condition := readyConditionFor(ensureErr)
+			condition.ObservedGeneration = fresh.Generation
+			meta.SetStatusCondition(&fresh.Status.Conditions, condition)
+		} else {
+			// Health path: set all three conditions from the HealthResult.
+			for _, c := range healthConditions(healthRes) {
+				c.ObservedGeneration = fresh.Generation
+				meta.SetStatusCondition(&fresh.Status.Conditions, c)
+			}
 			// US-1.1: record the managed child name on success.
 			fresh.Status.DebeziumServer = fresh.Name
+			// US-5.5: human-readable lag (0 → "0s") and last-event time.
+			fresh.Status.Lag = healthRes.Lag.String()
+			if healthRes.LastEvent.IsZero() {
+				fresh.Status.LastEvent = nil
+			} else {
+				t := metav1.NewTime(healthRes.LastEvent)
+				fresh.Status.LastEvent = &t
+			}
+			// TODO(Task 13): set fresh.Status.EventsPerMin from a per-sensor rate
+			// once the CDC consumer lifecycle feeds a per-sensor exporter.
 		}
+
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
 		return r.Status().Update(ctx, &fresh)
 	}); err != nil {
@@ -226,21 +277,58 @@ func readyConditionFor(err error) metav1.Condition {
 	}
 }
 
-// failureReasons are Ready=False reasons that represent a terminal/misconfigured
-// state rather than a transient one, so Phase is derived as Failed.
+// healthConditions maps a HealthResult into the three status conditions the
+// reconciler persists (DebeziumAvailable, ReceivingEvents, Ready). Each shares
+// the same LastTransitionTime handling via meta.SetStatusCondition.
+func healthConditions(res health.HealthResult) []metav1.Condition {
+	return []metav1.Condition{
+		{
+			Type:    conditionTypeDebeziumAvailable,
+			Status:  res.DebeziumAvailable.Status,
+			Reason:  res.DebeziumAvailable.Reason,
+			Message: res.DebeziumAvailable.Message,
+		},
+		{
+			Type:    conditionTypeReceivingEvents,
+			Status:  res.ReceivingEvents.Status,
+			Reason:  res.ReceivingEvents.Reason,
+			Message: res.ReceivingEvents.Message,
+		},
+		{
+			Type:    conditionTypeReady,
+			Status:  res.Ready.Status,
+			Reason:  res.Ready.Reason,
+			Message: res.Ready.Message,
+		},
+	}
+}
+
+// failureReasons are Ready=False reasons that represent a terminal state, so
+// Phase is derived as Failed. It covers both the mapped-failure path
+// (SecretNotFound/UnsupportedDBType) and the health path's terminal reasons.
 var failureReasons = map[string]bool{
-	"SecretNotFound":    true,
-	"UnsupportedDBType": true,
+	"SecretNotFound":                 true,
+	"UnsupportedDBType":              true,
+	health.ReasonPodCrashLoopBackOff: true,
+	health.ReasonLagAboveCritical:    true,
+	health.ReasonNoEventsStale:       true,
+}
+
+// degradedReasons are Ready=False reasons that represent a non-terminal
+// degradation, so Phase is derived as Degraded.
+var degradedReasons = map[string]bool{
+	health.ReasonLagAboveWarning: true,
+	health.ReasonNoEventsTimeout: true,
 }
 
 // derivePhase computes the convenience Phase column from the condition set
 // (ADR-011: conditions are the source of truth, Phase is always derived).
-// It is a pure function.
+// It is a pure function. Precedence is worst-state-wins via the reason maps.
 //
-// Ready=True → Running. Ready=False with a failure reason → Failed. Ready=False
-// without such a reason, Ready=Unknown, or no Ready condition → Pending.
-// TODO(Task 9): extend to Degraded/Running from the full condition set
-// (DebeziumAvailable, ReceivingEvents, lag thresholds).
+// Ready=True → Running. Ready=False with a failure reason → Failed; with a
+// degraded reason → Degraded. Ready=False with a non-terminal/non-degraded
+// reason (PodNotFound/PodNotReady/NoEventsYet/DebeziumServerEnsured),
+// Ready=Unknown, or no Ready condition → Pending.
 func derivePhase(conditions []metav1.Condition) string {
 	ready := meta.FindStatusCondition(conditions, conditionTypeReady)
 	if ready == nil {
@@ -250,10 +338,14 @@ func derivePhase(conditions []metav1.Condition) string {
 	case metav1.ConditionTrue:
 		return phaseRunning
 	case metav1.ConditionFalse:
-		if failureReasons[ready.Reason] {
+		switch {
+		case failureReasons[ready.Reason]:
 			return phaseFailed
+		case degradedReasons[ready.Reason]:
+			return phaseDegraded
+		default:
+			return phasePending
 		}
-		return phasePending
 	default:
 		return phasePending
 	}
