@@ -39,25 +39,40 @@ type lagSink interface {
 	OnEvent(tsMs int64)
 }
 
+// recorder is satisfied by *dashboard.RingBuffer. Declared here (not imported)
+// so internal/events does not import internal/dashboard, which imports this
+// package for the CDCEvent type — keeping the import graph acyclic.
+type recorder interface {
+	Add(ev CDCEvent)
+}
+
 // Pipeline fans a CDC event out to the observability components. Exporter is the
-// metrics sink; Lag is optional (nil-safe) so the metrics-only path works without
-// a LagTracker.
+// metrics sink; Lag is the health lag tracker and Recorder is the dashboard ring
+// buffer. Lag and Recorder are optional (nil-safe) so the metrics-only path works
+// without them.
 //
 // The fields are interface-typed only to keep the import graph acyclic; callers
-// assign the concrete *metrics.Exporter and *health.LagTracker.
+// assign the concrete *metrics.Exporter, *health.LagTracker, and
+// *dashboard.RingBuffer.
 type Pipeline struct {
 	Exporter eventSink
 	Lag      lagSink
+	Recorder recorder
 }
 
-// Handle is the Consumer handler: it feeds the event to the Exporter (metrics)
-// and, when present, to the LagTracker (health). Pass p.Handle as the handler to
-// a Consumer's Start.
+// Handle is the Consumer handler: it feeds the event to the Exporter (metrics),
+// and, when present, to the LagTracker (health) and the dashboard RingBuffer
+// (recent-events history). Recording is always on when a Recorder is set, so the
+// dashboard shows history as soon as it is enabled. Pass p.Handle as the handler
+// to a Consumer's Start.
 func (p *Pipeline) Handle(ev CDCEvent) {
 	if p.Exporter != nil {
 		p.Exporter.OnEvent(ev)
 	}
 	if p.Lag != nil {
 		p.Lag.OnEvent(ev.TsMs)
+	}
+	if p.Recorder != nil {
+		p.Recorder.Add(ev)
 	}
 }

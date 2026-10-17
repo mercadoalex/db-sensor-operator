@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -36,6 +37,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
+	"github.com/mercadoalex/db-sensor-operator/internal/dashboard"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
 	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
@@ -64,6 +66,24 @@ type DatabaseSensorReconciler struct {
 	// health.NewChecker(r.Client, r.Lag) inline so envtest exercises the health
 	// path without changing the test harness.
 	Health *health.Checker
+
+	// Dashboard is the operator-wide dashboard enablement gate and DashboardBuf is
+	// the recent-events ring buffer (Task 14/15, DECISION A+B). Both are OPTIONAL
+	// and nil-safe: the controller envtest harness builds the reconciler without
+	// them. When set, Reconcile flips the gate on whenever any reconciled
+	// DatabaseSensor requests the dashboard (operator-wide, converging across
+	// enable/disable/delete) and pushes the maximum retention window to the
+	// buffer.
+	Dashboard    *dashboard.Gate
+	DashboardBuf *dashboard.RingBuffer
+
+	// dashboardMu guards dashboardSet, the set of sensor keys that currently
+	// request the dashboard (used to converge the operator-wide gate across
+	// multiple sensors). dashboardRetentions holds each requesting sensor's parsed
+	// retention so the buffer's window is the maximum across them (DECISION A).
+	dashboardMu         sync.Mutex
+	dashboardSet        map[types.NamespacedName]struct{}
+	dashboardRetentions map[types.NamespacedName]time.Duration
 }
 
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors,verbs=get;list;watch;create;update;patch;delete
@@ -122,8 +142,16 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// resources (e.g. remote slots, external registrations) ever need teardown;
 	// owner-reference GC covers child K8s objects today.
 	if !sensor.DeletionTimestamp.IsZero() {
+		// Drop any dashboard request this sensor held so the operator-wide gate
+		// converges on delete (Task 14/15, DECISION B). Nil-safe.
+		r.updateDashboardGate(req.NamespacedName, false, 0)
 		return ctrl.Result{}, nil
 	}
+
+	// Converge the operator-wide dashboard gate and retention window from this
+	// sensor's spec (Task 14/15, DECISION A+B). Nil-safe: the envtest harness
+	// builds the reconciler without the gate/buffer, so this is a no-op there.
+	r.reconcileDashboard(&sensor)
 
 	// Ensure the child DebeziumServer (Task 4). The deployer is a package-level
 	// function rather than a reconciler field: it has no state of its own, so
@@ -490,6 +518,62 @@ func derivePhase(conditions []metav1.Condition) string {
 		}
 	default:
 		return health.PhasePending
+	}
+}
+
+// reconcileDashboard reads the sensor's spec.dashboard and converges the
+// operator-wide gate/retention via updateDashboardGate. A sensor requests the
+// dashboard when spec.dashboard != nil && Enabled; its retention string is parsed
+// with time.ParseDuration (empty/unparseable → 0, i.e. no time bound, logged
+// nowhere since it is non-fatal, DECISION A).
+func (r *DatabaseSensorReconciler) reconcileDashboard(sensor *sensoriov1.DatabaseSensor) {
+	wants := sensor.Spec.Dashboard != nil && sensor.Spec.Dashboard.Enabled
+	var retention time.Duration
+	if wants && sensor.Spec.Dashboard.Retention != "" {
+		if d, err := time.ParseDuration(sensor.Spec.Dashboard.Retention); err == nil && d > 0 {
+			retention = d
+		}
+	}
+	key := types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}
+	r.updateDashboardGate(key, wants, retention)
+}
+
+// updateDashboardGate adds or removes a sensor key from the dashboard request set
+// and recomputes the operator-wide gate (on when the set is non-empty) and the
+// buffer's retention (the maximum window across requesting sensors, DECISION A).
+// It is concurrency-safe and fully nil-safe: when the gate/buffer are not
+// injected (envtest), it returns immediately.
+func (r *DatabaseSensorReconciler) updateDashboardGate(key types.NamespacedName, wants bool, retention time.Duration) {
+	if r.Dashboard == nil && r.DashboardBuf == nil {
+		return
+	}
+
+	r.dashboardMu.Lock()
+	if r.dashboardSet == nil {
+		r.dashboardSet = make(map[types.NamespacedName]struct{})
+		r.dashboardRetentions = make(map[types.NamespacedName]time.Duration)
+	}
+	if wants {
+		r.dashboardSet[key] = struct{}{}
+		r.dashboardRetentions[key] = retention
+	} else {
+		delete(r.dashboardSet, key)
+		delete(r.dashboardRetentions, key)
+	}
+	enabled := len(r.dashboardSet) > 0
+	var maxRetention time.Duration
+	for _, d := range r.dashboardRetentions {
+		if d > maxRetention {
+			maxRetention = d
+		}
+	}
+	r.dashboardMu.Unlock()
+
+	if r.Dashboard != nil {
+		r.Dashboard.Set(enabled)
+	}
+	if r.DashboardBuf != nil {
+		r.DashboardBuf.SetRetention(maxRetention)
 	}
 }
 

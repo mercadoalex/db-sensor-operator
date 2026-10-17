@@ -45,7 +45,12 @@ import (
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 )
 
-const defaultHTTPAddr = ":8081"
+// defaultHTTPAddr is the HTTPConsumer's standalone listen address. It is :8080
+// (NOT :8081) so the constant never shadows the manager's health-probe port
+// (DECISION C). Today CDC ingestion is mounted as POST /cdc on the operator HTTP
+// server (cmd/main.go), so this standalone address is used only if a caller runs
+// HTTPConsumer.Start directly (e.g. a test or an alternate wiring).
+const defaultHTTPAddr = ":8080"
 
 // Consumer receives CDC events from a transport and delivers each parsed event
 // to handler. Start blocks until ctx is cancelled (or the transport ends) and

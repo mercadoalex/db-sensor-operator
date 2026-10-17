@@ -17,16 +17,18 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"flag"
+	"net/http"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -34,14 +36,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	sensoriov1 "github.com/mercadoalex/db-sensor-operator/api/v1"
 	"github.com/mercadoalex/db-sensor-operator/internal/controller"
+	"github.com/mercadoalex/db-sensor-operator/internal/dashboard"
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	"github.com/mercadoalex/db-sensor-operator/internal/events"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
@@ -86,7 +87,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
-	var cdcHTTPBindAddress string
+	var operatorHTTPBindAddress string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -107,9 +108,11 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.StringVar(&cdcHTTPBindAddress, "cdc-http-bind-address", "",
-		"The address the HTTP CDC event consumer binds to (e.g. :8082). "+
-			"Empty (the default) disables the HTTP consumer so envtest and leader election are unaffected.")
+	flag.StringVar(&operatorHTTPBindAddress, "operator-http-bind-address", ":8080",
+		"The address the operator HTTP server binds to. It serves /metrics (always on), "+
+			"/dashboard and /api/events (when a sensor enables the dashboard), /cdc (HTTP CDC "+
+			"ingestion), and /healthz,/readyz. Distinct from --metrics-bind-address and "+
+			"--health-probe-bind-address. Empty disables the server (e.g. for tests).")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -210,43 +213,51 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build the operator-wide event-pipeline components (DECISION 2): one
-	// Exporter registered on controller-runtime's global metrics registry (so it
-	// is served by the manager's existing metrics server) and one LagTracker.
-	// The Pipeline fans each CDC event out to both.
-	// TODO(Task 15): mount the HTTP consumer's Handler() and exp.Handler() on the
-	// real ServeMux alongside /dashboard and /api/events.
-	exp := metrics.NewExporter(ctrlmetrics.Registry)
+	// Build the operator-wide event-pipeline components (DECISION 2 + Task 14/15
+	// DECISION F): the Exporter uses its OWN private registry (not
+	// controller-runtime's global registry) so the derived debezium_* metrics are
+	// served as plain HTTP on the operator server's /metrics (ADR-04, always on),
+	// not the manager's kube-RBAC-protected :8443 endpoint. The LagTracker feeds
+	// status, and the RingBuffer records recent events for the dashboard. The
+	// Pipeline fans each CDC event out to all three.
+	exp := metrics.NewExporter(prometheus.NewRegistry())
 	lag := health.NewLagTracker()
-	pipeline := &events.Pipeline{Exporter: exp, Lag: lag}
+	buf := dashboard.NewRingBuffer(0, time.Now)
+	gate := &dashboard.Gate{}
+	pipeline := &events.Pipeline{Exporter: exp, Lag: lag, Recorder: buf}
 
 	if err := (&controller.DatabaseSensorReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Exporter: exp,
-		Lag:      lag,
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Exporter:     exp,
+		Lag:          lag,
+		Dashboard:    gate,
+		DashboardBuf: buf,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "databasesensor")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
-	// Optionally run the default HTTP CDC consumer as a manager Runnable. It is
-	// OFF by default (empty --cdc-http-bind-address) so envtest and leader
-	// election are unaffected; a later task mounts it on the real ServeMux.
-	if cdcHTTPBindAddress != "" {
+	// Run the unified operator HTTP server as a manager Runnable (Task 15,
+	// DECISION C/E). It mounts /metrics (exp.Handler(), always on), /dashboard and
+	// /api/events (gated), /cdc (HTTP CDC ingestion, replacing the former
+	// standalone :8081 consumer), and /healthz,/readyz. Added only when a bind
+	// address is configured so an explicit empty value (or a test) can disable it;
+	// the controller envtest suite never calls main, so it is unaffected.
+	if operatorHTTPBindAddress != "" {
 		consumer, err := events.NewConsumer(sensoriov1.TransportConfig{Type: "http"})
 		if err != nil {
 			setupLog.Error(err, "Failed to create CDC consumer")
 			os.Exit(1)
 		}
+		var cdcHandler http.Handler
 		if httpc, ok := consumer.(*events.HTTPConsumer); ok {
-			httpc.Addr = cdcHTTPBindAddress
+			cdcHandler = httpc.Handler(pipeline.Handle)
 		}
-		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			return consumer.Start(ctx, pipeline.Handle)
-		})); err != nil {
-			setupLog.Error(err, "Failed to add CDC consumer runnable")
+		server := dashboard.NewServer(operatorHTTPBindAddress, exp.Handler(), cdcHandler, buf, gate)
+		if err := mgr.Add(server); err != nil {
+			setupLog.Error(err, "Failed to add operator HTTP server runnable")
 			os.Exit(1)
 		}
 	}

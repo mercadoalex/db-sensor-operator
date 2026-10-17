@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DatabaseSensor Dashboard</title>
+  <!-- Chart.js is loaded from a CDN (not a Go dependency). -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #1a1a2e; }
+    h1 { font-size: 1.3rem; }
+    .charts { display: flex; flex-wrap: wrap; gap: 2rem; }
+    .chart-box { flex: 1 1 420px; max-width: 560px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+    th, td { border: 1px solid #d0d0e0; padding: 4px 8px; text-align: left; font-size: 0.85rem; }
+    th { background: #f0f0f8; }
+    caption { text-align: left; font-weight: 600; margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+  <h1>DatabaseSensor Dashboard</h1>
+  <p>Live CDC observability. Charts poll <code>/metrics</code> and the recent-events
+     table polls <code>/api/events</code> every few seconds.</p>
+
+  <div class="charts">
+    <div class="chart-box">
+      <canvas id="lagChart" aria-label="Replication lag in seconds" role="img"></canvas>
+    </div>
+    <div class="chart-box">
+      <canvas id="rateChart" aria-label="Events per minute" role="img"></canvas>
+    </div>
+  </div>
+
+  <table>
+    <caption>Recent events</caption>
+    <thead>
+      <tr><th>Recorded</th><th>Op</th><th>DB</th><th>Table</th><th>ts_ms</th></tr>
+    </thead>
+    <tbody id="eventsBody"></tbody>
+  </table>
+
+  <script>
+    const POLL_MS = 5000;
+
+    const lagChart = new Chart(document.getElementById('lagChart'), {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'debezium_lag_seconds', data: [], borderColor: '#2d6cdf', fill: false }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    const rateChart = new Chart(document.getElementById('rateChart'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'debezium_events_per_minute', data: [], backgroundColor: '#5bc0a8' }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Minimal Prometheus text-format parser: returns an array of
+    // {labels, value} for every sample of the requested metric name.
+    function parseMetric(text, name) {
+      const out = [];
+      for (const line of text.split('\n')) {
+        if (line.startsWith('#') || line.trim() === '') continue;
+        if (!line.startsWith(name)) continue;
+        const rest = line.slice(name.length);
+        if (rest.length && rest[0] !== '{' && rest[0] !== ' ') continue; // avoid name prefix collisions
+        const m = line.match(/^[^ ]+ (.+)$/);
+        if (!m) continue;
+        const labelMatch = line.match(/\{([^}]*)\}/);
+        out.push({ labels: labelMatch ? labelMatch[1] : '', value: parseFloat(m[1]) });
+      }
+      return out;
+    }
+
+    async function refreshMetrics() {
+      try {
+        const res = await fetch('/metrics');
+        if (!res.ok) return;
+        const text = await res.text();
+
+        const lag = parseMetric(text, 'debezium_lag_seconds');
+        lagChart.data.labels = lag.map(s => s.labels || '(all)');
+        lagChart.data.datasets[0].data = lag.map(s => s.value);
+        lagChart.update();
+
+        const rate = parseMetric(text, 'debezium_events_per_minute');
+        rateChart.data.labels = rate.map(s => s.labels || '(all)');
+        rateChart.data.datasets[0].data = rate.map(s => s.value);
+        rateChart.update();
+      } catch (e) { /* transient; retry next tick */ }
+    }
+
+    async function refreshEvents() {
+      try {
+        const res = await fetch('/api/events');
+        if (!res.ok) return;
+        const events = await res.json();
+        const body = document.getElementById('eventsBody');
+        body.innerHTML = '';
+        for (const ev of events) {
+          const tr = document.createElement('tr');
+          for (const cell of [ev.recordedAt, ev.op, ev.db, ev.table, ev.tsMs]) {
+            const td = document.createElement('td');
+            td.textContent = cell == null ? '' : String(cell);
+            tr.appendChild(td);
+          }
+          body.appendChild(tr);
+        }
+      } catch (e) { /* transient; retry next tick */ }
+    }
+
+    function tick() { refreshMetrics(); refreshEvents(); }
+    tick();
+    setInterval(tick, POLL_MS);
+  </script>
+</body>
+</html>
