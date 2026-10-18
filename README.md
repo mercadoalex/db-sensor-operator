@@ -247,6 +247,7 @@ este repo no las ejecuta.
 ### Más documentación
 
 - [DESIGN.MD](DESIGN.MD) — diseño completo (ADRs, diagramas, manejo de errores).
+- [ROADMAP.md](ROADMAP.md) — mejoras propuestas, por niveles (trust / competitivo / fleet).
 - [docs/TESTING.md](docs/TESTING.md) — guía práctica de testing.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — status híbrido (conditions + mediciones + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — transporte HTTP default / Kafka opcional.
