@@ -1,0 +1,63 @@
+# Demo DatabaseSensor for the synthetic-event walkthrough.
+#
+# This CR intentionally does NOT depend on a real database or a real Debezium
+# Server: the demo drives the operator's observability pipeline by POSTing
+# synthetic Debezium events directly to the operator's HTTP ingestion endpoint
+# (POST /cdc on :8080). See demo/README.md.
+#
+# dashboard.enabled: true turns on the built-in dashboard (/dashboard) and the
+# recent-events API (/api/events) so the walkthrough has something to show.
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  name: demo-orders
+  namespace: db-sensor
+spec:
+  database:
+    type: postgresql
+    host: demo-postgres        # not actually contacted in the synthetic demo
+    port: 5432
+    user: debezium
+    passwordSecret: demo-db-creds
+  tables:
+    - orders
+    - users
+    - payments
+
+  # HTTP transport (default): events arrive via POST /cdc. No Kafka broker needed.
+  transport:
+    type: http
+
+  sink:
+    type: all
+    prometheus:
+      namespace: db-sensor
+      serviceMonitor: true
+      alertRules:
+        - name: HighLag
+          expr: 'debezium_lag_seconds > 30'
+          for: 1m
+          severity: warning
+        - name: NoEvents
+          expr: 'rate(debezium_events_total[5m]) == 0'
+          for: 2m
+          severity: critical
+    # Point this at a webhook catcher during the demo (e.g. a webhook.site URL
+    # or a local httptest echo) to show the alert fan-out. Disabled by default so
+    # the demo works with no external endpoint.
+    webhook:
+      enabled: false
+      url: https://example.invalid/webhook
+      triggerOn:
+        - HighLag
+        - NoEvents
+    datadog:
+      enabled: false
+      apiKeySecret: demo-dd-api
+      appKeySecret: demo-dd-app
+      tags:
+        - env:demo
+
+  dashboard:
+    enabled: true
+    retention: 1h
