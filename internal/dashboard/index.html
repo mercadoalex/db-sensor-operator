@@ -8,6 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; margin: 1.5rem; color: #1a1a2e; }
+    header.brand { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; width: 100%; }
+    header.brand img { height: 56px; width: auto; }
+    header.brand h1 { font-size: 1.3rem; margin: 0; margin-left: auto; text-align: right; }
     h1 { font-size: 1.3rem; }
     .charts { display: flex; flex-wrap: wrap; gap: 2rem; }
     .chart-box { flex: 1 1 420px; max-width: 560px; }
@@ -18,7 +21,10 @@
   </style>
 </head>
 <body>
-  <h1>DatabaseSensor Dashboard</h1>
+  <header class="brand">
+    <img src="/dashboard/logo" alt="Lactiflluus" />
+    <h1>DatabaseSensor Dashboard</h1>
+  </header>
   <p>Live CDC observability. Charts poll <code>/metrics</code> and the recent-events
      table polls <code>/api/events</code> every few seconds.</p>
 

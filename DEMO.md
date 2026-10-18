@@ -117,6 +117,10 @@ traffic:
 
 Open the dashboard: <http://localhost:8080/dashboard>
 
+<p align="center">
+  <img src="assets/dashboard.png" alt="The DatabaseSensor dashboard: Lactiflluus logo and title in the header, a debezium_lag_seconds line chart (per table) with a hover tooltip, a debezium_events_per_minute bar chart, and a Recent events table listing op/db/table/ts_ms rows" width="900">
+</p>
+
 ## 4. Feed synthetic events — the pipeline lights up
 
 ```bash
@@ -157,6 +161,13 @@ $ curl -s http://localhost:8080/api/events | jq '.[0]'
   "recordedAt": "2026-10-18T00:32:59.942900339Z"
 }
 ```
+
+The raw `/api/events` response is the recent-events ring buffer, newest first —
+each entry carries `op` (c/u/d/ddl), `db`, `table`, `tsMs`, and `recordedAt`:
+
+<p align="center">
+  <img src="assets/api-events.png" alt="Raw JSON from /api/events: a newest-first array of CDC events with op, db, table, tsMs and recordedAt fields, including a ddl entry" width="900">
+</p>
 
 ## 5. Show degradation — high lag
 

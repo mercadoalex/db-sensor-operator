@@ -17,3 +17,4 @@
 # internal/dashboard). These are not *.go files, so the catch-all ** above would
 # drop them and `go build` would fail with "pattern index.html: no matching files".
 !internal/dashboard/index.html
+!internal/dashboard/logo.jpeg

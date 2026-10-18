@@ -56,6 +56,13 @@ import (
 //go:embed index.html
 var indexHTML []byte
 
+// logoJPEG is the embedded Lactiflluus header logo (a web-sized copy of
+// assets/lactifluss-hori.jpeg). It is served at /dashboard/logo and referenced
+// by index.html so the branded logo renders without an external request.
+//
+//go:embed logo.jpeg
+var logoJPEG []byte
+
 // Gate is the operator-wide dashboard enablement switch (DECISION B). The
 // reconciler flips it on when any DatabaseSensor requests the dashboard; the
 // /dashboard and /api/events handlers consult Enabled on every request and
@@ -108,8 +115,9 @@ func NewServer(addr string, metricsH, cdcH http.Handler, buf *RingBuffer, gate *
 	if cdcH != nil {
 		s.mux.Handle("/cdc", cdcH)
 	}
-	// Gated: dashboard page and events API (US-6.1/6.2/6.3).
+	// Gated: dashboard page, header logo, and events API (US-6.1/6.2/6.3).
 	s.mux.HandleFunc("/dashboard", s.dashboardHandler)
+	s.mux.HandleFunc("/dashboard/logo", s.logoHandler)
 	s.mux.HandleFunc("/api/events", s.eventsHandler)
 	// Always-on: trivial liveness/readiness pings for this port.
 	s.mux.HandleFunc("/healthz", pingHandler)
@@ -132,6 +140,18 @@ func (s *Server) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(indexHTML)
+}
+
+// logoHandler serves the embedded Lactiflluus header logo when the dashboard is
+// enabled, and returns 404 otherwise (it is part of the gated dashboard UI).
+func (s *Server) logoHandler(w http.ResponseWriter, r *http.Request) {
+	if s.gate == nil || !s.gate.Enabled() {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(logoJPEG)
 }
 
 // eventsHandler serves the recent CDC events as a JSON array (newest-first) when

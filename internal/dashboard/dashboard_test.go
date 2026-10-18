@@ -55,7 +55,7 @@ func TestDashboardGatedOff(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	for _, path := range []string{"/dashboard", "/api/events"} {
+	for _, path := range []string{"/dashboard", "/dashboard/logo", "/api/events"} {
 		resp, err := http.Get(ts.URL + path)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
@@ -84,6 +84,27 @@ func TestDashboardGatedOnServesHTML(t *testing.T) {
 	assert.Contains(t, html, "chart.js", "page must reference the Chart.js CDN script")
 	assert.Contains(t, html, "/api/events", "page must fetch the events API")
 	assert.Contains(t, html, "/metrics", "page must fetch metrics")
+	assert.Contains(t, html, "/dashboard/logo", "page must reference the branded logo")
+}
+
+func TestDashboardLogoServedWhenEnabled(t *testing.T) {
+	gate := &dashboard.Gate{}
+	gate.Enable()
+	buf := dashboard.NewRingBuffer(0, nil)
+	srv, _ := newTestServer(t, gate, buf)
+
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/dashboard/logo")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "image/jpeg")
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotEmpty(t, body, "logo bytes must be served")
 }
 
 func TestEventsAPIReturnsRecordedEvents(t *testing.T) {
