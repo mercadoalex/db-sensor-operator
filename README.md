@@ -5,71 +5,77 @@
 <h1 align="center">Lactifluus — DatabaseSensor Operator</h1>
 
 <p align="center">
-  Un operator de Kubernetes basado en Debezium (CDC) como sensor de observabilidad de bases de datos.
+  A Kubernetes operator built on Debezium (CDC) as a database observability sensor.
 </p>
 
 ---
 
-## Qué es
+> [!WARNING]
+> **🚧 Work in progress — not production ready.**
+> Lactiflluus is under active, early-stage development (much of the implementation work is still pending). The `DatabaseSensor` CR API, the Helm chart, and the operator's behavior **may change without notice**. Use it to evaluate, experiment, and give feedback — **do not deploy it to production yet**.
 
-**Lactiflluus** es un operator de Kubernetes escrito en Go que orquesta observabilidad de bases de datos a partir de Change Data Capture (CDC). Declaras en un YAML "monitorea estas tablas y avísame si X", y el operator orquesta automáticamente Debezium + Prometheus + alertas multi-sink.
+---
 
-Se implementa como el custom resource `DatabaseSensor` y actúa como una **capa de observabilidad** sobre el Debezium Operator oficial: deriva métricas, crea `ServiceMonitor` / `PrometheusRule`, hace fan-out de alertas a múltiples backends y expone un status enriquecido en el CR.
+## What it is
 
-### Problema que resuelve
+**Lactiflluus** is a Kubernetes operator written in Go that orchestrates database observability from Change Data Capture (CDC). You declare in a YAML "monitor these tables and alert me if X", and the operator automatically orchestrates Debezium + Prometheus + multi-sink alerting.
 
-- **Sin operator:** script cron + `kubectl` + configuración imperativa de Debezium, Prometheus y Alertmanager.
-- **Con operator:** un solo YAML declarativo que despliega, monitorea y alerta.
+It is implemented as the `DatabaseSensor` custom resource and acts as an **observability layer** on top of the official Debezium Operator: it derives metrics, creates `ServiceMonitor` / `PrometheusRule`, fans out alerts to multiple backends, and exposes an enriched status on the CR.
 
-### Diferencia con el Debezium Operator oficial
+### The problem it solves
 
-El oficial (Apache 2.0, Java) solo gestiona el lifecycle de Debezium Server (deploy, scale, config). **No** deriva métricas de observabilidad, no crea `ServiceMonitor` / `AlertRules`, no alerta por patrones de mutación ni expone un status rico. Lactiflluus cubre ese gap.
+- **Without an operator:** cron script + `kubectl` + imperative configuration of Debezium, Prometheus, and Alertmanager.
+- **With the operator:** a single declarative YAML that deploys, monitors, and alerts.
 
-## Capacidades clave
+### Difference from the official Debezium Operator
 
-- Crear y gestionar un `DebeziumServer` (vía el Debezium Operator oficial) desde un solo CR.
-- Derivar métricas: `insert_rate`, `update_rate`, `delete_rate`, `lag`, `schema_changes`.
-- Exponer `/metrics` (formato Prometheus) **siempre**, independientemente del sink configurado.
-- Fan-out de alertas a múltiples backends: Prometheus, Datadog, Webhook/Slack.
-- Dashboard embebido con gráficos en vivo.
-- Status enriquecido visible con `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
-- Soporte multi-BD: PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server, Oracle, Db2, Cassandra.
+The official one (Apache 2.0, Java) only manages the Debezium Server lifecycle (deploy, scale, config). It does **not** derive observability metrics, does not create `ServiceMonitor` / `AlertRules`, does not alert on mutation patterns, and does not expose a rich status. Lactiflluus fills that gap.
 
-## Arquitectura
+## Key capabilities
+
+- Create and manage a `DebeziumServer` (via the official Debezium Operator) from a single CR.
+- Derive metrics: `insert_rate`, `update_rate`, `delete_rate`, `lag`, `schema_changes`.
+- Expose `/metrics` (Prometheus format) **always**, regardless of the configured sink.
+- Fan out alerts to multiple backends: Prometheus, Datadog, Webhook/Slack.
+- Embedded dashboard with live charts.
+- Enriched status visible with `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
+- Multi-DB support: PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server, Oracle, Db2, Cassandra.
+
+## Architecture
 
 <p align="center">
-  <img src="assets/architecture.jpeg" alt="Arquitectura de Lactiflluus: el CR DatabaseSensor es reconciliado por el operator, que crea un DebeziumServer (gestionado por el Debezium Operator oficial), consume los eventos CDC, deriva métricas y hace fan-out a Prometheus, Datadog y Webhook/Dashboard" width="900">
+  <img src="assets/architecture.jpeg" alt="Lactiflluus architecture: the DatabaseSensor CR is reconciled by the operator, which creates a DebeziumServer (managed by the official Debezium Operator), consumes the CDC events, derives metrics, and fans out to Prometheus, Datadog, and Webhook/Dashboard" width="900">
 </p>
 
-El diagrama de arriba muestra el flujo completo: aplicas un CR `DatabaseSensor`, el reconciler (cada 30s) crea un `DebeziumServer` que el operator oficial de Debezium despliega, los eventos CDC se consumen (Kafka o HTTP), se derivan métricas (`insert_rate`, `lag`, `schema_changes`), se expone siempre `/metrics` en formato Prometheus, y según `spec.sink` se hace fan-out a múltiples backends. Todos los recursos hijos usan owner references, así que borrar el `DatabaseSensor` limpia todo en cascada.
+The diagram above shows the full flow: you apply a `DatabaseSensor` CR, the reconciler (every 30s) creates a `DebeziumServer` that the official Debezium operator deploys, the CDC events are consumed (Kafka or HTTP), metrics are derived (`insert_rate`, `lag`, `schema_changes`), `/metrics` is always exposed in Prometheus format, and depending on `spec.sink` alerts are fanned out to multiple backends. All child resources use owner references, so deleting the `DatabaseSensor` cleans everything up in cascade.
 
-El detalle del bucle de reconciliación:
+The reconciliation loop in detail:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ User aplica DatabaseSensor CR                                │
+│ User applies DatabaseSensor CR                               │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ Reconcile (cada 30s)
+                           │ Reconcile (every 30s)
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ DatabaseSensor Reconciler (controller-runtime)               │
-│   1. EnsureDebeziumServer() → crea el DebeziumServer CR      │
-│   2. EnsureServiceMonitor() → Prometheus scrapea /metrics   │
-│   3. EnsureAlertRules()     → PrometheusRule (alertas)      │
-│   4. EnsureService()        → expone /metrics + /dashboard  │
-│   5. HealthCheck()          → pod status + lag              │
-│   6. UpdateStatus()         → Phase, Lag, EventsPerMin...   │
+│   1. EnsureDebeziumServer() → creates the DebeziumServer CR  │
+│   2. EnsureServiceMonitor() → Prometheus scrapes /metrics    │
+│   3. EnsureAlertRules()     → PrometheusRule (alerts)        │
+│   4. EnsureService()        → exposes /metrics + /dashboard  │
+│   5. HealthCheck()          → pod status + lag               │
+│   6. UpdateStatus()         → Phase, Lag, EventsPerMin...    │
 └───────────┬───────────────────┬───────────────┬─────────────┘
             ▼                   ▼               ▼
    ┌─────────────────┐  ┌──────────────┐  ┌──────────────┐
    │ Debezium Op.    │  │ Prometheus   │  │ Datadog /    │
-   │ (oficial, Java) │  │ Operator     │  │ Webhook      │
+   │ (official, Java)│  │ Operator     │  │ Webhook      │
    └─────────────────┘  └──────────────┘  └──────────────┘
 ```
 
-El operator **no** redespliega Debezium desde cero: crea un `DebeziumServer` CR como recurso hijo (con `ownerReference`), y el Debezium Operator oficial maneja el lifecycle. Todos los recursos hijos usan owner references, por lo que borrar el `DatabaseSensor` limpia todo en cascada.
+The operator does **not** redeploy Debezium from scratch: it creates a `DebeziumServer` CR as a child resource (with an `ownerReference`), and the official Debezium Operator handles the lifecycle. All child resources use owner references, so deleting the `DatabaseSensor` cleans everything up in cascade.
 
-## Ejemplo de uso
+## Usage example
 
 ```yaml
 apiVersion: sensor.io/v1
@@ -115,32 +121,32 @@ spec:
     retention: 72h
 ```
 
-## Métricas derivadas
+## Derived metrics
 
-| Métrica | Cálculo | Alerta |
+| Metric | Calculation | Alert |
 |---|---|---|
-| `debezium_events_total{op="c"}` (insert) | Count de `op=c` por ventana | `< N/min` → ¿se cayó el tráfico? |
-| `debezium_events_total{op="u"}` (update) | Count de `op=u` | `> N/min` → ¿bulk update? |
-| `debezium_events_total{op="d"}` (delete) | Count de `op=d` | `> N/min` → ¿borrado masivo? |
-| `debezium_schema_changes_total` | Evento DDL detectado | Cualquier DDL → ¿migración sin aviso? |
-| `debezium_lag_seconds` | `now() - ts_ms` del evento | `> 30s` → Debezium se queda atrás |
-| `debezium_events_per_minute` | Rate de eventos | — |
+| `debezium_events_total{op="c"}` (insert) | Count of `op=c` per window | `< N/min` → did traffic drop? |
+| `debezium_events_total{op="u"}` (update) | Count of `op=u` | `> N/min` → bulk update? |
+| `debezium_events_total{op="d"}` (delete) | Count of `op=d` | `> N/min` → mass delete? |
+| `debezium_schema_changes_total` | DDL event detected | Any DDL → unannounced migration? |
+| `debezium_lag_seconds` | `now() - ts_ms` of the event | `> 30s` → Debezium is falling behind |
+| `debezium_events_per_minute` | Event rate | — |
 
 ## Status (`kubectl get`)
 
-El CR expone un status enriquecido con el subresource de status:
+The CR exposes an enriched status via the status subresource:
 
-| Campo | Descripción |
+| Field | Description |
 |---|---|
 | `phase` | `Pending` → `Running` → `Degraded` → `Failed` |
-| `lag` | Duración legible (p. ej. `42s`) |
-| `eventsPerMin` | Float con la tasa de eventos |
-| `lastEvent` | Tiempo relativo del último evento |
-| `lastError` | Mensaje de error (vacío si no hay) |
+| `lag` | Human-readable duration (e.g. `42s`) |
+| `eventsPerMin` | Float with the event rate |
+| `lastEvent` | Relative time of the last event |
+| `lastError` | Error message (empty if none) |
 
-## Bases de datos soportadas
+## Supported databases
 
-| BD | Mecanismo |
+| DB | Mechanism |
 |---|---|
 | PostgreSQL | Logical decoding (pgoutput, wal2json) |
 | MySQL / MariaDB | Binary log (binlog) |
@@ -150,40 +156,40 @@ El CR expone un status enriquecido con el subresource de status:
 | Db2 | ASN Capture |
 | Cassandra | CommitLog (cdc_raw) |
 
-## Stack tecnológico
+## Tech stack
 
 - **Go 1.22+**, **Kubebuilder**, **controller-runtime**, **client-go**
-- `github.com/prometheus/client_golang` — métricas Prometheus
-- `github.com/tidwall/gjson` — parsing de eventos CDC
-- `github.com/segmentio/kafka-go` — Kafka consumer (sink Kafka)
+- `github.com/prometheus/client_golang` — Prometheus metrics
+- `github.com/tidwall/gjson` — CDC event parsing
+- `github.com/segmentio/kafka-go` — Kafka consumer (Kafka sink)
 - `github.com/DataDog/datadog-api-client-go` — Datadog API
-- Docker multi-stage (`golang:1.22` → `distroless/static`) + Helm chart
+- Multi-stage Docker (`golang:1.22` → `distroless/static`) + Helm chart
 
 ## Quick start
 
-### Prerequisitos
+### Prerequisites
 
-Estos operators se instalan **por separado** — el chart de Lactiflluus no los incluye:
+These operators are installed **separately** — the Lactiflluus chart does not include them:
 
-- Un cluster de Kubernetes.
-- **Debezium Operator oficial** (gestiona el lifecycle de Debezium Server).
-- **Prometheus Operator** (para los CRDs `ServiceMonitor` y `PrometheusRule`).
-- Kafka / Redpanda **opcional** (solo si usas el transporte Kafka; con HTTP, el default, no se necesita broker).
+- A Kubernetes cluster.
+- **Official Debezium Operator** (manages the Debezium Server lifecycle).
+- **Prometheus Operator** (for the `ServiceMonitor` and `PrometheusRule` CRDs).
+- Kafka / Redpanda **optional** (only if you use the Kafka transport; with HTTP, the default, no broker is needed).
 
-### Instalación
+### Installation
 
 ```bash
-# 1. Instalar el Debezium Operator oficial
+# 1. Install the official Debezium Operator
 helm repo add debezium https://charts.debezium.io
 helm install debezium-operator debezium/debezium-operator -n debezium
 
-# 2. Instalar Lactiflluus (crea el namespace en el primer install)
+# 2. Install Lactiflluus (creates the namespace on first install)
 helm install db-sensor ./charts/db-sensor-operator -n db-sensor --create-namespace
 
-# 3. Aplicar un CR de ejemplo
+# 3. Apply a sample CR
 kubectl apply -n db-sensor -f config/samples/v1_databasesensor_basic.yaml
 
-# 4. Ver el status del sensor (shortname: dbsensor)
+# 4. Check the sensor status (shortname: dbsensor)
 kubectl get databasesensor -n db-sensor
 # NAME                   PHASE     READY   LAG   EVENTS/MIN   DB TYPE
 # databasesensor-basic   Pending   False               0     postgresql
@@ -191,116 +197,120 @@ kubectl get databasesensor -n db-sensor
 
 ### Samples
 
-Tres ejemplos listos para `kubectl apply` viven en [`config/samples/`](config/samples/):
+Three ready-to-`kubectl apply` examples live in [`config/samples/`](config/samples/):
 
-| Sample | Qué muestra |
+| Sample | What it shows |
 |---|---|
-| [`v1_databasesensor_basic.yaml`](config/samples/v1_databasesensor_basic.yaml) | mínimo, sink prometheus-only |
-| [`v1_databasesensor.yaml`](config/samples/v1_databasesensor.yaml) | completo: todos los sinks + dashboard + transport |
-| [`v1_databasesensor_mysql.yaml`](config/samples/v1_databasesensor_mysql.yaml) | engine MySQL, sink webhook, transport HTTP |
+| [`v1_databasesensor_basic.yaml`](config/samples/v1_databasesensor_basic.yaml) | minimal, prometheus-only sink |
+| [`v1_databasesensor.yaml`](config/samples/v1_databasesensor.yaml) | full: all sinks + dashboard + transport |
+| [`v1_databasesensor_mysql.yaml`](config/samples/v1_databasesensor_mysql.yaml) | MySQL engine, webhook sink, HTTP transport |
 
 ### Demo
 
-Hay una demo local reproducible (kind + eventos CDC sintéticos, sin BD/Debezium/Kafka reales) que
-enciende todo el pipeline de observabilidad. Walkthrough documentado con salida real y capturas en
-[DEMO.md](DEMO.md); los scripts están en [`demo/`](demo/).
+There is a reproducible local demo (kind + synthetic CDC events, no real DB/Debezium/Kafka) that
+spins up the whole observability pipeline. The walkthrough is documented with real output and screenshots in
+[DEMO.md](DEMO.md); the scripts are in [`demo/`](demo/).
 
 ```bash
-./demo/setup.sh                                   # kind + CRDs + imagen + helm install
+./demo/setup.sh                                   # kind + CRDs + image + helm install
 kubectl apply -f demo/sample-databasesensor.yaml
 kubectl -n db-sensor port-forward svc/db-sensor-db-sensor-operator-operator-http 8080:8080
-./demo/generate-events.sh --burst 60              # eventos sintéticos -> /cdc
+./demo/generate-events.sh --burst 60              # synthetic events -> /cdc
 open http://localhost:8080/dashboard
 ```
 
-### Endpoints y puertos
+### Endpoints and ports
 
-El manager y el servidor HTTP del operator exponen puertos distintos:
+The operator's manager and HTTP server expose different ports:
 
-| Puerto | Qué sirve |
+| Port | What it serves |
 |---|---|
-| `:8080` | servidor HTTP del operator: `/metrics` (siempre), `/dashboard` + `/api/events` (gated por `dashboard.enabled`, 404 cuando está off), `/cdc`, `/healthz`, `/readyz` |
-| `:8081` | health probes del manager: `/healthz`, `/readyz` |
-| `:8443` | métricas del manager protegidas por kube-RBAC |
+| `:8080` | operator HTTP server: `/metrics` (always), `/dashboard` + `/api/events` (gated by `dashboard.enabled`, 404 when off), `/cdc`, `/healthz`, `/readyz` |
+| `:8081` | manager health probes: `/healthz`, `/readyz` |
+| `:8443` | manager metrics protected by kube-RBAC |
 
-### Transporte de eventos
+### Event transport
 
-El ingreso de eventos CDC usa **HTTP por defecto** (sin broker, ideal para test/e2e). Para usar Kafka,
-basta con cambiar `spec.transport.type: kafka` y rellenar el bloque `kafka` del CR — sin refactor, ya que
-downstream solo ve un `CDCEvent`. Es ortogonal a `spec.sink` (la salida de métricas/alertas). Ver
+CDC event ingestion uses **HTTP by default** (no broker, ideal for test/e2e). To use Kafka,
+just change `spec.transport.type: kafka` and fill in the CR's `kafka` block — no refactor, since
+downstream only sees a `CDCEvent`. It is orthogonal to `spec.sink` (the metrics/alerts output). See
 [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md).
 
 ### NetworkPolicy & CNI
 
-El chart puede desplegar **opcionalmente** una `NetworkPolicy` que restringe el ingress al puerto de
-métricas del operator. Está **OFF por defecto**; se activa con `--set networkPolicy.enabled=true`.
+The chart can **optionally** deploy a `NetworkPolicy` that restricts ingress to the operator's metrics
+port. It is **OFF by default**; enable it with `--set networkPolicy.enabled=true`.
 
-Requiere un **CNI que haga enforcement** de NetworkPolicy (Calico, Cilium, Antrea, Azure CNI). En un CNI
-que no lo hace (Flannel plano, el `kindnet` por defecto de kind) la política se instala pero es un **no-op
-silencioso** — no bloquea nada. Para verificar que tu CNI aplica políticas, corre un test funcional rápido
-de *default-deny* (crea una policy que niegue todo y confirma que el tráfico efectivamente se corta). Para
-una auditoría completa contra la spec de NetworkPolicy, usa [Sonobuoy](https://sonobuoy.io/)
-(`sonobuoy run --mode e2e --e2e-focus "\[NetworkPolicy\]"`) o
-[Cyclonus](https://github.com/mattfenwick/cyclonus). Estas herramientas de auditoría son **referencias**;
-este repo no las ejecuta.
+It requires a **CNI that enforces** NetworkPolicy (Calico, Cilium, Antrea, Azure CNI). On a CNI
+that does not (plain Flannel, kind's default `kindnet`) the policy is installed but is a **silent no-op**
+— it blocks nothing. To verify your CNI enforces policies, run a quick functional *default-deny* test
+(create a policy that denies everything and confirm traffic is actually cut off). For a full audit against
+the NetworkPolicy spec, use [Sonobuoy](https://sonobuoy.io/)
+(`sonobuoy run --mode e2e --e2e-focus "\[NetworkPolicy\]"`) or
+[Cyclonus](https://github.com/mattfenwick/cyclonus). These audit tools are **references**;
+this repo does not run them.
 
-### Más documentación
+### More documentation
 
-- [DESIGN.MD](DESIGN.MD) — diseño completo (ADRs, diagramas, manejo de errores).
-- [ROADMAP.md](ROADMAP.md) — mejoras propuestas, por niveles (trust / competitivo / fleet).
-- [docs/TESTING.md](docs/TESTING.md) — guía práctica de testing.
-- [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — status híbrido (conditions + mediciones + phase).
-- [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — transporte HTTP default / Kafka opcional.
+- [DESIGN.MD](DESIGN.MD) — full design (ADRs, diagrams, error handling).
+- [ROADMAP.md](ROADMAP.md) — proposed improvements, by tiers (trust / competitive / fleet).
+- [docs/TESTING.md](docs/TESTING.md) — practical testing guide.
+- [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — hybrid status (conditions + measurements + phase).
+- [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — HTTP default / Kafka optional transport.
 
-## Desarrollo
+## Development
 
 ```bash
-make build        # compilar
+make build        # compile
 make test         # unit + integration (envtest)
-make manifests    # regenerar CRD YAML
-make generate     # regenerar deepcopy
-make docker-build # construir imagen
-make deploy       # desplegar en el cluster
-make dev          # correr local con envtest
+make manifests    # regenerate CRD YAML
+make generate     # regenerate deepcopy
+make docker-build # build image
+make deploy       # deploy to the cluster
+make dev          # run locally with envtest
 ```
 
-### Estrategia de testing
+### Testing strategy
 
-- **Unit (testify):** lógica pura — `LagTracker`, parser de eventos CDC, implementaciones de `Sink`.
-- **Integration (envtest):** reconciler contra un API server real — convergencia de estado, owner references, transiciones de status.
-- **E2E (kind):** flujo completo — RBAC real, image pull, leader election.
+- **Unit (testify):** pure logic — `LagTracker`, CDC event parser, `Sink` implementations.
+- **Integration (envtest):** reconciler against a real API server — state convergence, owner references, status transitions.
+- **E2E (kind):** full flow — real RBAC, image pull, leader election.
 
-El principio: testear **convergencia**, no acciones ("el estado final es `Running`", no "se llamó a `Create()`"), y verificar idempotencia con el *second reconcile test*.
+The principle: test **convergence**, not actions ("the final state is `Running`", not "`Create()` was called"), and verify idempotency with the *second reconcile test*.
 
-No hace falta un cluster, una BD, Kafka ni Datadog para la mayoría de los tests: envtest corre un API server en memoria y el pipeline de eventos se prueba con eventos CDC sintéticos y `httptest`. Guía práctica: [docs/TESTING.md](docs/TESTING.md).
+You don't need a cluster, a DB, Kafka, or Datadog for most tests: envtest runs an in-memory API server and the event pipeline is tested with synthetic CDC events and `httptest`. Practical guide: [docs/TESTING.md](docs/TESTING.md).
 
-## Estructura del proyecto
+## Project structure
 
 ```
 db-sensor-operator/
 ├── api/v1/                 # Spec/Status structs + kubebuilder markers
 ├── internal/
-│   ├── controller/         # Reconciler principal
-│   ├── deployer/           # Crea/actualiza DebeziumServer CR
+│   ├── controller/         # Main reconciler
+│   ├── deployer/           # Creates/updates the DebeziumServer CR
 │   ├── metrics/            # /metrics, ServiceMonitor, AlertRules
 │   ├── sink/               # Fan-out: Prometheus, Datadog, Webhook
 │   ├── health/             # Health check + LagTracker
-│   └── events/             # Consumer (Kafka/HTTP) + parser CDC
+│   └── events/             # Consumer (Kafka/HTTP) + CDC parser
 ├── cmd/main.go             # Entry point: manager + reconciler + HTTP server
 ├── config/                 # CRD, RBAC, manager, samples
 ├── charts/                 # Helm chart
 ├── Dockerfile
 ├── Makefile
-└── DESIGN.MD               # Documento de diseño detallado
+└── DESIGN.MD               # Detailed design document
 ```
 
-## Licencia
+## License
 
-- Debezium y el Debezium Operator oficial: Apache 2.0.
-- Lactiflluus se construye sobre Go, Kubebuilder y controller-runtime; no hereda copyleft de Debezium.
+- Debezium and the official Debezium Operator: Apache 2.0.
+- Lactiflluus is built on Go, Kubebuilder, and controller-runtime; it does not inherit copyleft from Debezium.
 
 ---
 
 <p align="center">
-  Para el diseño completo (ADRs, diagramas de secuencia, manejo de errores y plan de desarrollo), consulta <a href="DESIGN.MD">DESIGN.MD</a>.
+  For the full design (ADRs, sequence diagrams, error handling, and development plan), see <a href="DESIGN.MD">DESIGN.MD</a>.
+</p>
+
+<p align="center">
+  🌎 <a href="README_spanish.md">Leer este README en español</a>
 </p>
