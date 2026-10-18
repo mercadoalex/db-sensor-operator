@@ -24,7 +24,7 @@ on `/api/events`, and enriched status on `kubectl get databasesensor`.
 
 | File | What it is |
 |---|---|
-| `setup.sh` | Create a kind cluster, install Prometheus Operator CRDs, build+load the image, `helm install` the operator, create the dummy DB Secret |
+| `setup.sh` | Create a kind cluster, install the Prometheus Operator CRDs + the minimal DebeziumServer CRD, build+load the image, `helm install` the operator, create the dummy DB Secret |
 | `sample-databasesensor.yaml` | The demo `DatabaseSensor` CR (dashboard enabled, HTTP transport, alert rules) |
 | `generate-events.sh` | POST synthetic Debezium events to `/cdc` (steady / lag / DDL / burst modes) |
 | `teardown.sh` | Remove the CR + release (and optionally the cluster) |
@@ -38,9 +38,19 @@ on `/api/events`, and enriched status on `kubectl get databasesensor`.
 ```
 
 This stands up `kind-db-sensor-demo`, installs the ServiceMonitor + PrometheusRule
-CRDs, builds `db-sensor-operator:demo`, loads it into kind, `helm install`s the
-operator into the `db-sensor` namespace with the `:8080` HTTP server enabled, and
-creates the `demo-db-creds` Secret the CR references.
+CRDs **and the minimal DebeziumServer CRD**, builds `db-sensor-operator:demo`,
+loads it into kind, `helm install`s the operator into the `db-sensor` namespace
+with the `:8080` HTTP server enabled, and creates the `demo-db-creds` Secret the
+CR references.
+
+> **Why the DebeziumServer CRD?** The operator sets up an `.Owns()` watch on
+> `DebeziumServer` at startup; if that CRD is absent the watch fails to start and
+> reconcile stalls (status stays blank). In production the CRD comes from the
+> official Debezium Operator. The synthetic demo doesn't run real Debezium, so
+> `setup.sh` installs only the minimal CRD (the one the envtest suite uses) so the
+> operator can create the child `DebeziumServer` object. Status will show
+> `Pending` ("DebeziumServer pod is not running yet") — expected, because no real
+> Debezium pod exists; the metrics/dashboard pipeline runs regardless via `/cdc`.
 
 ### 1. Apply the sensor and watch it come up
 

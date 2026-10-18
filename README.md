@@ -199,6 +199,20 @@ Tres ejemplos listos para `kubectl apply` viven en [`config/samples/`](config/sa
 | [`v1_databasesensor.yaml`](config/samples/v1_databasesensor.yaml) | completo: todos los sinks + dashboard + transport |
 | [`v1_databasesensor_mysql.yaml`](config/samples/v1_databasesensor_mysql.yaml) | engine MySQL, sink webhook, transport HTTP |
 
+### Demo
+
+Hay una demo local reproducible (kind + eventos CDC sintéticos, sin BD/Debezium/Kafka reales) que
+enciende todo el pipeline de observabilidad. Walkthrough documentado con salida real y capturas en
+[DEMO.md](DEMO.md); los scripts están en [`demo/`](demo/).
+
+```bash
+./demo/setup.sh                                   # kind + CRDs + imagen + helm install
+kubectl apply -f demo/sample-databasesensor.yaml
+kubectl -n db-sensor port-forward svc/db-sensor-db-sensor-operator-operator-http 8080:8080
+./demo/generate-events.sh --burst 60              # eventos sintéticos -> /cdc
+open http://localhost:8080/dashboard
+```
+
 ### Endpoints y puertos
 
 El manager y el servidor HTTP del operator exponen puertos distintos:

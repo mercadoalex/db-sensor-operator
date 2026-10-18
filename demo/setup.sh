@@ -44,12 +44,21 @@ else
 fi
 kubectl cluster-info --context "kind-${CLUSTER}" >/dev/null
 
-echo "==> [2/5] Prometheus Operator CRDs (ServiceMonitor + PrometheusRule)"
+echo "==> [2/5] CRDs: Prometheus Operator (ServiceMonitor + PrometheusRule) + DebeziumServer"
 # Only the CRDs are needed so the operator can create those objects. Applying the
 # bundle CRDs directly keeps the demo light (no full kube-prometheus-stack).
 kubectl apply --server-side \
   -f "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/${PROM_OPERATOR_VERSION}/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml" \
   -f "https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/${PROM_OPERATOR_VERSION}/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml"
+
+# The DebeziumServer CRD (debezium.io/v1alpha1) MUST exist before the operator
+# starts, because the controller sets up an .Owns() watch on DebeziumServer — if
+# the CRD is absent the watch fails to start and reconcile stalls. In production
+# this CRD comes from the official Debezium Operator; the synthetic demo does NOT
+# run real Debezium, so we install only the minimal CRD (the same one the envtest
+# suite uses) so the operator can create the child DebeziumServer object.
+kubectl apply --server-side \
+  -f internal/controller/testdata/crd/debeziumservers.debezium.io.yaml
 
 echo "==> [3/5] build operator image and load into kind"
 make docker-build IMG="$IMG"
