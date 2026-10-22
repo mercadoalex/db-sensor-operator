@@ -49,6 +49,12 @@ func TestParse(t *testing.T) {
 			want: CDCEvent{Op: "d", DB: dbOrders, Table: tableOrders, TsMs: 1700000002000},
 		},
 		{
+			name: "truncate",
+			raw: `{"payload":{"op":"t","ts_ms":1700000002500,
+				"source":{"db":"orders_db","table":"orders"}}}`,
+			want: CDCEvent{Op: "t", DB: dbOrders, Table: tableOrders, TsMs: 1700000002500},
+		},
+		{
 			name: "top-level op without payload wrapper",
 			raw:  `{"op":"c","ts_ms":1700000003000,"source":{"db":"inv","table":"stock"}}`,
 			want: CDCEvent{Op: "c", DB: "inv", Table: "stock", TsMs: 1700000003000},

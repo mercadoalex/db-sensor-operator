@@ -31,6 +31,10 @@ Se implementa como el custom resource `DatabaseSensor` y actúa como una **capa 
 
 El oficial (Apache 2.0, Java) solo gestiona el lifecycle de Debezium Server (deploy, scale, config). **No** deriva métricas de observabilidad, no crea `ServiceMonitor` / `AlertRules`, no alerta por patrones de mutación ni expone un status rico. Lactiflluus cubre ese gap.
 
+### Prior art y agradecimientos
+
+La idea de CDC-como-observabilidad no es nuestra. El post del blog de los maintainers de Debezium [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lo plantea con claridad: derivar señales de negocio directamente del change stream en lugar de instrumentar cada servicio. Lactiflluus es la automatización a nivel de operator de esa idea — un solo CR declarativo `DatabaseSensor` en vez de un JMX exporter cableado a mano más un setup de Grafana. Encima añade las señales que Debezium no expone por sí solo: lag derivado, inteligencia de DDL y fan-out de alertas multi-sink. Ver [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) para cómo se relacionan los conteos derivados con los counters nativos de Debezium 3.0.
+
 ## Capacidades clave
 
 - Crear y gestionar un `DebeziumServer` (vía el Debezium Operator oficial) desde un solo CR.
@@ -257,6 +261,7 @@ este repo no las ejecuta.
 - [docs/TESTING.md](docs/TESTING.md) — guía práctica de testing.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — status híbrido (conditions + mediciones + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — transporte HTTP default / Kafka opcional.
+- [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derivar conteos del stream vs. métricas nativas JMX.
 
 ## Desarrollo
 

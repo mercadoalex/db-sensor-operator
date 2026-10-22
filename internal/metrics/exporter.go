@@ -107,13 +107,14 @@ func NewExporterWithClock(reg prometheus.Registerer, now func() time.Time) *Expo
 	}
 }
 
-// OnEvent updates the metrics for a single CDC event. Data-change events (c/u/d)
-// increment debezium_events_total and feed the rolling events-per-minute gauge;
-// DDL events increment debezium_schema_changes_total. Every event refreshes
-// debezium_lag_seconds for its {db,table} to now - ts_ms (DECISION 1).
+// OnEvent updates the metrics for a single CDC event. Data-change events
+// (c/u/d/t) increment debezium_events_total and feed the rolling
+// events-per-minute gauge; DDL events increment debezium_schema_changes_total.
+// Every event refreshes debezium_lag_seconds for its {db,table} to now - ts_ms
+// (DECISION 1).
 func (e *Exporter) OnEvent(ev events.CDCEvent) {
 	switch ev.Op {
-	case "c", "u", "d":
+	case "c", "u", "d", "t":
 		e.eventsTotal.WithLabelValues(ev.Op, ev.DB, ev.Table).Inc()
 		e.updateRate(ev.DB, ev.Table)
 	case "ddl":

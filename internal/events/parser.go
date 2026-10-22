@@ -38,8 +38,8 @@ import (
 // CDCEvent is the flat, connector-independent view of a single Debezium change
 // event that the rest of the pipeline (Exporter, LagTracker) consumes.
 //
-//   - Op is the change kind: "c" (insert/create), "u" (update), "d" (delete), or
-//     "ddl" for a schema-change / DDL envelope.
+//   - Op is the change kind: "c" (insert/create), "u" (update), "d" (delete),
+//     "t" (truncate), or "ddl" for a schema-change / DDL envelope.
 //   - DB is the logical database host or server name (metric label "db").
 //   - Table is the changed table or MongoDB collection (metric label "table").
 //   - TsMs is the source event time in Unix milliseconds, used to derive lag.
@@ -63,7 +63,7 @@ var ErrMalformedEvent = errors.New("malformed CDC event")
 // Field precedence (first present wins), chosen to tolerate the common Debezium
 // envelope variants:
 //
-//	Op:    payload.op            -> op                    (c|u|d)
+//	Op:    payload.op            -> op                    (c|u|d|t)
 //	       mapped to "ddl" when a DDL/schema-change envelope is detected:
 //	       payload.ddl / ddl present, or historyRecord / schemaChange markers,
 //	       or op is absent while a DDL field exists.
@@ -89,7 +89,7 @@ func Parse(raw []byte) (CDCEvent, error) {
 
 // deriveOp resolves the change kind, mapping any schema-change / DDL envelope to
 // "ddl" (US-2.4). A DDL envelope is recognised by a non-empty ddl field or by
-// Debezium schema-history markers; otherwise the connector op (c|u|d) is used.
+// Debezium schema-history markers; otherwise the connector op (c|u|d|t) is used.
 func deriveOp(root gjson.Result) string {
 	if root.Get("payload.ddl").Exists() || root.Get("ddl").Exists() ||
 		root.Get("payload.historyRecord").Exists() || root.Get("historyRecord").Exists() ||

@@ -6,7 +6,7 @@
 # Server, or Kafka.
 #
 # The payload shape matches internal/events/parser.go, which reads:
-#   op            -> "c" (insert) | "u" (update) | "d" (delete)   ("ddl" for DDL)
+#   op            -> "c" (insert) | "u" (update) | "d" (delete) | "t" (truncate)   ("ddl" for DDL)
 #   source.db     -> metric label "db"
 #   source.table  -> metric label "table"
 #   ts_ms         -> event time in Unix ms (used to derive lag)

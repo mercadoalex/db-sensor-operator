@@ -53,10 +53,12 @@ func TestExporterCountsByOp(t *testing.T) {
 	}
 	exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: tableOrders, TsMs: ts})
 	exp.OnEvent(events.CDCEvent{Op: "d", DB: "pg", Table: "customers", TsMs: ts})
+	exp.OnEvent(events.CDCEvent{Op: "t", DB: "pg", Table: "customers", TsMs: ts})
 
 	assert.Equal(t, 3.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("c", "pg", tableOrders)))
 	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("u", "pg", tableOrders)))
 	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("d", "pg", "customers")))
+	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("t", "pg", "customers")))
 }
 
 func TestExporterSchemaChanges(t *testing.T) {

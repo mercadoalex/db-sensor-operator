@@ -45,3 +45,7 @@ bin/*
 # Kubeconfig might contain secrets
 # Workflow agent scratch (plans, reviews, verification notes)
 .agents/
+# Local-only scratch: thread-reply drafts and reviewer artifacts
+docs/thread-reply-draft.md
+docs/review-*.json
+docs/review-*.md
