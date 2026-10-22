@@ -307,6 +307,8 @@ db-sensor-operator/
 
 ## Licencia
 
+Lactiflluus se distribuye bajo la **Apache License 2.0** — ver [LICENSE](LICENSE). Puedes usarlo, modificarlo y distribuirlo libremente; las contribuciones se aceptan bajo la misma licencia.
+
 - Debezium y el Debezium Operator oficial: Apache 2.0.
 - Lactiflluus se construye sobre Go, Kubebuilder y controller-runtime; no hereda copyleft de Debezium.
 
