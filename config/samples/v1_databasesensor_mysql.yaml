@@ -37,3 +37,9 @@ spec:
       url: https://hooks.slack.com/services/XXX
       triggerOn:
         - BulkDelete
+  # Per-sensor thresholds: this orders/inventory sensor is latency-sensitive, so
+  # tighten the lag bounds below the operator defaults (30s/2m). Unset fields
+  # (noEventWarn/noEventFail) keep their defaults. Per-sensor only, not per-table.
+  thresholds:
+    lagWarn: 10s
+    lagCrit: 30s

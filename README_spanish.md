@@ -123,7 +123,30 @@ spec:
   dashboard:
     enabled: true
     retention: 72h
+
+  thresholds:               # por sensor; omítelo para usar los defaults de abajo
+    lagWarn: 30s            # lag >= esto -> Degraded
+    lagCrit: 2m             # lag >  esto -> Failed
+    noEventWarn: 5m         # sin eventos por este tiempo -> Degraded
+    noEventFail: 30m        # sin eventos por este tiempo -> Failed
 ```
+
+## Thresholds configurables
+
+`spec.thresholds` ajusta los umbrales de salud por DatabaseSensor. Cada campo es
+una duración de Go (string) y usa el default del operator cuando no se define,
+así que omitir el bloque mantiene el comportamiento actual:
+
+| Campo | Default | Efecto |
+|---|---|---|
+| `lagWarn` | `30s` | lag mayor o igual → `Degraded` |
+| `lagCrit` | `2m` | lag mayor → `Failed` |
+| `noEventWarn` | `5m` | sin evento CDC por ese tiempo → `Degraded` |
+| `noEventFail` | `30m` | sin evento CDC por ese tiempo → `Failed` |
+
+Los thresholds son **por sensor** (no por tabla). Un valor mal formado cae al
+default en lugar de romper el sensor; todavía no hay un webhook de admisión que
+los valide.
 
 ## Métricas derivadas
 

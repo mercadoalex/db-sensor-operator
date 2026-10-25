@@ -288,6 +288,76 @@ func TestCheckerNilLagSafe(t *testing.T) {
 	})
 }
 
+// --- Configurable-threshold tests (spec.thresholds → WithThresholds) ---
+
+func TestParseDurationOr(t *testing.T) {
+	const def = 30 * time.Second
+	cases := []struct {
+		name string
+		in   string
+		want time.Duration
+	}{
+		{"empty -> default", "", def},
+		{"valid -> parsed", "45s", 45 * time.Second},
+		{"invalid -> default", "nope", def},
+		{"zero -> default", "0s", def},
+		{"negative -> default", "-5s", def},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, parseDurationOr(tc.in, def))
+		})
+	}
+}
+
+// checkRunningLag builds a Checker against a Running child with a last event
+// `lagAge` ago on a fixed clock, applies the given thresholds, and returns the
+// health result. It is the shared harness for the override tests below.
+func checkRunningLag(t *testing.T, lagAge time.Duration, th *sensoriov1.ThresholdConfig) HealthResult {
+	t.Helper()
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	child := newChild(map[string]any{statusPhaseKey: podPhaseRunning})
+	c := fake.NewClientBuilder().WithScheme(newScheme(t)).WithObjects(child).Build()
+
+	lt := NewLagTrackerWithClock(func() time.Time { return now })
+	lt.OnEvent(now.Add(-lagAge).UnixMilli())
+
+	ch := NewCheckerWithClock(c, lt, func() time.Time { return now }).WithThresholds(th)
+	res, err := ch.Check(context.Background(), testSensor())
+	require.NoError(t, err)
+	return res
+}
+
+func TestWithThresholdsOverrideShiftsBoundary(t *testing.T) {
+	// A 15s lag is below the default 30s warning threshold -> Running.
+	def := checkRunningLag(t, 15*time.Second, nil)
+	assert.Equal(t, phaseRunning, def.Phase)
+	assert.Equal(t, ReasonHealthyEndToEnd, def.Ready.Reason)
+
+	// Tightening lagWarn to 10s makes the same 15s lag Degraded.
+	tight := checkRunningLag(t, 15*time.Second, &sensoriov1.ThresholdConfig{LagWarn: "10s"})
+	assert.Equal(t, phaseDegraded, tight.Phase)
+	assert.Equal(t, ReasonLagAboveWarning, tight.Ready.Reason)
+}
+
+func TestWithThresholdsNilAndEmptyKeepDefaults(t *testing.T) {
+	// A 45s lag is in the default warning band (>=30s, <=120s) -> Degraded.
+	// Both a nil config and an empty config must leave that default intact.
+	for _, th := range []*sensoriov1.ThresholdConfig{nil, {}} {
+		res := checkRunningLag(t, 45*time.Second, th)
+		assert.Equal(t, phaseDegraded, res.Phase)
+		assert.Equal(t, ReasonLagAboveWarning, res.Ready.Reason)
+	}
+}
+
+func TestWithThresholdsPartialOverride(t *testing.T) {
+	// Only noEventWarn is set; the lag arm must still use the default 120s
+	// critical threshold. A 200s lag therefore stays Failed/LagAboveCritical.
+	res := checkRunningLag(t, 200*time.Second, &sensoriov1.ThresholdConfig{NoEventWarn: "1m"})
+	assert.Equal(t, phaseFailed, res.Phase)
+	assert.Equal(t, ReasonLagAboveCritical, res.Ready.Reason)
+}
+
 func TestCheckerNoEventFailViaClock(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	child := newChild(map[string]any{statusPhaseKey: podPhaseRunning})

@@ -123,7 +123,30 @@ spec:
   dashboard:
     enabled: true
     retention: 72h
+
+  thresholds:               # per-sensor; omit to keep the defaults below
+    lagWarn: 30s            # lag >= this -> Degraded
+    lagCrit: 2m             # lag >  this -> Failed
+    noEventWarn: 5m         # no events for this long -> Degraded
+    noEventFail: 30m        # no events for this long -> Failed
 ```
+
+## Configurable thresholds
+
+`spec.thresholds` tunes the health thresholds per DatabaseSensor. Each field is
+a Go duration string and falls back to the operator default when unset, so an
+omitted block keeps today's behaviour:
+
+| Field | Default | Effect |
+|---|---|---|
+| `lagWarn` | `30s` | replication lag at or above it → `Degraded` |
+| `lagCrit` | `2m` | replication lag above it → `Failed` |
+| `noEventWarn` | `5m` | no CDC event for this long → `Degraded` |
+| `noEventFail` | `30m` | no CDC event for this long → `Failed` |
+
+Thresholds are **per-sensor** only (not per-table). A malformed value falls back
+to the default rather than breaking the sensor; there is no admission webhook
+validating them yet.
 
 ## Derived metrics
 

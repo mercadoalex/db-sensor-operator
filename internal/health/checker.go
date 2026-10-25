@@ -71,7 +71,11 @@ import (
 // the DESIGN error table) and leave the 15m rate-zero rule to the generated
 // PrometheusRule in Task 10, so there is only one Failed timer here.
 //
-// TODO(configurable): promote these to spec/operator config in a later task.
+// These constants are now the DEFAULTS behind the per-sensor
+// spec.thresholds block (ThresholdConfig): a Checker starts from them and
+// WithThresholds overrides each SET field from the CR, so an unset field keeps
+// the constant. They stay package constants (not removed) because they are the
+// default source for both the Checker fields and the exported accessors below.
 const (
 	warningLagThreshold  = 30 * time.Second
 	criticalLagThreshold = 120 * time.Second
@@ -82,6 +86,12 @@ const (
 // WarningLag / CriticalLag / NoEventWarn / NoEventFail expose the package
 // threshold constants so the reconciler can fill Alert.Threshold without copying
 // them. They are pure accessors and do not change decidePhase/Check behaviour.
+//
+// They report the DEFAULTS, not any per-sensor override (Option (a) of the
+// configurable-thresholds plan). The reconciler keeps them as the single
+// default source and layers the per-sensor spec.thresholds value on top when
+// filling Alert.Threshold, so the alert threshold matches the per-sensor phase
+// decision without duplicating the defaults into a second set of accessors.
 func WarningLag() time.Duration  { return warningLagThreshold }
 func CriticalLag() time.Duration { return criticalLagThreshold }
 func NoEventWarn() time.Duration { return noEventWarnTimeout }
@@ -194,6 +204,40 @@ func NewCheckerWithClock(c client.Client, lag *LagTracker, now func() time.Time)
 		noEventWarn: noEventWarnTimeout,
 		noEventFail: noEventFailTimeout,
 	}
+}
+
+// WithThresholds overrides this Checker's thresholds from a per-sensor
+// spec.thresholds block and returns the receiver so it chains off NewChecker.
+// It is nil-safe: a nil ThresholdConfig (no block in the spec) leaves all four
+// defaults untouched. Each field is resolved against the EXISTING field value
+// as its fallback, so an unset or unparseable duration string keeps the current
+// default (the package constant for a fresh Checker). decidePhase and Check are
+// unchanged — they already read the thresholds off these fields.
+func (ch *Checker) WithThresholds(t *sensoriov1.ThresholdConfig) *Checker {
+	if t == nil {
+		return ch
+	}
+	ch.warningLag = parseDurationOr(t.LagWarn, ch.warningLag)
+	ch.criticalLag = parseDurationOr(t.LagCrit, ch.criticalLag)
+	ch.noEventWarn = parseDurationOr(t.NoEventWarn, ch.noEventWarn)
+	ch.noEventFail = parseDurationOr(t.NoEventFail, ch.noEventFail)
+	return ch
+}
+
+// parseDurationOr returns the Go duration parsed from s, or def when s is empty,
+// unparseable, or non-positive. This mirrors the empty/unparseable→fallback
+// logic the reconciler uses for spec.dashboard.retention, so a malformed
+// threshold degrades to the default rather than breaking the checker (there is
+// no validating webhook guarding these fields yet).
+func parseDurationOr(s string, def time.Duration) time.Duration {
+	if s == "" {
+		return def
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return def
+	}
+	return d
 }
 
 // phaseInputs is the pure decision input. No IO, no clock.

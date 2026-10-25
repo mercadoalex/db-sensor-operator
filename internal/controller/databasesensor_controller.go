@@ -226,6 +226,10 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		if checker == nil {
 			checker = health.NewChecker(r.Client, r.Lag)
 		}
+		// Apply this sensor's spec.thresholds on top of whichever checker is
+		// used (injected r.Health or the inline default). WithThresholds is
+		// nil-safe, so a sensor with no thresholds set behaves exactly as before.
+		checker = checker.WithThresholds(sensor.Spec.Thresholds)
 		res, herr := checker.Check(ctx, &sensor)
 		if herr != nil {
 			// Genuine API error: back off and retry WITHOUT touching status
@@ -355,22 +359,30 @@ func (r *DatabaseSensorReconciler) maybeAlert(ctx context.Context, sensor *senso
 	// Value/Threshold per the fire-set: lag alerts use the current lag and the
 	// matching lag threshold; no-event alerts use the age since the last event
 	// and the matching no-event timeout.
+	//
+	// Option (a) of the configurable-thresholds plan: the health accessors stay
+	// the single DEFAULT source, and here we layer the per-sensor
+	// spec.thresholds override on top so Alert.Threshold matches the per-sensor
+	// phase decision made by the Checker (which was configured with the same
+	// spec.thresholds). resolveThreshold falls back to the passed default when a
+	// field is unset/unparseable, so no duration literals are duplicated here.
+	th := sensor.Spec.Thresholds
 	var value, threshold float64
 	if fire.lagBased {
 		value = res.Lag.Seconds()
 		if fire.critical {
-			threshold = health.CriticalLag().Seconds()
+			threshold = resolveThreshold(lagCrit(th), health.CriticalLag()).Seconds()
 		} else {
-			threshold = health.WarningLag().Seconds()
+			threshold = resolveThreshold(lagWarn(th), health.WarningLag()).Seconds()
 		}
 	} else {
 		if !res.LastEvent.IsZero() {
 			value = time.Since(res.LastEvent).Seconds()
 		}
 		if fire.critical {
-			threshold = health.NoEventFail().Seconds()
+			threshold = resolveThreshold(noEventFail(th), health.NoEventFail()).Seconds()
 		} else {
-			threshold = health.NoEventWarn().Seconds()
+			threshold = resolveThreshold(noEventWarn(th), health.NoEventWarn()).Seconds()
 		}
 	}
 
@@ -406,6 +418,49 @@ func (r *DatabaseSensorReconciler) maybeAlert(ctx context.Context, sensor *senso
 		}
 	}
 	return 0
+}
+
+// resolveThreshold parses a per-sensor threshold duration string, falling back
+// to def when it is empty, unparseable, or non-positive. This mirrors the
+// checker's parseDurationOr so the reconciler-filled Alert.Threshold resolves
+// identically to the Checker's per-sensor phase decision (Option (a)).
+func resolveThreshold(s string, def time.Duration) time.Duration {
+	if s == "" {
+		return def
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return def
+	}
+	return d
+}
+
+// lagWarn/lagCrit/noEventWarn/noEventFail read a per-sensor threshold string off
+// a possibly-nil ThresholdConfig; a nil config yields "" so resolveThreshold
+// falls back to the default accessor.
+func lagWarn(t *sensoriov1.ThresholdConfig) string {
+	if t == nil {
+		return ""
+	}
+	return t.LagWarn
+}
+func lagCrit(t *sensoriov1.ThresholdConfig) string {
+	if t == nil {
+		return ""
+	}
+	return t.LagCrit
+}
+func noEventWarn(t *sensoriov1.ThresholdConfig) string {
+	if t == nil {
+		return ""
+	}
+	return t.NoEventWarn
+}
+func noEventFail(t *sensoriov1.ThresholdConfig) string {
+	if t == nil {
+		return ""
+	}
+	return t.NoEventFail
 }
 
 // readyConditionFor maps the EnsureDebeziumServer result to the Ready condition.

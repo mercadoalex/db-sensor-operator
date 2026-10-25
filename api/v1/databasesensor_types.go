@@ -189,6 +189,43 @@ type KafkaTransport struct {
 	Topic string `json:"topic,omitempty"`
 }
 
+// ThresholdConfig overrides the operator's health thresholds for a single
+// DatabaseSensor. Each field is an optional Go duration string (parsed with
+// time.ParseDuration, for example "30s" or "2m"); when a field is unset or
+// unparseable the operator falls back to its built-in default constant, so an
+// omitted block keeps today's behaviour exactly. Thresholds are per-sensor
+// only; per-table thresholds are not supported.
+//
+// Ordering is expected to be lagCrit >= lagWarn and noEventFail >= noEventWarn.
+// This is not enforced by an admission webhook today (the defensive parse
+// fallback keeps a malformed value from breaking the checker), so an inverted
+// pair is accepted and evaluated as written.
+type ThresholdConfig struct {
+	// lagWarn is the replication-lag warning threshold; lag at or above it moves
+	// the sensor to Degraded (for example "30s"). Defaults to 30s.
+	// +optional
+	// +kubebuilder:default="30s"
+	LagWarn string `json:"lagWarn,omitempty"`
+
+	// lagCrit is the replication-lag critical threshold; lag above it moves the
+	// sensor to Failed (for example "2m"). Defaults to 2m.
+	// +optional
+	// +kubebuilder:default="2m"
+	LagCrit string `json:"lagCrit,omitempty"`
+
+	// noEventWarn is how long without a CDC event moves the sensor to Degraded
+	// (for example "5m"). Defaults to 5m.
+	// +optional
+	// +kubebuilder:default="5m"
+	NoEventWarn string `json:"noEventWarn,omitempty"`
+
+	// noEventFail is how long without a CDC event moves the sensor to Failed
+	// (for example "30m"). Defaults to 30m.
+	// +optional
+	// +kubebuilder:default="30m"
+	NoEventFail string `json:"noEventFail,omitempty"`
+}
+
 // DashboardConfig configures the optional embedded dashboard.
 type DashboardConfig struct {
 	// enabled turns the embedded dashboard (/dashboard, /api/events) on.
@@ -226,6 +263,12 @@ type DatabaseSensorSpec struct {
 	// dashboard configures the optional embedded dashboard.
 	// +optional
 	Dashboard *DashboardConfig `json:"dashboard,omitempty"`
+
+	// thresholds overrides the per-sensor health thresholds (lag warning/critical
+	// and no-event warning/failure timeouts). Each field falls back to the
+	// operator default when unset, so an omitted block keeps today's behaviour.
+	// +optional
+	Thresholds *ThresholdConfig `json:"thresholds,omitempty"`
 }
 
 // DatabaseSensorStatus defines the observed state of DatabaseSensor.

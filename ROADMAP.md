@@ -22,12 +22,14 @@ The highest-leverage items for "would a team trust this in production."
 | Item | Why it matters | Effort | Payoff | Status |
 |---|---|---|---|---|
 | **Grafana dashboard + curated alert pack** | SREs already run Grafana. Ship a ConfigMap-provisioned dashboard and a vetted set of PrometheusRules so users get value in minutes without building anything. Meets them where they are. (DESIGN.MD "Option B".) | Low–Med | High | 🔵 |
-| **Configurable thresholds (per-sensor / per-table)** | Lag warn/crit and no-event timeouts are hardcoded constants today. "30s lag" means different things for an audit table vs. payments. Must live in the CR spec. | Med | High | 🟡 constants exist; need spec fields |
+| **Configurable thresholds (per-sensor / per-table)** | Lag warn/crit and no-event timeouts were hardcoded constants. "30s lag" means different things for an audit table vs. payments, so they now live in the CR spec. | Med | High | 🟡 per-sensor spec fields added (`spec.thresholds`); per-table still pending |
 | **Validating / defaulting admission webhook** | Reject bad specs at `kubectl apply` time (invalid connector config, missing secret refs, nonsensical thresholds) with a clear error, instead of a later `Failed` status. Separates "a controller" from "a product." Kubebuilder scaffolds it. | Med | High | 🔵 |
 | **Live-DB + real-Debezium E2E in CI** | Prove the full path (Postgres + official Debezium Operator in kind → events → metrics → alert) in CI. The difference between "we think it works" and "it's tested against reality." | Med–High | High | 🟡 synthetic demo exists; kind e2e scaffold present |
 
 **Caveat:** don't add config knobs (thresholds) without the validating webhook to
-protect them.
+protect them. The per-sensor `spec.thresholds` knobs now ship ahead of the
+webhook and rely on defensive parse-fallback (a malformed/unset value degrades to
+the default) in the meantime; the validating webhook remains a tracked follow-up.
 
 ---
 
@@ -39,6 +41,7 @@ Answers "why this over rolling my own Debezium + Prometheus."
 |---|---|---|---|---|
 | **Mutation-pattern anomaly detection** | The genuinely novel angle. Baseline-and-deviation on insert/update/delete rates — "delete rate is 10× its weekly norm" — serves the data-engineer persona directly. Start statistical (rolling mean/stddev), **not** ML. | Med | High (differentiation) | ⚪ |
 | **Schema-change (DDL) intelligence** | Already counting DDL events. Go further: capture *what* changed and alert "migration applied to `payments` without a change ticket." A compliance/audit hook (GDPR/SOX/HIPAA — see product.md). | Med | Med–High | 🟡 DDL counted; no detail/alerting |
+| **Postgres schema-change source (open question)** | For MySQL/Oracle/SQL Server, Debezium can emit an optional public schema-change topic (parse `tableChanges` for column-level detail). For **Postgres** it's unclear whether a public schema-change path exists today — per Debezium maintainers (Mario Fiore Vitale, Jiri Pechanec) in the community thread, historically not published, and a related feature *may* have been added (unconfirmed). Regardless, `pgoutput` has no statement-level DDL message, so catching *what* changed likely still needs `pg_catalog` polling. **Decision: implement nothing now; revisit when the DDL-intelligence item is picked up — verify against the then-current Postgres connector reference/changelog first.** | — | — | ⚪ note only; verify before any work |
 | **OpenTelemetry (OTLP) export** | Teams increasingly standardize on OTel. Emit metrics/traces via OTLP so any backend (Datadog, Grafana Cloud, Honeycomb, …) works through one path, not just Prometheus scrape. Where the ecosystem is heading. | Med | High (reach) | ⚪ |
 | **Native JMX metrics integration** | Scrape Debezium 3.0's native `NumberOf*EventsSeen` counters as an alternative/complement to deriving counts from the stream — reuses maintainer-supported metrics where a real Debezium/JMX endpoint exists. Today counts are derived from the CDC stream (works for HTTP + Kafka, no JMX, no opt-in). See [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md). | Med | Med | ⚪ |
 | **Multi-version CRD API + conversion (v1alpha1 → v1)** | Signals maturity; lets the CRD evolve without breaking users. Important once there are real users; premature before that. | Med | Med | ⚪ |
@@ -84,7 +87,8 @@ detection is the novel angle, but it only pays off after the trust foundation.
 Tracked so they aren't lost, but not prioritized:
 
 - `Metric.Push` to sinks is built but not driven (only alert fan-out is wired).
-- Thresholds are documented constants, not yet spec-configurable (see Tier 1).
+- Thresholds are now per-sensor spec-configurable via `spec.thresholds` (the
+  constants remain the defaults); per-table thresholds are still future (see Tier 1).
 - Full real-database demo (Postgres + official Debezium Operator) — the synthetic
   demo kit (`demo/`, `DEMO.md`) covers the pipeline today.
 - ML-based detection, multi-DB-type breadth beyond what can be tested, and

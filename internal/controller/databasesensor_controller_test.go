@@ -460,6 +460,58 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			}).Should(Succeed())
 		})
 
+		It("should honor per-sensor spec.thresholds so a tight lagCrit escalates Degraded to Failed", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+
+			By("Tightening spec.thresholds.lagCrit to 10s on the sensor")
+			sensor := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, sensor)).To(Succeed())
+			sensor.Spec.Thresholds = &sensoriov1.ThresholdConfig{LagCrit: "10s"}
+			Expect(k8sClient.Update(ctx, sensor)).To(Succeed())
+
+			By("Wiring a LagTracker with a last event ~45s ago (warning band at defaults)")
+			now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			clock := func() time.Time { return now }
+			lt := health.NewLagTrackerWithClock(clock)
+			lt.OnEvent(now.Add(-45 * time.Second).UnixMilli())
+			controllerReconciler := &DatabaseSensorReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+				Lag:    lt,
+				Health: health.NewCheckerWithClock(k8sClient, lt, clock),
+			}
+
+			By("Reconciling once to create the child DebeziumServer")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Fabricating a running pod status so lag drives the phase")
+			child := &unstructured.Unstructured{}
+			child.SetGroupVersionKind(deployer.DebeziumServerGVK)
+			Expect(k8sClient.Get(ctx, typeNamespacedName, child)).To(Succeed())
+			Expect(unstructured.SetNestedField(child.Object, "Running", "status", "phase")).To(Succeed())
+			Expect(k8sClient.Status().Update(ctx, child)).To(Succeed())
+
+			By("Reconciling again so the checker observes the lag against the tight lagCrit")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Asserting the 45s lag is now Failed/LagAboveCritical (would be Degraded at defaults)")
+			Eventually(func(g Gomega) {
+				fetched := &sensoriov1.DatabaseSensor{}
+				g.Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+				g.Expect(fetched.Status.Phase).To(Equal("Failed"))
+				ready := meta.FindStatusCondition(fetched.Status.Conditions, "Ready")
+				g.Expect(ready).NotTo(BeNil())
+				g.Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+				g.Expect(ready.Reason).To(Equal("LagAboveCritical"))
+			}).Should(Succeed())
+		})
+
 		It("should surface the Last Error source empty when healthy and populated when Failed (US-5.5)", func() {
 			By("Reconciling without the Secret so the sensor fails with SecretNotFound")
 			controllerReconciler := &DatabaseSensorReconciler{

@@ -227,6 +227,37 @@ spec:
                   type: string
                 minItems: 1
                 type: array
+              thresholds:
+                description: |-
+                  thresholds overrides the per-sensor health thresholds (lag warning/critical
+                  and no-event warning/failure timeouts). Each field falls back to the
+                  operator default when unset, so an omitted block keeps today's behaviour.
+                properties:
+                  lagCrit:
+                    default: 2m
+                    description: |-
+                      lagCrit is the replication-lag critical threshold; lag above it moves the
+                      sensor to Failed (for example "2m"). Defaults to 2m.
+                    type: string
+                  lagWarn:
+                    default: 30s
+                    description: |-
+                      lagWarn is the replication-lag warning threshold; lag at or above it moves
+                      the sensor to Degraded (for example "30s"). Defaults to 30s.
+                    type: string
+                  noEventFail:
+                    default: 30m
+                    description: |-
+                      noEventFail is how long without a CDC event moves the sensor to Failed
+                      (for example "30m"). Defaults to 30m.
+                    type: string
+                  noEventWarn:
+                    default: 5m
+                    description: |-
+                      noEventWarn is how long without a CDC event moves the sensor to Degraded
+                      (for example "5m"). Defaults to 5m.
+                    type: string
+                type: object
               transport:
                 description: |-
                   transport configures how Debezium CDC events are delivered to the

@@ -56,3 +56,11 @@ spec:
   dashboard:
     enabled: true
     retention: 72h
+  # thresholds overrides the per-sensor health thresholds. Omitting the block (or
+  # any field) keeps the operator defaults shown below. Thresholds are per-sensor,
+  # not per-table. Each value is a Go duration string.
+  thresholds:
+    lagWarn: 30s # lag >= this -> Degraded
+    lagCrit: 2m # lag > this  -> Failed
+    noEventWarn: 5m # no events for this long -> Degraded
+    noEventFail: 30m # no events for this long -> Failed
