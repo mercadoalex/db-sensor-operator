@@ -11,6 +11,84 @@ mostly **trust, ecosystem fit, and reducing the operator's work** — not more
 features for their own sake. Tiers below reflect that: Tier 1 earns trust, Tier 2
 makes it compelling, Tier 3 serves fleet-scale operability.
 
+## Positioning
+
+**Don't pitch this as "a reason to adopt CDC." Pitch it as "a multiplier on CDC
+you already have."** Feedback from the Debezium community (Mario Fiore Vitale,
+who explored CDC-as-observability before) is that *setting up a whole CDC
+pipeline **only** to get metrics felt like too much* — the cost/benefit doesn't
+close when metrics is the sole payoff. The reframe that fixes this: teams already
+running (or adopting) CDC for data movement, replication, or audit get this
+observability layer almost for free on top of infrastructure that already exists
+for another reason. That turns the operator from "adopt CDC to get metrics" into
+"you're running CDC anyway — here's the observability it unlocks."
+
+**Prior art at scale (and direct evidence for the reframe).** Netflix's DBLog —
+*A Watermark Based Change-Data-Capture Framework* (Andreakis & Papapanagiotou,
+2020, <https://arxiv.org/abs/2010.12597>; Netflix Tech Blog:
+<https://netflixtechblog.com/dblog-a-generic-change-data-capture-framework-69351fb9099b>)
+— is a production CDC framework (running at Netflix since 2018, ~30 services,
+the watermark design Debezium and Flink CDC later adapted). What matters here is
+section 4: DBLog serves **three** use cases on the *same* shared CDC
+infrastructure (the "Delta" platform):
+
+1. **Heterogeneous data replication** — changed rows + full state joined into a
+   common Elasticsearch search index.
+2. **Database activity logging** — changed rows → stream → Elasticsearch
+   (short-term) + Hive (long-term), with **Kibana dashboards of operations per
+   table** to inspect **data mutation patterns**, explicitly to catch things like
+   *a drop in inserts to a table after a buggy service deploy*.
+3. **Schema migration** — old→new schema via a Flink job.
+
+This is the direct evidence for the "multiplier, not a reason to adopt" reframe:
+at Netflix, activity logging **rode along** on CDC infra that already existed for
+replication and migration — nobody stood up CDC *only* for metrics. Use case #2
+is, almost line for line, this operator's thesis and Mario's blog example
+("operations per table," "mutation patterns," "drop of inserts after a buggy
+deploy") — two independent, production-scale sources converged on it.
+
+**What's open and who adopted it (so we cite it correctly).** DBLog itself is a
+Netflix-**internal** framework: the paper and design are public, but the code is
+not open source (no Netflix repo). Others reimplemented the *approach* — e.g.
+[`pgcapture`](https://github.com/replicase/pgcapture), a community "Netflix DBLog
+implementation for PostgreSQL." The watermark design, however, was adopted by
+major open-source CDC projects: **Debezium** ships it as *incremental snapshots*
+(v1.6+), explicitly "based on the solution articulated in the [DBLog] paper" per
+its own design doc
+([DDD-3](https://github.com/debezium/debezium-design-documents/blob/main/DDD-3.md);
+[Incremental Snapshots blog](https://debezium.io/blog/2021/10/07/incremental-snapshots/)),
+and **Apache Flink CDC** adopted the same mechanism. So the lineage is
+DBLog → Debezium, **not** the reverse: the tool this operator builds on literally
+implements Netflix's design. Cite it as **"a production CDC framework (DBLog) that
+also applied CDC to activity logging, whose watermark snapshot technique Debezium
+later adopted"** — and **never** say "Netflix used Debezium" (they built their own
+and had rejected Debezium at the time, 2020).
+
+**Honest caveat:** DBLog's *headline* contribution is the watermark full-state-
+capture algorithm (consistent snapshot interleaved with the log, no locks, no
+stalling) — a replication concern this operator does **not** need (Debezium
+already handles snapshot-vs-stream consistency, via this very technique). Activity
+logging is *one application* of DBLog, a few paragraphs in the paper — not its
+thesis.
+
+**The "CDC-only-for-metrics isn't worth it" belief may be a misconception worth
+testing.** DBLog shows a production system doing "CDC that *also* does
+logs/telemetry" — the observability came nearly free on top of CDC run for
+replication. That suggests the community pushback Mario heard is partly a framing
+problem, not a hard cost truth. Worth backing with evidence: a **benchmark /
+comparison of ways to get logs & metrics out of databases** — CDC-based
+(Debezium, Flink CDC, this operator) vs. native DB stats (`pg_stat_*`,
+`performance_schema`), JMX/exporters, agent/APM, and query-log scraping — on
+setup cost, overhead on the source, signal richness (per-table mutation rates,
+lag, DDL), and latency. The goal: show *where* CDC-derived observability is
+genuinely cheaper/richer (and honestly, where it is not), so the "too much" claim
+is answered with data instead of assertion. Status: ⚪ idea; scope before
+investing.
+
+**TODO:** watch the Debezium Showcase session featuring a DBLog author, then fold
+any concrete activity-logging details (scale, what they alerted on, what they'd
+do differently) back into this positioning + the reply to Mario.
+
 Status legend: 🔵 planned · 🟡 partially present · ⚪ idea
 
 ---

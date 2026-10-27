@@ -49,3 +49,5 @@ bin/*
 docs/thread-reply-draft.md
 docs/review-*.json
 docs/review-*.md
+# Local reference material (papers, PDFs) — not part of the project
+*.pdf
