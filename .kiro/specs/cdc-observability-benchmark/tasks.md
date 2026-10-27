@@ -54,6 +54,12 @@ The harness runs locally with Docker + kind + kubectl + helm only (no cloud), co
   - [ ] 7.3 Write the scope framing into the report
     - State data-activity-only scope; operational/infrastructure monitoring (`postgres_exporter`, `pg_stat_activity`) as a separate, complementary, non-competing concern; PostgreSQL-only with MySQL as a future note; app-counters as a mentioned-not-built baseline
     - _Requirements: 1.2, 1.3, 1.4, 1.5_
+  - [ ] 7.4 Write the depth-vs-breadth positioning analysis (PRIMARY, not optional)
+    - Position CDC's narrow-deep data-activity signal against the broader toolset's broad-shallow coverage; include the two-axis mental model (depth for data activity vs. breadth across all DB concerns) as a small table or ASCII 2×2
+    - List the broader tools (native `pg_stat_*` server views, `postgres_exporter`, APM agents, query-log scraping) on the breadth axis, explicitly labeled as complementary coverage and NOT head-to-head competitors (preserve Req 1.2/1.3 framing)
+    - Enumerate the CDC-only insights (per-row op semantics, additive-vs-breaking DDL, precise commit-to-metric lag) and the breadth-only dimensions CDC lacks (server health, query latency, connections, locks, slow queries)
+    - Build this from the capability matrix (7.1) and setup-cost analysis (7.2); ships with the qualitative layer, independent of the measured harness
+    - _Requirements: 13.1, 13.2, 13.4, 2.5_
 
 - [ ]* 8. Implement the source-overhead measurement harness
   - [ ]* 8.1 Implement the overhead sampler in `bench/measure/overhead/`
@@ -87,16 +93,23 @@ The harness runs locally with Docker + kind + kubectl + helm only (no cloud), co
   - [ ] 11.3 Write the "Threats to Validity / Fairness" section
     - Name the confounders (polling interval dominating latency+overhead; trigger write-amplification; CDC's Debezium dependency + snapshot cost; statement-stats always-on tracking) and how each was controlled or why not; disclose tunable parameter choices
     - _Requirements: 7.4, 7.5, 3.4_
+  - [ ] 11.4 Write the depth-vs-breadth section and the explicit SUPPORT / QUALIFY / REFUTE verdict
+    - Fold the positioning analysis (task 7.4) into the report as its own section; derive one explicit verdict on the Central_Hypothesis and the "install only if you already have CDC" pitch from the capability matrix + setup-cost + whichever measured layers were run
+    - State SUPPORT, QUALIFY, or REFUTE plainly; be willing to conclude "CDC is over-engineering for metrics alone" where the evidence points that way; tie back to the "multiplier, not a reason to adopt" reframe
+    - If the measured layer is deferred, ground the verdict in the qualitative layer and mark it as sharpenable by later numbers
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 5.5, 5.6_
 
 - [ ] 12. Final honesty & fairness review (core, never optional)
   - Verify the report satisfies honesty-as-completion: a substantive "where CDC does not win" section exists with comparable prominence; scope framing is consistent (data-activity-only, operational monitoring non-competing, PostgreSQL-only, app-counters not built); every claimed number is backed by a committed results artifact or marked pending; methodology is reproducible from the docs alone
-    - _Requirements: 5.1, 5.4, 9.1, 7.3, 12.1_
+  - Verify the depth-vs-breadth positioning analysis and an explicit SUPPORT / QUALIFY / REFUTE verdict are present; confirm the broader toolset is treated as complementary breadth, not beaten competitors; confirm the report is willing to state "CDC is over-engineering for metrics alone" if the evidence warrants
+    - _Requirements: 5.1, 5.4, 5.6, 9.1, 7.3, 12.1, 13.2, 13.3_
 
 ## Notes
 
 - Tasks marked with `*` (8, 9, 10 and their sub-tasks) are the **measured layer** and are deferrable for a qualitative-first delivery, mirroring the `*`-optional convention in `db-sensor/tasks.md`. The qualitative layer (tasks 1–7) and the report + honesty review (tasks 11–12) are **core and never optional**.
 - The "(a) first, then (b)" depth decision is encoded in the ordering: the capability matrix and setup-cost analysis (task 7) complete before — and independently of — the measured harness (tasks 8–10).
-- Every `_Requirements:` reference points to a requirement ID defined in `requirements.md` (Requirements 1–12).
+- Every `_Requirements:` reference points to a requirement ID defined in `requirements.md` (Requirements 1–13).
+- The depth-vs-breadth positioning analysis (task 7.4) is part of the PRIMARY qualitative deliverable and is **not** optional; the explicit SUPPORT / QUALIFY / REFUTE verdict (task 11.4) is authored in the report and grounded in whichever layers were run (Requirement 13).
 - Honesty is a completion criterion (Requirement 9.1), enforced by task 12.
 
 ## Task Dependency Graph
@@ -108,10 +121,10 @@ The harness runs locally with Docker + kind + kubectl + helm only (no cloud), co
     { "id": 1, "tasks": ["1.2"] },
     { "id": 2, "tasks": ["2", "3", "4", "5"] },
     { "id": 3, "tasks": ["6"] },
-    { "id": 4, "tasks": ["7.1", "7.2", "7.3", "8.1", "9.1"] },
+    { "id": 4, "tasks": ["7.1", "7.2", "7.3", "7.4", "8.1", "9.1"] },
     { "id": 5, "tasks": ["8.2", "9.2"] },
     { "id": 6, "tasks": ["10"] },
-    { "id": 7, "tasks": ["11.1", "11.2", "11.3"] },
+    { "id": 7, "tasks": ["11.1", "11.2", "11.3", "11.4"] },
     { "id": 8, "tasks": ["12"] }
   ]
 }

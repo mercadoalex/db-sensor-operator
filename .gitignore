@@ -52,5 +52,5 @@ docs/review-*.md
 # Local reference material (papers, PDFs) — not part of the project
 *.pdf
 # Spec-review scratch artifacts
-.kiro/specs/**/.review.json
-.kiro/specs/**/.review.md
+.kiro/specs/**/.review*.json
+.kiro/specs/**/.review*.md

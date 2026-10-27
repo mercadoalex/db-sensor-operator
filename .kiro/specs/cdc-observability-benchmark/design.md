@@ -193,6 +193,66 @@ App-level counters appear only as a narrative baseline row in the report (requir
 
 ---
 
+## Depth vs. breadth positioning
+
+This is an **added analysis layer** on top of the head-to-head, not a replacement: the head-to-head methodology above (four Approaches, four Axes, Identical_Workload) is unchanged. This section satisfies **Requirement 13** and feeds the report's final verdict.
+
+### The central hypothesis (restated)
+
+> CDC-derived observability is **narrow-but-deep** for data activity — it produces per-row operation semantics, exact commit-to-metric lag, and additive-vs-breaking DDL detection that the alternatives structurally cannot. The **broader** toolset (native `pg_stat_*` server views, `postgres_exporter`, APM agents, query-log scraping) is **broad-but-shallow** for data activity, but covers a much wider range of database concerns CDC never touches. So the honest pitch is **"install only if you already have CDC"**: not worth standing up CDC *solely* for metrics, but nearly-free depth if CDC already runs for another reason.
+
+The benchmark must be able to **SUPPORT, QUALIFY, or REFUTE** this — including concluding *"CDC is over-engineering for metrics alone"* (Requirements 13.3, 5.6).
+
+### Two-axis mental model
+
+Two orthogonal axes. **Depth** = how rich/exact the *data-activity* signal is (the head-to-head territory). **Breadth** = how wide the tool's *overall* database-observability coverage is across all DB concerns (server health, query latency, connections, locks, slow queries). The data-activity Approaches live mostly on the Depth axis; the operational Broader_Toolset lives on the Breadth axis.
+
+```
+                 high DEPTH (data-activity signal)
+                              ▲
+                              │   ● CDC-derived
+                              │     (per-row ops, exact lag, DDL)
+                              │
+          ● Triggers         │   ● Polling
+            (immediate,      │     (interval rates)
+             rates only)     │
+                              │
+   broad BREADTH ◀───────────┼───────────────▶ narrow BREADTH
+   (all DB concerns)         │                 (data activity only)
+                              │
+       ● APM / exporters /    │   ● pg_stat_statements
+         pg_stat_* server     │     (approximate, blurred
+         views, query-log     │      attribution)
+         scraping             │
+         (server health,      │
+          latency, locks,     │
+          slow queries)       ▼
+                        low DEPTH (for data activity)
+```
+
+Read it as a 2×2: CDC sits **narrow-breadth / high-depth** (deep on one question); the Broader_Toolset sits **broad-breadth / low-depth** (shallow on data activity, wide on everything else). Polling and triggers are mid-depth on data activity and narrow on breadth. The point of the picture is that CDC and the operational toolset are in **different quadrants** — they do not compete, they complement.
+
+### The breadth axis: NOT head-to-head competitors
+
+The breadth axis lists the Broader_Toolset — **native `pg_stat_*` server views** (`pg_stat_activity`, `pg_stat_database`, buffer/lock views), **`postgres_exporter`**, **APM agents**, and **query-log scraping** — explicitly as the tools that cover the *wide* range of DB observability CDC does not. These are the **same tools §Scope and Requirement 1.3 hold out of the head-to-head as a complementary, non-competing concern.** They are not promoted to Approaches here: they are never measured against CDC on the four Axes, and the Capability_Matrix is unchanged. They appear only to characterize *breadth*, so the "complement, not replacement" conclusion (Requirement 13.2) is grounded instead of asserted. This keeps the two framings consistent: the operational tools are out of scope as *competitors* and in scope only as the *breadth yardstick*.
+
+### Reaching a SUPPORT / QUALIFY / REFUTE verdict
+
+The report derives one explicit verdict on the "install only if you already have CDC" thesis from two inputs already produced by the head-to-head:
+
+- **From the Capability_Matrix (Requirement 2):** the data-activity insights CDC produces that each alternative *structurally cannot* — per-row op semantics, additive-vs-breaking DDL, precise commit-to-metric lag (Requirement 13.4a) — alongside the observability dimensions the Broader_Toolset covers that CDC does not — server health, query latency, connections, lock waits, slow queries (Requirement 13.4b).
+- **From the measured results (Requirements 3–4):** whether CDC's depth comes at an overhead/latency/setup cost that a cheaper Approach already matches for a team *without* existing CDC.
+
+The verdict rule the report applies (Requirement 13.3):
+
+- **SUPPORT** — CDC is uniquely deep on data-activity questions the alternatives cannot answer, AND its standing cost is only "free-on-top" when CDC already exists → the "install only if you already have CDC" pitch holds.
+- **QUALIFY** — CDC's depth is real but partly matched by a cheaper Approach for some questions, OR the cost is tolerable even without existing CDC for specific high-value signals (e.g. exact lag, DDL) → pitch holds with named exceptions.
+- **REFUTE** — a cheaper Approach delivers enough of the data-activity signal at materially lower cost that CDC's extra depth does not justify its cost even as an add-on → the report states plainly that *"CDC is over-engineering for metrics alone"* (Requirements 5.6, 13.3).
+
+The verdict's strength depends on which layers were run: with only the qualitative layer it is grounded in the Capability_Matrix and setup-cost analysis; the measured layer, when present, sharpens it with overhead/latency numbers.
+
+---
+
 ## Threats to Validity / Fairness
 
 This section is **required for credibility** (Requirement 7.4) and is carried verbatim-in-spirit into the Report. Each threat names a confounder and how the harness controls it (or why it cannot).
@@ -219,7 +279,8 @@ The Report under `docs/benchmark/` is structured so the honesty obligation is st
 6. **Where CDC wins** — findings favorable to CDC.
 7. **Where CDC does NOT win** — the mandatory Honesty_Section (Requirement 5), given comparable prominence and detail to §6; names higher setup cost, the Debezium dependency, snapshot cost, and any axis a non-CDC approach won.
 8. **Threats to validity / fairness** — the section above.
-9. **Conclusion** — whether the data supports, qualifies, or undercuts the reframe, stated honestly.
+9. **Depth vs. breadth positioning** — the Positioning_Analysis (Requirement 13): CDC's narrow-deep signal vs. the Broader_Toolset's broad-shallow coverage, the two-axis model, and the enumerated CDC-only insights vs. breadth-only dimensions.
+10. **Conclusion** — the explicit **SUPPORT / QUALIFY / REFUTE** verdict on the Central_Hypothesis and the "install only if you already have CDC" pitch (Requirement 13.3), willing to state *"CDC is over-engineering for metrics alone"* where the data points that way (Requirement 5.6), tied back to the `ROADMAP.md` "multiplier, not a reason to adopt" reframe (Requirement 5.5).
 
 A report that renders §6 without a substantive §7 is incomplete by definition (Requirement 9.1).
 

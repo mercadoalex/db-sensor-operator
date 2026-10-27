@@ -12,6 +12,14 @@ This benchmark exists to test that reframe honestly. The db-sensor-operator ("La
 
 These requirements mirror the structure and the "WHEN … THE SYSTEM SHALL …" acceptance-criteria style of the existing `db-sensor` spec, and are kept numerically stable so the design and tasks can reference them by ID.
 
+### Central hypothesis
+
+The benchmark exists to prove **or disprove** one falsifiable claim, stated here so the rest of the spec can be read against it:
+
+> **CDC-derived observability is NARROW-BUT-DEEP; the broader database-observability toolset is BROAD-BUT-SHALLOW for data activity.** CDC produces data-mutation signal that the alternatives structurally *cannot* — per-row operation semantics (which rows changed and how), exact commit-to-visibility lag, and additive-vs-breaking DDL detection. **But** the wider toolset (native DB stats, polling, exporters, triggers, query-log scraping, APM agents) collectively covers a much *wider* range of database observability — server health, query latency, connections, locks, slow queries — that CDC does not touch. Therefore the honest pitch is **"install only if you already have CDC"**: it is **not** worth standing up CDC *solely* for metrics, but if CDC is already running (for replication, migration, or audit), this operator is nearly-free depth on top.
+
+This is a claim to **test, not to assume**. The data and the capability analysis must be able to **SUPPORT, QUALIFY, or REFUTE** it, and the honest possible conclusions explicitly include *"CDC is over-engineering for metrics alone"* if the evidence points that way. The narrow-but-deep / broad-but-shallow framing adds a **separate breadth axis** on top of the existing data-activity head-to-head; it does **not** turn the broader operational tools into benchmarked competitors — they remain a complementary, out-of-scope concern on the head-to-head itself (see §Scope and Requirement 1), and are used here only to characterize breadth.
+
 ## Scope
 
 ### In scope
@@ -52,6 +60,11 @@ These requirements mirror the structure and the "WHEN … THE SYSTEM SHALL …" 
 - **Capability_Matrix**: The Approaches × data-activity-questions table recording what each Approach can and cannot observe.
 - **Axis**: One of the four evaluation dimensions — setup cost, source overhead, signal richness (capability), latency.
 - **Honesty_Section**: The mandatory part of the report that states, explicitly and prominently, where CDC does **not** win.
+- **Central_Hypothesis**: The falsifiable claim under test (see §Central hypothesis) — CDC is narrow-but-deep, the broader toolset is broad-but-shallow for data activity, and the correct pitch is "install only if you already have CDC." The benchmark must be able to SUPPORT, QUALIFY, or REFUTE it.
+- **Depth**: How *rich and exact* an Approach's data-activity signal is — per-row operation semantics, precise commit-to-metric lag, and additive-vs-breaking DDL detection. CDC_Derived is high on Depth; the other data-activity Approaches are lower.
+- **Breadth**: How *wide* a tool's overall database-observability coverage is across all DB concerns (server health, query latency, connections, locks, slow queries), not just data activity. The broader operational toolset is high on Breadth; CDC_Derived is low. Breadth is a separate axis from the head-to-head and is used only for positioning, not for ranking competitors.
+- **Broader_Toolset**: The wider database-observability tools used to characterize the Breadth axis — native DB stats (`pg_stat_*` server views), `postgres_exporter`, APM agents, and query-log scraping. These are **complementary coverage**, NOT measured competitors on the data-activity head-to-head (Requirement 1.3).
+- **Positioning_Analysis**: The depth-vs-breadth analysis in the Report (Requirement 13) that positions CDC's narrow-deep signal against the Broader_Toolset's broad-shallow coverage and states the SUPPORT / QUALIFY / REFUTE verdict on the Central_Hypothesis.
 - **Report**: The versioned markdown deliverable under `docs/benchmark/` that records methodology, the Capability_Matrix, measured numbers, and the Honesty_Section.
 
 ## Requirements
@@ -115,6 +128,7 @@ These requirements mirror the structure and the "WHEN … THE SYSTEM SHALL …" 
 3. WHEN the measured results show a non-CDC Approach winning on an Axis (e.g. Triggers_Approach achieving lower write-to-metric latency, or Polling_Approach being cheaper to set up), THE Report SHALL state that result plainly in the Honesty_Section without softening or omission.
 4. THE Report SHALL present the "where CDC wins" and "where CDC does not win" findings with comparable prominence and detail.
 5. THE Report SHALL explicitly connect its findings back to the "CDC-only-for-metrics is too much" claim and the `ROADMAP.md` "multiplier, not a reason to adopt" reframe, stating honestly whether the data supports, qualifies, or undercuts the reframe.
+6. WHERE the evidence points that way, THE Honesty_Section SHALL be willing to state the conclusion *"CDC is over-engineering for metrics alone"* as a legitimate outcome, consistent with the SUPPORT / QUALIFY / REFUTE verdict on the Central_Hypothesis required by Requirement 13.3; honesty includes refuting the project's own reframe when the data does not support it.
 
 ### Requirement 6: Local, no-cloud reproducibility
 
@@ -138,6 +152,17 @@ These requirements mirror the structure and the "WHEN … THE SYSTEM SHALL …" 
 3. THE Report SHALL document the methodology for each measured Axis in enough detail that the measurement can be independently reproduced and critiqued.
 4. THE Report SHALL include a "Threats to Validity / Fairness" section that names the known confounders (e.g. polling-interval choice dominating both polling latency and overhead; trigger write-amplification; CDC's Debezium dependency and snapshot cost; statement-stats always-on tracking) and how each was controlled or why it could not be.
 5. WHERE a tunable parameter materially changes an Approach's result, THE Report SHALL state the chosen value and acknowledge that a different choice would move the result.
+
+### Requirement 13: Depth-vs-breadth positioning analysis
+
+**User Story:** As the project author deciding the pitch, I want the report to characterize CDC's narrow-deep signal against the broad-shallow coverage of the wider database-observability toolset, so that the "install only if you already have CDC" conclusion is grounded in the evidence rather than asserted.
+
+#### Acceptance Criteria
+
+1. THE Report SHALL include a Positioning_Analysis that positions CDC_Derived observability (narrow and **deep** — per-operation semantics + exact commit-to-metric lag + additive-vs-breaking DDL) against the Broader_Toolset (native DB stats, `postgres_exporter`, APM agents, query-log scraping), characterizing that toolset as **broad but shallow FOR DATA-ACTIVITY questions** while acknowledging its wider coverage of other database concerns.
+2. THE Positioning_Analysis SHALL treat the Broader_Toolset as **complementary coverage on a separate Breadth axis** that justifies the "complement, not replacement" conclusion, and SHALL NOT present those tools as competitors beaten on the data-activity head-to-head, preserving the out-of-scope / complementary framing of Requirement 1 (specifically 1.2 and 1.3).
+3. THE Report SHALL state explicitly, with reference to the measured results (Requirements 3 and 4) and the qualitative Capability_Matrix (Requirement 2), whether the evidence **SUPPORTS**, **QUALIFIES**, or **REFUTES** the Central_Hypothesis and the "install only if you already have CDC" pitch — and SHALL be willing to conclude *"CDC is over-engineering for metrics alone"* where the evidence points that way (cross-reference Requirement 5.6).
+4. THE Positioning_Analysis SHALL enumerate (a) the concrete data-activity insights CDC_Derived can produce that each alternative Approach structurally cannot — per-row operation semantics, additive-vs-breaking DDL, and precise commit-to-metric lag — AND (b) the concrete observability dimensions the Broader_Toolset covers that CDC_Derived does not — e.g. server health, query latency, connection counts, lock waits, slow-query analysis.
 
 ## Non-Functional Requirements
 
