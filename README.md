@@ -285,6 +285,7 @@ this repo does not run them.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — hybrid status (conditions + measurements + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — HTTP default / Kafka optional transport.
 - [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derive event counts from the stream vs. native JMX metrics.
+- [docs/articles/to-watermark-or-not.md](docs/articles/to-watermark-or-not.md) — a reflection on CDC snapshot models and why the operator is moving to watermark-based incremental snapshots.
 
 ## Development
 

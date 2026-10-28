@@ -54,3 +54,6 @@ docs/review-*.md
 # Spec-review scratch artifacts
 .kiro/specs/**/.review*.json
 .kiro/specs/**/.review*.md
+
+# Article-review scratch artifacts
+docs/articles/.review*
