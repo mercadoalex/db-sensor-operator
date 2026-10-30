@@ -1,0 +1,31 @@
+# DatabaseSensor for the CDC-derived Approach. Lactiflluus creates the
+# DebeziumServer (official Debezium Operator runs it); Debezium POSTs every change
+# event to the operator's /cdc endpoint (HTTP transport, ADR-012: no Kafka broker).
+#
+# The password Secret `bench-pg-creds` (key: password) is created by
+# bench/cluster/postgres.yaml in the same namespace as this CR.
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  name: bench-cdc
+  namespace: bench
+spec:
+  database:
+    type: postgresql
+    host: bench-postgres
+    port: 5432
+    user: bench
+    name: bench
+    passwordSecret: bench-pg-creds
+  tables:
+    - public.orders
+    - public.users
+    - public.payments
+  transport:
+    type: http
+    http:
+      url: http://db-sensor-db-sensor-operator-operator-http.db-sensor.svc:8080/cdc
+  sink:
+    type: prometheus
+    prometheus:
+      serviceMonitor: false

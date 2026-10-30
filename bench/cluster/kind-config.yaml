@@ -1,0 +1,6 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+# Single-node cluster: every benchmark run executes on one documented host and
+# one cluster so overhead and latency numbers are comparable (Requirements 4.4, 7.1).
+nodes:
+  - role: control-plane

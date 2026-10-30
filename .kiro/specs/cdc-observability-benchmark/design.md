@@ -78,7 +78,8 @@ Each Approach is wired specifically for PostgreSQL. For each, this section fixes
 ### CDC-derived (Lactiflluus over Debezium)
 
 - **Wiring:** PostgreSQL with `wal_level=logical`; Debezium's PostgreSQL connector (via the official Debezium Operator, driven by a `DatabaseSensor` CR) streams changes. Per [ADR-012](../../../docs/adr/ADR-012-event-transport-http-default-kafka-optional.md), the default transport is **HTTP** (Debezium POSTs events to the operator's `/cdc`), so the benchmark's CDC path needs **no Kafka broker**. Per [ADR-013](../../../docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md), the operator **derives** per-op/per-table counts and lag from the event stream rather than scraping JMX.
-- **Can observe:** per-table insert/update/delete counts and rates; replication/change **lag** (`now() − ts_ms` from the event); **schema/DDL change** events (counted). Per-row detail is available in the event.
+- **Can observe:** per-table insert/update/delete counts and rates; replication/change **lag** (`now() − ts_ms` from the event). Per-row detail is available in the event.
+- **Correction (verified in task 2):** schema/DDL changes are **not** observable on PostgreSQL. Logical decoding (`pgoutput`) does not carry DDL, so Debezium's PostgreSQL connector emits no schema-change event; an `ALTER TABLE` on a monitored table produced no `debezium_schema_changes_total` series. Connectors with a schema history (MySQL, SQL Server, Oracle) do emit them. On PostgreSQL, no Approach observes DDL, so it is not a differentiator. See `bench/collectors/cdc/README.md`.
 - **Cannot observe (honestly):** nothing until the Debezium initial snapshot completes; it adds a running Debezium process and a replication slot (which retains WAL). It observes only the tables included in the connector filter.
 - **Cost drivers for the matrix:** Debezium runtime dependency, replication-slot/WAL retention, initial snapshot cost.
 
@@ -177,7 +178,7 @@ The qualitative layer produces this table (cells filled by analysis; measured ax
 | Per-table update rate | ✅ | ✅ (interval granularity) | ✅ | 🟡 |
 | Per-table delete rate | ✅ | ✅ (interval granularity) | ✅ | 🟡 |
 | Replication / change lag | ✅ (true `now()−ts_ms`) | ❌ (only interval) | ❌ (immediate, no lag concept) | ❌ |
-| Schema / DDL change detection | ✅ (counted) | ❌ | ❌ | ❌ |
+| Schema / DDL change detection | ❌ on PostgreSQL (verified: `pgoutput` carries no DDL; ✅ on MySQL-family connectors) | ❌ | ❌ | ❌ |
 | Per-row / change detail | ✅ | ❌ | ❌ | ❌ |
 
 ### Four axes × approaches (setup-cost cells qualitative; overhead/latency filled from measured results)
