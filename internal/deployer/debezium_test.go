@@ -125,3 +125,42 @@ func TestBuildDebeziumServer_UnsupportedType(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUnsupportedDBType))
 }
+
+func TestBuildDebeziumServer_HTTPSinkAndSecretInjection(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	sensor.Spec.Database.Name = "bench"
+	sensor.Spec.Transport = &sensoriov1.TransportConfig{
+		Type: "http",
+		HTTP: &sensoriov1.HTTPTransport{URL: "http://op.db-sensor.svc:8080/cdc"},
+	}
+
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+
+	sinkType, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "type")
+	assert.Equal(t, "http", sinkType)
+	url, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "config", "url")
+	assert.Equal(t, "http://op.db-sensor.svc:8080/cdc", url)
+
+	assert.Equal(t, "bench", sourceConfig(t, obj)["database.dbname"])
+	assert.Equal(t, "pgoutput", sourceConfig(t, obj)["plugin.name"])
+
+	// The Secret is exposed by reference (name + prefix) only; no value is embedded.
+	from, found, err := unstructured.NestedSlice(obj.Object, "spec", "runtime", "environment", "from")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Len(t, from, 1)
+	entry := from[0].(map[string]any)
+	assert.Equal(t, secretEnvPrefix, entry["prefix"])
+	assert.Equal(t, "db-creds", entry["secretRef"].(map[string]any)["name"])
+}
+
+func TestBuildDebeziumServer_NoURLKeepsPlaceholderSink(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
+	require.NoError(t, err)
+
+	sinkType, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "type")
+	assert.Equal(t, "none", sinkType)
+	_, found, _ := unstructured.NestedMap(obj.Object, "spec", "sink", "config")
+	assert.False(t, found, "no sink config without a URL")
+}

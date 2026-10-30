@@ -49,10 +49,18 @@ type DatabaseConfig struct {
 	User string `json:"user"`
 
 	// passwordSecret is the name of a Kubernetes Secret, in the same namespace
-	// as the DatabaseSensor, that holds the database password.
+	// as the DatabaseSensor, that holds the database password under the key
+	// "password". The Secret is injected into the Debezium Server pod as
+	// environment variables; the password itself is never written into the
+	// DebeziumServer spec.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	PasswordSecret string `json:"passwordSecret"`
+
+	// name is the logical database to capture (database.dbname). Required by
+	// the PostgreSQL connector; ignored by engines that do not take it.
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 
 // AlertRule maps a Prometheus alerting rule into a generated PrometheusRule.
@@ -164,9 +172,25 @@ type TransportConfig struct {
 	// +kubebuilder:default=http
 	Type string `json:"type,omitempty"`
 
+	// http configures the HTTP transport; ignored when type is "kafka".
+	// +optional
+	HTTP *HTTPTransport `json:"http,omitempty"`
+
 	// kafka configures the Kafka transport; ignored when type is "http".
 	// +optional
 	Kafka *KafkaTransport `json:"kafka,omitempty"`
+}
+
+// HTTPTransport configures the HTTP event transport.
+type HTTPTransport struct {
+	// url is the operator's CDC ingestion endpoint that the Debezium Server
+	// HTTP sink POSTs events to (for example
+	// "http://db-sensor-operator.db-sensor.svc:8080/cdc"). When empty, the
+	// generated DebeziumServer keeps a placeholder sink and delivers nothing;
+	// that is only appropriate for the synthetic demo, which POSTs events
+	// to /cdc itself.
+	// +optional
+	URL string `json:"url,omitempty"`
 }
 
 // KafkaTransport configures the Kafka event transport.

@@ -85,10 +85,18 @@ spec:
                     description: host is the database hostname or service address.
                     minLength: 1
                     type: string
+                  name:
+                    description: |-
+                      name is the logical database to capture (database.dbname). Required by
+                      the PostgreSQL connector; ignored by engines that do not take it.
+                    type: string
                   passwordSecret:
                     description: |-
                       passwordSecret is the name of a Kubernetes Secret, in the same namespace
-                      as the DatabaseSensor, that holds the database password.
+                      as the DatabaseSensor, that holds the database password under the key
+                      "password". The Secret is injected into the Debezium Server pod as
+                      environment variables; the password itself is never written into the
+                      DebeziumServer spec.
                     minLength: 1
                     type: string
                   port:
@@ -264,6 +272,20 @@ spec:
                   operator. It is the event ingress and is orthogonal to spec.sink (which
                   is the metrics/alert egress) per ADR-012. Defaults to the HTTP transport.
                 properties:
+                  http:
+                    description: http configures the HTTP transport; ignored when
+                      type is "kafka".
+                    properties:
+                      url:
+                        description: |-
+                          url is the operator's CDC ingestion endpoint that the Debezium Server
+                          HTTP sink POSTs events to (for example
+                          "http://db-sensor-operator.db-sensor.svc:8080/cdc"). When empty, the
+                          generated DebeziumServer keeps a placeholder sink and delivers nothing;
+                          that is only appropriate for the synthetic demo, which POSTs events
+                          to /cdc itself.
+                        type: string
+                    type: object
                   kafka:
                     description: kafka configures the Kafka transport; ignored when
                       type is "http".
