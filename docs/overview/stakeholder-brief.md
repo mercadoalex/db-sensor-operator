@@ -3,14 +3,12 @@
 Date: 2026-10-31 · Status: branch `feat/snapshot-policy-phase-b` (CI green, not merged) · [Versión en español](stakeholder-brief_spanish.md)
 Author: Alejandro Mercado Peña
 
-This document keeps three things apart so none is mistaken for another: what we **measured**, what we **built but have not yet tested end to end**, and what is a **market hypothesis** still to validate. Technical terms are explained in the [glossary](#11-glossary) at the end.
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="lactifluus-overview-dark.svg">
   <img alt="Lactifluus overview: PostgreSQL to Debezium to the Lactifluus operator, with an inspector, three policies, the measured start-up comparison and a verification legend." src="lactifluus-overview-light.svg">
 </picture>
 
-*Overview. Solid border: built and verified. Dashed: built, not yet tested end to end. Dotted: roadmap. Light and dark versions: `lactifluus-overview-light.svg` and `lactifluus-overview-dark.svg`.*
+This document keeps three things apart so none is mistaken for another: what we **measured**, what we **built but have not yet tested end to end**, and what is a **market hypothesis** still to validate. Technical terms are explained in the [glossary](#11-glossary) at the end.
 
 ## 1. In one sentence
 
