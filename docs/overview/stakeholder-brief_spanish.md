@@ -235,7 +235,7 @@ Detalle técnico y decisiones: `docs/adr/ADR-014-snapshot-policy-layer.md` · pe
 2. **Política de backfill por tabla:** si una tabla es chica, grande o no confiable de medir, qué estrategia de carga correspondería. Hoy se calcula y se muestra, **no se aplica**: calcula y recomienda; la ejecución viene después. Se construirá cuando algo necesite las filas existentes, cuando se conecte el transporte Kafka, o cuando un usuario lo pida.
 3. **Política de retención de WAL:** si el slot está sano, en riesgo o perdido, y qué hacer.
 
-Que sean reglas y no una caja negra es una **ventaja**, no una limitación: cada decisión queda escrita en el `status` con su razón, y se puede leer, probar y auditar. "Inteligencia basada en políticas" describe esto sin exagerar.
+Que sean reglas y no una caja negra es una **ventaja**, no una limitación: cada decisión queda escrita en el `status` con su razón, y se puede leer, probar y auditar. "Inteligencia de CDC basada en políticas" describe esto sin exagerar.
 
 **Qué mejora frente al enfoque anterior (solo métricas):**
 

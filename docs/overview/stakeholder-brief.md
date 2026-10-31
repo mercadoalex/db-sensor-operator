@@ -235,7 +235,7 @@ Technical detail and decisions: `docs/adr/ADR-014-snapshot-policy-layer.md` · p
 2. **Per-table backfill policy:** whether a table is small, large, or unreliable to measure, and which loading strategy would apply. Today it is computed and shown, **not applied**: it calculates and recommends; execution comes later. It will be built when something needs the existing rows, when the Kafka transport is wired, or when a user asks for it.
 3. **WAL retention policy:** whether the slot is healthy, at risk, or lost, and what to do.
 
-Being rules rather than a black box is an **advantage**, not a limitation: every decision is written in `status` with its reason, and can be read, tested and audited. "Policy-driven intelligence" describes this without overstating it.
+Being rules rather than a black box is an **advantage**, not a limitation: every decision is written in `status` with its reason, and can be read, tested and audited. "Policy-based CDC intelligence" describes this without overstating it.
 
 **What improves over the previous approach (metrics only):**
 
