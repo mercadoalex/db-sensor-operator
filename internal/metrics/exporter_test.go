@@ -34,8 +34,9 @@ import (
 
 // Shared literals used across the exporter tests.
 const (
-	tableOrders = "orders"
-	opDDL       = "ddl"
+	tableOrders    = "orders"
+	tableCustomers = "customers"
+	opDDL          = "ddl"
 )
 
 // fixedClock returns a controllable clock for deterministic lag and rate tests.
@@ -52,13 +53,13 @@ func TestExporterCountsByOp(t *testing.T) {
 		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: ts})
 	}
 	exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: tableOrders, TsMs: ts})
-	exp.OnEvent(events.CDCEvent{Op: "d", DB: "pg", Table: "customers", TsMs: ts})
-	exp.OnEvent(events.CDCEvent{Op: "t", DB: "pg", Table: "customers", TsMs: ts})
+	exp.OnEvent(events.CDCEvent{Op: "d", DB: "pg", Table: tableCustomers, TsMs: ts})
+	exp.OnEvent(events.CDCEvent{Op: "t", DB: "pg", Table: tableCustomers, TsMs: ts})
 
 	assert.Equal(t, 3.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("c", "pg", tableOrders)))
 	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("u", "pg", tableOrders)))
-	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("d", "pg", "customers")))
-	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("t", "pg", "customers")))
+	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("d", "pg", tableCustomers)))
+	assert.Equal(t, 1.0, testutil.ToFloat64(exp.eventsTotal.WithLabelValues("t", "pg", tableCustomers)))
 }
 
 func TestExporterSchemaChanges(t *testing.T) {
@@ -107,7 +108,7 @@ func TestExporterEventsPerMinForDB(t *testing.T) {
 		exp.OnEvent(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: now.UnixMilli()})
 	}
 	for range 2 {
-		exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: "customers", TsMs: now.UnixMilli()})
+		exp.OnEvent(events.CDCEvent{Op: "u", DB: "pg", Table: tableCustomers, TsMs: now.UnixMilli()})
 	}
 	exp.OnEvent(events.CDCEvent{Op: "c", DB: "other", Table: tableOrders, TsMs: now.UnixMilli()})
 
