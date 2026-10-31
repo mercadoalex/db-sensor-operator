@@ -1,6 +1,6 @@
 # Blind-window experiment: results
 
-Task A6 of `.kiro/specs/snapshot-policy/`. Reproduce with
+Task A6 of the snapshot policy (ADR-014). Reproduce with
 `make -C bench setup && ROWS=100000 bench/experiments/blind-window/run.sh`.
 
 - **Debezium Operator / Server:** 3.6.3, PostgreSQL 16, `pgoutput`

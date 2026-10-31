@@ -24,6 +24,7 @@ import (
 	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -76,6 +77,13 @@ type DatabaseSensorReconciler struct {
 	// buffer.
 	Dashboard    *dashboard.Gate
 	DashboardBuf *dashboard.RingBuffer
+	// InspectorImage is the operator's own image, which carries /inspector, and
+	// InspectorPullPolicy is the pull policy given to the inspection Job. When the image is
+	// empty an enabled inspection reports InspectorImageNotConfigured instead of running.
+	// Now is the clock, nil-safe: tests inject a fixed one.
+	InspectorImage      string
+	InspectorPullPolicy corev1.PullPolicy
+	Now                 func() time.Time
 
 	// dashboardMu guards dashboardSet, the set of sensor keys that currently
 	// request the dashboard (used to converge the operator-wide gate across
@@ -94,6 +102,8 @@ type DatabaseSensorReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=prometheusrules,verbs=get;list;watch;create;update;patch;delete
 
@@ -193,25 +203,24 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	alertErr := metrics.EnsureAlertRules(ctx, r.Client, r.Scheme, &sensor)
 	if alertErr != nil {
 		log.Error(alertErr, "Failed to ensure PrometheusRule")
-		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			var fresh sensoriov1.DatabaseSensor
-			if err := r.Get(ctx, types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}, &fresh); err != nil {
-				return err
-			}
-			meta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
-				Type:               health.ConditionTypeReady,
-				Status:             metav1.ConditionFalse,
-				Reason:             "AlertRulesFailed",
-				Message:            fmt.Sprintf("Failed to ensure PrometheusRule: %v", alertErr),
-				ObservedGeneration: fresh.Generation,
-			})
-			fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
-			return r.Status().Update(ctx, &fresh)
-		}); err != nil {
+		if err := r.markAlertRulesFailed(ctx, &sensor, alertErr); err != nil {
 			log.Error(err, "Failed to update DatabaseSensor status")
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, alertErr
+	}
+
+	// Database inspection (ADR-014). It never waits for the Job it starts: it creates it, looks at it
+	// on later passes, and reads its result once, so a database the operator cannot reach cannot stall
+	// the reconcile. Skipped on the mapped-failure path, where the Job would fail on the missing Secret.
+	var inspect inspectionOutcome
+	if ensureErr == nil {
+		var ierr error
+		inspect, ierr = r.reconcileInspection(ctx, &sensor)
+		if ierr != nil {
+			log.Error(ierr, "Failed to reconcile the database inspection")
+			return ctrl.Result{}, ierr
+		}
 	}
 
 	// Health check (Task 9). Only on the non-mapped-failure path: a mapped
@@ -293,15 +302,27 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		// ADR-014: explain how the connector starts. Derived from the spec, so it
-		// is written on every path, including mapped failures.
-		snap := deployer.SnapshotStatusFor(&fresh)
-		fresh.Status.Snapshot = &snap
+		// is written on every path, including mapped failures. Only these three fields
+		// are refreshed here: status.snapshot also carries the inspection facts and the
+		// plan, which another step writes and which this block must not erase.
+		refreshStartStatus(&fresh)
+		// The inspection facts, the plan and their conditions. The operator is the only writer: the
+		// Job only leaves its result in the container's termination message.
+		if inspect.apply != nil {
+			inspect.apply(&fresh)
+		}
 
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
 		return r.Status().Update(ctx, &fresh)
 	}); err != nil {
 		log.Error(err, "Failed to update DatabaseSensor status")
 		return ctrl.Result{}, err
+	}
+	// Only now that the result is stored may the finished Job go.
+	if inspect.after != nil {
+		if aerr := inspect.after(ctx); aerr != nil {
+			log.Error(aerr, "Failed to clean up the inspection Job; its TTL will remove it")
+		}
 	}
 
 	// Requeue for the periodic health-check loop (US-7.1). A mapped failure
@@ -314,6 +335,9 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	requeueAfter := 30 * time.Second
 	if alertRequeueAfter > 0 && alertRequeueAfter < requeueAfter {
 		requeueAfter = alertRequeueAfter
+	}
+	if inspect.requeueAfter > 0 && inspect.requeueAfter < requeueAfter {
+		requeueAfter = inspect.requeueAfter
 	}
 	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
@@ -651,6 +675,7 @@ func (r *DatabaseSensorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(debeziumServer).
 		// The per-sensor metrics Service is always owned by the sensor (Task 5).
 		Owns(&corev1.Service{}).
+		Owns(&batchv1.Job{}).
 		// Same-namespace ServiceMonitors carry an owner ref, so .Owns re-enqueues
 		// the sensor when they drift. Cross-namespace ServiceMonitors have no
 		// owner ref (K8s forbids cross-namespace owner refs), so .Owns does not
@@ -663,4 +688,37 @@ func (r *DatabaseSensorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&monitoringv1.PrometheusRule{}).
 		Named("databasesensor").
 		Complete(r)
+}
+
+// markAlertRulesFailed records Ready=False/AlertRulesFailed on the sensor, retrying on conflict.
+func (r *DatabaseSensorReconciler) markAlertRulesFailed(ctx context.Context, sensor *sensoriov1.DatabaseSensor, alertErr error) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var fresh sensoriov1.DatabaseSensor
+		if err := r.Get(ctx, types.NamespacedName{Name: sensor.Name, Namespace: sensor.Namespace}, &fresh); err != nil {
+			return err
+		}
+		meta.SetStatusCondition(&fresh.Status.Conditions, metav1.Condition{
+			Type:               health.ConditionTypeReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             "AlertRulesFailed",
+			Message:            fmt.Sprintf("Failed to ensure PrometheusRule: %v", alertErr),
+			ObservedGeneration: fresh.Generation,
+		})
+		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
+		return r.Status().Update(ctx, &fresh)
+	})
+}
+
+// refreshStartStatus explains how the connector starts (ADR-014). Only these three fields are
+// refreshed: status.snapshot also carries the inspection facts and the plan, which the inspection
+// step writes and which this must not erase.
+func refreshStartStatus(fresh *sensoriov1.DatabaseSensor) {
+	snap := deployer.SnapshotStatusFor(fresh)
+	if fresh.Status.Snapshot == nil {
+		fresh.Status.Snapshot = &snap
+		return
+	}
+	fresh.Status.Snapshot.Strategy = snap.Strategy
+	fresh.Status.Snapshot.OffsetStore = snap.OffsetStore
+	fresh.Status.Snapshot.Reason = snap.Reason
 }

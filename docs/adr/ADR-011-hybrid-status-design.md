@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-16
-- **Context:** Task 2 (Define Spec/Status structs) of `.kiro/specs/db-sensor/tasks.md`
+- **Context:** Task 2 (Define Spec/Status structs) of the db-sensor implementation plan
 - **Supersedes:** the plain-string `DatabaseSensorStatus` sketched in `DESIGN.MD` §6 and the status field list in US-5 (`requirements.md`). The user-facing data from US-5 is still fully delivered; only its internal representation changes.
 
 ## Context

@@ -61,3 +61,11 @@ When disabled, serviceAccount.name must be set; use "default" to pick the namesp
 {{- required "serviceAccount.name is required when serviceAccount.enabled=false (set name: default explicitly to use the namespace default ServiceAccount)" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+The manager image reference. The operator passes it to the database inspection Jobs it creates,
+since /inspector ships in the same image, so the two can never disagree on a version.
+*/}}
+{{- define "db-sensor-operator.managerImage" -}}
+{{ .Values.manager.image.repository | default "controller" }}{{- if not (contains "@" (.Values.manager.image.repository | default "controller")) }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}{{- end }}
+{{- end }}

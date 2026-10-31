@@ -14,7 +14,7 @@ K="kubectl --context ${CTX}"
 echo "==> deleting the bench DatabaseSensor (the DebeziumServer is garbage collected)"
 $K delete -f "${HERE}/sensor.yaml" --ignore-not-found --wait=true
 
-echo "==> uninstalling Lactiflluus and the Debezium Operator"
+echo "==> uninstalling Lactifluus and the Debezium Operator"
 helm uninstall db-sensor -n db-sensor --kube-context "$CTX" 2>/dev/null || true
 helm uninstall debezium-operator -n debezium --kube-context "$CTX" 2>/dev/null || true
 

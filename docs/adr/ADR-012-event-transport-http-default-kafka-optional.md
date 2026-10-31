@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-16
-- **Context:** Tasks 6–9 (event pipeline) of `.kiro/specs/db-sensor/tasks.md`;
+- **Context:** Tasks 6–9 (event pipeline) of the db-sensor implementation plan;
   Task 7 (CDC event consumer) in particular. Relates to NFR-1 (throughput) and
   NFR-6 (restartable without data loss).
 

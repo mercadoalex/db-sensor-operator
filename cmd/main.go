@@ -29,11 +29,16 @@ import (
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/prometheus/client_golang/prometheus"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -46,6 +51,7 @@ import (
 	"github.com/mercadoalex/db-sensor-operator/internal/deployer"
 	"github.com/mercadoalex/db-sensor-operator/internal/events"
 	"github.com/mercadoalex/db-sensor-operator/internal/health"
+	"github.com/mercadoalex/db-sensor-operator/internal/inspection"
 	"github.com/mercadoalex/db-sensor-operator/internal/metrics"
 	// +kubebuilder:scaffold:imports
 )
@@ -53,6 +59,9 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	// inspectionSelector matches the Jobs and pods of the database inspection and nothing else.
+	inspectionSelector = labels.SelectorFromSet(labels.Set{inspection.ComponentLabel: inspection.ComponentValue})
 )
 
 func init() {
@@ -190,7 +199,13 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
+		Scheme: scheme,
+		// Only the inspection's own Jobs and pods are cached. Without this the first read of a pod
+		// would start an informer on every pod in the cluster.
+		Cache: cache.Options{ByObject: map[client.Object]cache.ByObject{
+			&batchv1.Job{}: {Label: inspectionSelector},
+			&corev1.Pod{}:  {Label: inspectionSelector},
+		}},
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,
@@ -227,12 +242,16 @@ func main() {
 	pipeline := &events.Pipeline{Exporter: exp, Lag: lag, Recorder: buf}
 
 	if err := (&controller.DatabaseSensorReconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Exporter:     exp,
-		Lag:          lag,
-		Dashboard:    gate,
-		DashboardBuf: buf,
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		// The inspection Job runs /inspector from this same image. Empty when the operator is not
+		// deployed with the chart; an enabled inspection then says so instead of failing.
+		InspectorImage:      os.Getenv("OPERATOR_IMAGE"),
+		InspectorPullPolicy: corev1.PullPolicy(os.Getenv("OPERATOR_IMAGE_PULL_POLICY")),
+		Exporter:            exp,
+		Lag:                 lag,
+		Dashboard:           gate,
+		DashboardBuf:        buf,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "databasesensor")
 		os.Exit(1)

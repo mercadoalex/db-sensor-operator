@@ -32,7 +32,7 @@ run: ## Run the deterministic workload (SEED, RATE, DURATION, *_PCT overridable)
 	CLUSTER=$(CLUSTER) NS=$(NS) ./workload/run.sh
 
 .PHONY: cdc-up
-cdc-up: ## Deploy the CDC Approach (Debezium Operator + Lactiflluus + sensor)
+cdc-up: ## Deploy the CDC Approach (Debezium Operator + Lactifluus + sensor)
 	CLUSTER=$(CLUSTER) NS=$(NS) ./collectors/cdc/up.sh
 
 .PHONY: cdc-down

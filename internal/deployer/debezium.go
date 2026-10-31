@@ -93,11 +93,6 @@ const dbTypePostgres = "postgresql"
 var connectorClasses = map[string]string{
 	dbTypePostgres: "io.debezium.connector.postgresql.PostgresConnector",
 	"mysql":        "io.debezium.connector.mysql.MySqlConnector",
-	"mongodb":      "io.debezium.connector.mongodb.MongoDbConnector",
-	"sqlserver":    "io.debezium.connector.sqlserver.SqlServerConnector",
-	"oracle":       "io.debezium.connector.oracle.OracleConnector",
-	"db2":          "io.debezium.connector.db2.Db2Connector",
-	"cassandra":    "io.debezium.connector.cassandra.CassandraConnector",
 }
 
 // BuildDebeziumServer maps a DatabaseSensor spec onto a DebeziumServer object.
@@ -127,21 +122,15 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 		"topic.prefix":      topicPrefix(sensor),
 	}
 
-	// Table/collection filters (US-1.1). MongoDB filters by collection; the
-	// relational connectors use table.include.list.
+	// Table filter (US-1.1).
 	if len(sensor.Spec.Tables) > 0 {
-		joined := strings.Join(sensor.Spec.Tables, ",")
-		if sensor.Spec.Database.Type == "mongodb" {
-			config["collection.include.list"] = joined
-		} else {
-			config["table.include.list"] = joined
-		}
+		config["table.include.list"] = strings.Join(sensor.Spec.Tables, ",")
 	}
 
 	// Per-type extras (US-8).
 	switch sensor.Spec.Database.Type {
 	case dbTypePostgres:
-		config["slot.name"] = slotName(sensor)
+		config["slot.name"] = SlotName(sensor)
 		// Do not read existing rows: the sensor derives everything from live
 		// changes, so a blocking snapshot is a pure cost that leaves it blind
 		// until it ends. "no_data" is the non-blocking mode accepted by Debezium
@@ -326,10 +315,10 @@ func topicPrefix(sensor *sensoriov1.DatabaseSensor) string {
 
 var invalidSlotChars = regexp.MustCompile(`[^a-z0-9_]`)
 
-// slotName derives a stable Postgres replication slot name from the sensor name.
+// SlotName derives a stable Postgres replication slot name from the sensor name.
 // Postgres slot names must be lowercase alphanumerics or underscores and at most
 // 63 characters.
-func slotName(sensor *sensoriov1.DatabaseSensor) string {
+func SlotName(sensor *sensoriov1.DatabaseSensor) string {
 	name := strings.ToLower(sensor.Namespace + "_" + sensor.Name)
 	name = invalidSlotChars.ReplaceAllString(name, "_")
 	if len(name) > 63 {

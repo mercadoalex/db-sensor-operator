@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-16
 - **Context:** Task 6 (Prometheus Exporter) and Tasks 7–8 (event pipeline) of
-  `.kiro/specs/db-sensor/tasks.md`. Relates to US-2 (derive observability
+  the db-sensor implementation plan. Relates to US-2 (derive observability
   metrics) and ADR-012 (HTTP default / Kafka optional transport).
 - **Prior art:** Mario Fiore Vitale, *Detect data mutation patterns with
   Debezium* (Debezium blog, 2024-10-14):

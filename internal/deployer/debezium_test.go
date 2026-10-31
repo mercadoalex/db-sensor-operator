@@ -108,22 +108,13 @@ func TestBuildDebeziumServer_MySQL(t *testing.T) {
 	assert.Equal(t, id, cfg2["database.server.id"])
 }
 
-func TestBuildDebeziumServer_MongoDB(t *testing.T) {
-	obj, err := BuildDebeziumServer(newSensor("mongodb", "shop.orders"))
-	require.NoError(t, err)
-
-	cfg := sourceConfig(t, obj)
-	assert.Equal(t, "io.debezium.connector.mongodb.MongoDbConnector", cfg["connector.class"])
-	assert.Equal(t, "shop.orders", cfg["collection.include.list"])
-	assert.NotContains(t, cfg, "table.include.list")
-	assert.NotContains(t, cfg, "slot.name")
-	assert.NotContains(t, cfg, "database.server.id")
-}
-
 func TestBuildDebeziumServer_UnsupportedType(t *testing.T) {
-	_, err := BuildDebeziumServer(newSensor("sqlite", "t"))
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrUnsupportedDBType))
+	// sqlite never existed; the others are engines the operator no longer accepts.
+	for _, dbType := range []string{"sqlite", "mongodb", "sqlserver", "oracle", "db2", "cassandra"} {
+		_, err := BuildDebeziumServer(newSensor(dbType, "t"))
+		require.Error(t, err, dbType)
+		assert.True(t, errors.Is(err, ErrUnsupportedDBType), dbType)
+	}
 }
 
 func TestBuildDebeziumServer_HTTPSinkAndSecretInjection(t *testing.T) {

@@ -1,6 +1,6 @@
 # Demo — synthetic-event walkthrough
 
-A rehearsable ~5-minute demo of the Lactiflluus (DatabaseSensor) operator that
+A rehearsable ~5-minute demo of the Lactifluus (DatabaseSensor) operator that
 needs **only Docker + kind locally** — no real database, no Debezium Server, no
 Kafka, no Datadog.
 

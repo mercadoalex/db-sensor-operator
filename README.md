@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo_horizontal_bco.jpeg" alt="Lactiflluus — DatabaseSensor Operator" width="520">
+  <img src="assets/logo_horizontal_bco.jpeg" alt="Lactifluus — DatabaseSensor Operator" width="520">
 </p>
 
 <h1 align="center">Lactifluus — DatabaseSensor Operator</h1>
@@ -12,13 +12,13 @@
 
 > [!WARNING]
 > **🚧 Work in progress — not production ready.**
-> Lactiflluus is under active, early-stage development (much of the implementation work is still pending). The `DatabaseSensor` CR API, the Helm chart, and the operator's behavior **may change without notice**. Use it to evaluate, experiment, and give feedback — **do not deploy it to production yet**.
+> Lactifluus is under active, early-stage development (much of the implementation work is still pending). The `DatabaseSensor` CR API, the Helm chart, and the operator's behavior **may change without notice**. Use it to evaluate, experiment, and give feedback — **do not deploy it to production yet**.
 
 ---
 
 ## What it is
 
-**Lactiflluus** is a Kubernetes operator written in Go that orchestrates database observability from Change Data Capture (CDC). You declare in a YAML "monitor these tables and alert me if X", and the operator automatically orchestrates Debezium + Prometheus + multi-sink alerting.
+**Lactifluus** is a Kubernetes operator written in Go that orchestrates database observability from Change Data Capture (CDC). You declare in a YAML "monitor these tables and alert me if X", and the operator automatically orchestrates Debezium + Prometheus + multi-sink alerting.
 
 It is implemented as the `DatabaseSensor` custom resource and acts as an **observability layer** on top of the official Debezium Operator: it derives metrics, creates `ServiceMonitor` / `PrometheusRule`, fans out alerts to multiple backends, and exposes an enriched status on the CR.
 
@@ -29,11 +29,11 @@ It is implemented as the `DatabaseSensor` custom resource and acts as an **obser
 
 ### Difference from the official Debezium Operator
 
-The official one (Apache 2.0, Java) only manages the Debezium Server lifecycle (deploy, scale, config). It does **not** derive observability metrics, does not create `ServiceMonitor` / `AlertRules`, does not alert on mutation patterns, and does not expose a rich status. Lactiflluus fills that gap.
+The official one (Apache 2.0, Java) only manages the Debezium Server lifecycle (deploy, scale, config). It does **not** derive observability metrics, does not create `ServiceMonitor` / `AlertRules`, does not alert on mutation patterns, and does not expose a rich status. Lactifluus fills that gap.
 
 ### Prior art & acknowledgements
 
-The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lays it out clearly: derive business-level signals straight from the change stream instead of instrumenting each service. Lactiflluus is the operator-level automation of that idea — one declarative `DatabaseSensor` CR instead of a hand-wired JMX exporter plus Grafana setup. On top of it, the operator adds the signals Debezium doesn't expose on its own: derived lag, DDL intelligence (only for connectors that emit schema changes; not PostgreSQL, see [Derived metrics](#derived-metrics)), and multi-sink alert fan-out. See [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) for how derived counts relate to Debezium 3.0's native counters.
+The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lays it out clearly: derive business-level signals straight from the change stream instead of instrumenting each service. Lactifluus is the operator-level automation of that idea — one declarative `DatabaseSensor` CR instead of a hand-wired JMX exporter plus Grafana setup. On top of it, the operator adds the signals Debezium doesn't expose on its own: derived lag, DDL intelligence (only for connectors that emit schema changes; not PostgreSQL, see [Derived metrics](#derived-metrics)), and multi-sink alert fan-out. See [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) for how derived counts relate to Debezium 3.0's native counters.
 
 ## Key capabilities
 
@@ -43,12 +43,12 @@ The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [
 - Fan out alerts to multiple backends: Prometheus, Datadog, Webhook/Slack.
 - Embedded dashboard with live charts.
 - Enriched status visible with `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
-- Multi-DB support: PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server, Oracle, Db2, Cassandra.
+- Databases: PostgreSQL (verified against a real cluster) and MySQL (connector mapped, not yet verified). See [Supported databases](#supported-databases).
 
 ## Architecture
 
 <p align="center">
-  <img src="assets/architecture.jpeg" alt="Lactiflluus architecture: the DatabaseSensor CR is reconciled by the operator, which creates a DebeziumServer (managed by the official Debezium Operator), consumes the CDC events, derives metrics, and fans out to Prometheus, Datadog, and Webhook/Dashboard" width="900">
+  <img src="assets/architecture.jpeg" alt="Lactifluus architecture: the DatabaseSensor CR is reconciled by the operator, which creates a DebeziumServer (managed by the official Debezium Operator), consumes the CDC events, derives metrics, and fans out to Prometheus, Datadog, and Webhook/Dashboard" width="900">
 </p>
 
 The diagram above shows the full flow: you apply a `DatabaseSensor` CR, the reconciler (every 30s) creates a `DebeziumServer` that the official Debezium operator deploys, the CDC events are consumed (Kafka or HTTP), metrics are derived (`insert_rate`, `lag`, `schema_changes`), `/metrics` is always exposed in Prometheus format, and depending on `spec.sink` alerts are fanned out to multiple backends. All child resources use owner references, so deleting the `DatabaseSensor` cleans everything up in cascade.
@@ -89,7 +89,7 @@ metadata:
   namespace: prod
 spec:
   database:
-    type: postgresql        # postgresql | mysql | mongodb | ...
+    type: postgresql        # postgresql | mysql
     host: postgres-svc.prod
     port: 5432
     user: debezium
@@ -176,7 +176,7 @@ Snapshot reads (`op=r`) are never counted: they report rows that already existed
 
 For PostgreSQL the operator starts Debezium with `snapshot.mode=no_data`: it does not read existing rows, so the sensor reports from the first live change instead of waiting for a snapshot. On a 100,000-row table the default `initial` snapshot kept a sensor blind for 57 s while `no_data` saw the first change in 6 s (Debezium 3.6.3, one run; see `bench/experiments/blind-window/RESULTS.md`). The cost is that existing rows are not delivered, which does not affect rates, lag or counts. Other engines keep Debezium's default until their non-blocking mode is verified.
 
-By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) and `.kiro/specs/snapshot-policy/`.
+By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md).
 
 ## Status (`kubectl get`)
 
@@ -192,15 +192,12 @@ The CR exposes an enriched status via the status subresource:
 
 ## Supported databases
 
-| DB | Mechanism |
-|---|---|
-| PostgreSQL | Logical decoding (pgoutput, wal2json) |
-| MySQL / MariaDB | Binary log (binlog) |
-| MongoDB | Change Streams / Oplog |
-| SQL Server | CDC Tables / LSN |
-| Oracle | LogMiner / XStream |
-| Db2 | ASN Capture |
-| Cassandra | CommitLog (cdc_raw) |
+| DB | Mechanism | Status |
+|---|---|---|
+| PostgreSQL | Logical decoding (`pgoutput`) | Verified against a real cluster (Debezium 3.6.3, PostgreSQL 16) |
+| MySQL | Binary log (binlog) | Connector and `database.server.id` mapped; **not yet verified** against a real MySQL |
+
+For now the operator supports only these two. The API rejects any other `spec.database.type`. Debezium itself supports more engines (MongoDB, SQL Server, Oracle, Db2, Cassandra); they are not wired here and nothing about them has been tested. The non-blocking start, offset persistence and table inspector described above are implemented for PostgreSQL only.
 
 ## Tech stack
 
@@ -215,7 +212,7 @@ The CR exposes an enriched status via the status subresource:
 
 ### Prerequisites
 
-These operators are installed **separately** — the Lactiflluus chart does not include them:
+These operators are installed **separately** — the Lactifluus chart does not include them:
 
 - A Kubernetes cluster.
 - **Official Debezium Operator** (manages the Debezium Server lifecycle).
@@ -229,7 +226,7 @@ These operators are installed **separately** — the Lactiflluus chart does not 
 helm repo add debezium https://charts.debezium.io
 helm install debezium-operator debezium/debezium-operator -n debezium
 
-# 2. Install Lactiflluus (creates the namespace on first install)
+# 2. Install Lactifluus (creates the namespace on first install)
 helm install db-sensor ./charts/db-sensor-operator -n db-sensor --create-namespace
 
 # 3. Apply a sample CR
@@ -351,10 +348,10 @@ db-sensor-operator/
 
 ## License
 
-Lactiflluus is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE). You may use, modify, and distribute it freely; contributions are accepted under the same license.
+Lactifluus is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE). You may use, modify, and distribute it freely; contributions are accepted under the same license.
 
 - Debezium and the official Debezium Operator: Apache 2.0.
-- Lactiflluus is built on Go, Kubebuilder, and controller-runtime; it does not inherit copyleft from Debezium.
+- Lactifluus is built on Go, Kubebuilder, and controller-runtime; it does not inherit copyleft from Debezium.
 
 ---
 

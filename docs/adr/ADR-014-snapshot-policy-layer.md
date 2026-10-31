@@ -4,9 +4,10 @@
 - **Date:** 2026-10-30
 - **Context:** `ROADMAP.md` Tier 2 "Snapshot strategy / policy layer"; the
   article `docs/articles/to-watermark-or-not.md`; the CDC benchmark
-  (`.kiro/specs/cdc-observability-benchmark/`). Relates to ADR-012 (HTTP
+  (`bench/`). Relates to ADR-012 (HTTP
   transport, no broker) and ADR-013 (counts derived from the stream).
-  Implemented by `.kiro/specs/snapshot-policy/`.
+  The requirements, design and task plan for this ADR are kept locally and are
+  not versioned; the experiments that support it are under `bench/experiments/`.
 - **Prior art:** Netflix DBLog, *A Watermark Based Change-Data-Capture
   Framework* (Andreakis & Papapanagiotou, 2020),
   <https://arxiv.org/abs/2010.12597>. Debezium implements it as incremental
@@ -46,7 +47,7 @@ undone by the first restart unless offset persistence is decided as well.
 1. **Add a decision step to reconcile.** The reconcile loop goes from
    "generate a static spec" to "inspect, decide, generate a spec". The
    operator is still an operator: it watches a CR, inspects the world, decides,
-   reconciles. The watermark algorithm stays Debezium's job; Lactiflluus only
+   reconciles. The watermark algorithm stays Debezium's job; Lactifluus only
    chooses how to start the connector and whether to send a snapshot signal.
 2. **Split the work into two phases, because the metrics do not need rows.**
    - **Phase A, non-blocking start (default).** Start the connector so it
@@ -93,6 +94,137 @@ undone by the first restart unless offset persistence is decided as well.
   three CDC costs the benchmark discloses. A non-blocking start is a mitigation
   worth measuring as a separate variant, reported next to the default.
 
+## Deferred design: applies only once a backfill exists
+
+Nothing below is built, and none of it can be measured today: the connector always starts
+with `snapshot.mode=no_data`, so there is no blocking snapshot and no backfill to time.
+It is recorded so it is not lost and not implemented blind.
+
+**Goal and policy.** The goal is zero blindness: the sensor sees live changes from the
+first moment and, when a backfill is wanted, existing rows are delivered without losing
+that. Row counts are not the criterion; they plan the cost. A blocking `initial`
+snapshot is not zero blindness: in the blind-window experiment no live change arrived
+until all 100,089 rows had been delivered (57 s). An incremental snapshot keeps the live
+stream flowing. So the mechanism follows capability, not size:
+
+1. With write access or a verified read-only path, use the incremental snapshot, at any size.
+2. With neither, use `initial` only if its estimated blind time fits the budget.
+3. Otherwise report `Degraded` with the reason. Never omit the backfill silently.
+
+"No backfill" stays an explicit user value (`stream-only`) and the default, so nothing
+changes on upgrade. `auto` must never return it. `no_data` remains the start mode of every
+path, since an incremental snapshot starts without reading rows and then receives a signal.
+Resuming chunks after a restart only holds with a persistent offset store.
+
+**Unit.** The threshold is time, not rows: the longest blind window the user accepts. Rows
+only estimate it. The row estimate must come from a reliable source (see the inspector).
+
+**Calibration.** Throughput is a property of one sensor (its sink, row width and network
+path), not a constant of the project. It would live in `status.snapshot.calibration`
+(`rowsPerSec`, `measuredAt`, `sampleRows`, `source: measured | default | user-override`,
+`confidence: low` until three runs). The only measurement so far is one run: 100,089 rows
+in 57 s, of which about 6 s was pod start, so roughly 1,960 rows per second net, on one
+host with the local HTTP sink. It is a starting default, not a baseline. Storing it before a
+backfill can produce samples would be a dead field that suggests a capability that is not there.
+
+**WAL headroom gate.** Retention comes from the whole cluster's WAL, not from the captured
+table, and full-page writes can make a small update cost a full page. It only matters for
+a blocking snapshot, because a streaming connector keeps acknowledging. The headroom is
+bounded by `max_slot_wal_keep_size` (PostgreSQL 13+; `-1` is unlimited), not by
+`wal_keep_size`, which does not limit slots. With `-1` the real limit is the free space of
+`pg_wal`, which SQL does not expose, so the headroom is unknown and must be treated
+conservatively. The WAL rate can be sampled with `pg_wal_lsn_diff` over two
+`pg_current_wal_lsn()` readings (not available on a standby), over a window long enough to
+smooth checkpoint bursts. None of this was tested.
+
+**Status shape.** The plan is reported as `status.snapshot.plan` with `applied: false` until
+a consumer exists, so a status never reads as if a backfill were happening. `captureStrategy:
+auto` is not exposed in the spec until it acts.
+
+## Pending, by dialect and by precondition
+
+Recorded so they are not lost. None is implemented and none was tested; the verified server is
+PostgreSQL 16.
+
+- **PostgreSQL 17 and later.** `pg_replication_slots.invalidation_reason` (for example
+  `wal_removed`, `wal_level_insufficient`) would say why a slot died without reading logs, and
+  `inactive_since` would say for how long a slot has been inactive, which the current
+  "inactive" warning cannot (it fires the moment a connector is attached no more, including
+  during a normal restart).
+- **Standbys.** The inspector reports a standby as "cannot be inspected". Reading a slot there
+  would need `pg_last_wal_replay_lsn()` in place of `pg_current_wal_lsn()`, which fails during
+  recovery. It is not implemented because no standby was available to test it on.
+- **Stall detection.** The signal is the distance between the current WAL position and
+  `confirmed_flush_lsn` growing across two inspections, not `restart_lsn` advancing. It only
+  becomes a negative condition when a heartbeat is configured: with quiet captured tables and a
+  busy cluster, a healthy connector has nothing to confirm and the distance grows anyway. The
+  deployer sets no heartbeat today. Enabling one has a consequence in this codebase: a heartbeat
+  arrives at `/cdc` as an event that is not a snapshot, `Pipeline.Handle` passes it to the lag
+  tracker, and it would refresh "last event" and hide the no-events detection. Heartbeats would
+  have to be classified apart first. Without a heartbeat the lag is reported as a fact and never
+  as a condition.
+- **What a lost slot costs here.** The connector starts with `no_data`, so a recreated slot
+  begins at the current position: the cost is a gap of events that cannot be recovered, not a
+  full copy of the tables (that is how native logical-replication subscriptions behave). How
+  Debezium recovers from a lost slot was not tested.
+
+## How the inspection result travels
+
+The inspection runs as a Job. The Job is transport; the sensor's status is the store.
+
+- The inspector writes one JSON document to `/dev/termination-log`. With
+  `terminationMessagePolicy: File` the kubelet copies it into the Pod, on success and on failure.
+- The operator reads it from `Pod.status.containerStatuses[].state.terminated.message` of the
+  `inspector` container. That is the only source: a Job has no message of its own.
+- **Design constraint: the reconciler must transcribe the message into the status before the Pod
+  disappears.** The Pod's lifetime bounds the message. So the operator deletes the Job only after
+  the status write succeeded (`inspectionOutcome.after`), and the Job's TTL (600s) is only a safety
+  net for a Job the operator never collected.
+- The operator is the only writer of `status.snapshot.inspection`, `plan` and their conditions.
+- The kubelet keeps 4096 bytes. The inspector drops tables to fit and says so with
+  `truncated: true`; the operator rejects anything larger rather than guess.
+
+### Two regimes for WAL retention
+
+Whether a slot can lose WAL depends on `max_slot_wal_keep_size`:
+
+- **Bounded** (a value in bytes): `safe_wal_size` is a real quantity and goes negative once the
+  cap is exceeded. `unreserved` and `lost` are reachable.
+- **Unbounded (-1)**: the slot is never invalidated by size, but the disk can fill, and SQL has
+  nothing to measure a margin against. `safe_wal_size` is NULL and is reported as not measured.
+  Advice to set a cap warns that doing so can invalidate a slot that retains more than the cap.
+
+### Server capability (pending)
+
+`wal_status` and `safe_wal_size` exist from PostgreSQL 13. On 12 they are not "absent", they are
+"cannot be known", and the two must stay distinguishable. `factsVersion` today versions the shape
+only. Until capability is encoded, `postgres.serverVersion` is the signal and an older server's
+slot facts are simply not measured. This is not yet implemented or tested on PG 12.
+
+## Known limitations
+
+These are accepted trade-offs of the table inspector, not bugs.
+
+- **Autovacuum settings are not read.** Whether a row estimate is stale is judged with
+  PostgreSQL's default `autovacuum_analyze_threshold` (50) and
+  `autovacuum_analyze_scale_factor` (0.1), not the server's or a table's own values.
+  If the server's settings are looser, the inspector flags staleness earlier than
+  autovacuum would, which is the conservative direction. If they are stricter, the
+  inspector is more lenient than autovacuum by at most about 10% of the estimate;
+  taking the larger of `reltuples` and `n_live_tup` narrows that error.
+- **Statistics counters can be reset.** `n_live_tup` and `n_mod_since_analyze` start
+  from zero after crash recovery or `pg_stat_reset()`. Until the next `ANALYZE`, a
+  stale `reltuples` can then look reliable. This was not tested.
+- **Partitioned tables.** A partitioned parent has a row in `pg_stat_user_tables` but with
+  zero counters: autovacuum never analyzes a parent and the changes are counted on its leaf
+  partitions. So its estimate is the larger of the parent's `reltuples` and the sum of the leaves'
+  `n_live_tup`, and it is reliable only while the two agree within what autovacuum tolerates.
+  Verified on PostgreSQL 16 with single-level range partitioning; multi-level trees and foreign
+  partitions (which have no statistics) were not tested.
+- **"Can write" is approximated** by the CREATE privilege on the table's schema, not by
+  an actual write.
+- **PostgreSQL only.** There is no MySQL inspector yet.
+
 ## Alternatives considered
 
 - **Keep the static spec and document the blind window.** Zero code, but the
@@ -114,7 +246,7 @@ undone by the first restart unless offset persistence is decided as well.
 ## Open questions
 
 1. Is the backfill ladder worth building, given the metrics do not need rows?
-   **Deferred (2026-10-30).** Phase A shipped; Phase B waits for a consumer of
+   **Deferred (2026-10-30), then reopened (2026-10-31)** when the user ranked the policy layer above the benchmark; B1 and B2 (inspector and pure policy) are built. The original reasoning stands: nothing consumes backfilled rows today. Phase A shipped; Phase B waits for a consumer of
    existing rows: a feature that needs them, a wired Kafka transport, or a real
    user request. The triggers are recorded in the spec's `tasks.md`.
 2. What are the exact Debezium floors per connector? The snapshot-mode names

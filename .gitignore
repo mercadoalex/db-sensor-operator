@@ -51,9 +51,8 @@ docs/review-*.json
 docs/review-*.md
 # Local reference material (papers, PDFs) — not part of the project
 *.pdf
-# Spec-review scratch artifacts
-.kiro/specs/**/.review*.json
-.kiro/specs/**/.review*.md
+# Kiro IDE specs, steering and settings — local only, not versioned
+.kiro/
 
 # Article-review scratch artifacts
 docs/articles/.review*

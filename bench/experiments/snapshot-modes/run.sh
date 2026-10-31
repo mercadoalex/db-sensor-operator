@@ -11,7 +11,7 @@
 #   3. what happens after the Debezium pod restarts (re-snapshot or not).
 #
 # Requires `make -C bench setup` and the Debezium Operator (installed here if
-# missing). Does NOT need Lactiflluus. Prints a summary table and the raw event
+# missing). Does NOT need Lactifluus. Prints a summary table and the raw event
 # lines it based it on.
 #
 # Usage: ./bench/experiments/snapshot-modes/run.sh [mode ...]
