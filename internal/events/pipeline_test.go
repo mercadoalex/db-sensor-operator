@@ -79,3 +79,34 @@ func TestPipelineEndToEndHTTP(t *testing.T) {
 	assert.Contains(t, text, `debezium_events_total{db="pg",op="c",table="orders"} 1`)
 	assert.Contains(t, text, `debezium_lag_seconds{db="pg",table="orders"} 10`)
 }
+
+// tableOrders is the table name shared by the pipeline tests.
+const tableOrders = "orders"
+
+type spyEvents struct{ got []events.CDCEvent }
+
+func (s *spyEvents) OnEvent(ev events.CDCEvent) { s.got = append(s.got, ev) }
+func (s *spyEvents) Add(ev events.CDCEvent)     { s.got = append(s.got, ev) }
+
+type spyLag struct{ got []int64 }
+
+func (s *spyLag) OnEvent(tsMs int64) { s.got = append(s.got, tsMs) }
+
+// TestPipelineDropsSnapshotEvents checks ADR-014: a snapshot read feeds neither
+// the exporter, the lag tracker nor the history, while a live event feeds all three.
+func TestPipelineDropsSnapshotEvents(t *testing.T) {
+	exp, lag, rec := &spyEvents{}, &spyLag{}, &spyEvents{}
+	pipe := &events.Pipeline{Exporter: exp, Lag: lag, Recorder: rec}
+
+	pipe.Handle(events.CDCEvent{Op: "r", DB: "pg", Table: tableOrders, TsMs: 1, Snapshot: true})
+	pipe.Handle(events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: 2, Snapshot: true})
+	assert.Empty(t, exp.got)
+	assert.Empty(t, lag.got)
+	assert.Empty(t, rec.got)
+
+	live := events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: 3}
+	pipe.Handle(live)
+	assert.Equal(t, []events.CDCEvent{live}, exp.got)
+	assert.Equal(t, []int64{3}, lag.got)
+	assert.Equal(t, []events.CDCEvent{live}, rec.got)
+}

@@ -49,10 +49,18 @@ type DatabaseConfig struct {
 	User string `json:"user"`
 
 	// passwordSecret is the name of a Kubernetes Secret, in the same namespace
-	// as the DatabaseSensor, that holds the database password.
+	// as the DatabaseSensor, that holds the database password under the key
+	// "password". The Secret is injected into the Debezium Server pod as
+	// environment variables; the password itself is never written into the
+	// DebeziumServer spec.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	PasswordSecret string `json:"passwordSecret"`
+
+	// name is the logical database to capture (database.dbname). Required by
+	// the PostgreSQL connector; ignored by engines that do not take it.
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 
 // AlertRule maps a Prometheus alerting rule into a generated PrometheusRule.
@@ -164,9 +172,25 @@ type TransportConfig struct {
 	// +kubebuilder:default=http
 	Type string `json:"type,omitempty"`
 
+	// http configures the HTTP transport; ignored when type is "kafka".
+	// +optional
+	HTTP *HTTPTransport `json:"http,omitempty"`
+
 	// kafka configures the Kafka transport; ignored when type is "http".
 	// +optional
 	Kafka *KafkaTransport `json:"kafka,omitempty"`
+}
+
+// HTTPTransport configures the HTTP event transport.
+type HTTPTransport struct {
+	// url is the operator's CDC ingestion endpoint that the Debezium Server
+	// HTTP sink POSTs events to (for example
+	// "http://db-sensor-operator.db-sensor.svc:8080/cdc"). When empty, the
+	// generated DebeziumServer keeps a placeholder sink and delivers nothing;
+	// that is only appropriate for the synthetic demo, which POSTs events
+	// to /cdc itself.
+	// +optional
+	URL string `json:"url,omitempty"`
 }
 
 // KafkaTransport configures the Kafka event transport.
@@ -269,6 +293,25 @@ type DatabaseSensorSpec struct {
 	// operator default when unset, so an omitted block keeps today's behaviour.
 	// +optional
 	Thresholds *ThresholdConfig `json:"thresholds,omitempty"`
+
+	// snapshot configures how the Debezium connector starts and how it keeps its
+	// position across restarts (ADR-014). An omitted block keeps today's behaviour.
+	// +optional
+	Snapshot *SnapshotConfig `json:"snapshot,omitempty"`
+}
+
+// SnapshotConfig configures Debezium's start behaviour and offset persistence.
+type SnapshotConfig struct {
+	// offsetStore selects where Debezium keeps its position in the change log.
+	// "memory" (default) is lost when the Debezium pod restarts, so a restart
+	// can re-deliver events the operator already counted. "persistent" stores the
+	// offset on a PersistentVolumeClaim created by the Debezium Operator, so a
+	// restart resumes where it stopped. Switching to "persistent" on a running
+	// sensor recreates the Debezium pod with a new volume.
+	// +optional
+	// +kubebuilder:validation:Enum=memory;persistent
+	// +kubebuilder:default=memory
+	OffsetStore string `json:"offsetStore,omitempty"`
 }
 
 // DatabaseSensorStatus defines the observed state of DatabaseSensor.
@@ -312,6 +355,29 @@ type DatabaseSensorStatus struct {
 	// debeziumServer is the name of the managed DebeziumServer resource.
 	// +optional
 	DebeziumServer string `json:"debeziumServer,omitempty"`
+
+	// snapshot reports how the connector starts and where it keeps its offset,
+	// with a one-line reason (ADR-014). It is derived from the spec, so it is
+	// present even when the sensor is not healthy.
+	// +optional
+	Snapshot *SnapshotStatus `json:"snapshot,omitempty"`
+}
+
+// SnapshotStatus explains the connector's start behaviour in one line.
+type SnapshotStatus struct {
+	// strategy is how the connector starts: "no-data" (existing rows are not
+	// read) or "engine-default" (the Debezium default snapshot applies).
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+
+	// offsetStore is the offset store in effect: "memory" or "persistent".
+	// +optional
+	OffsetStore string `json:"offsetStore,omitempty"`
+
+	// reason is a one-line explanation of the strategy and its consequences.
+	// It never contains secret values or row data.
+	// +optional
+	Reason string `json:"reason,omitempty"`
 }
 
 // +kubebuilder:object:root=true

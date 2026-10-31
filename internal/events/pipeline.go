@@ -65,7 +65,14 @@ type Pipeline struct {
 // (recent-events history). Recording is always on when a Recorder is set, so the
 // dashboard shows history as soon as it is enabled. Pass p.Handle as the handler
 // to a Consumer's Start.
+//
+// Snapshot events (existing rows read during a snapshot) are dropped: they carry
+// the timestamp of the read, so they would make a healthy sensor look laggy, and
+// they are not mutations, so they belong in no counter or history. See ADR-014.
 func (p *Pipeline) Handle(ev CDCEvent) {
+	if ev.Snapshot {
+		return
+	}
 	if p.Exporter != nil {
 		p.Exporter.OnEvent(ev)
 	}

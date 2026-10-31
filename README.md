@@ -33,12 +33,12 @@ The official one (Apache 2.0, Java) only manages the Debezium Server lifecycle (
 
 ### Prior art & acknowledgements
 
-The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lays it out clearly: derive business-level signals straight from the change stream instead of instrumenting each service. Lactiflluus is the operator-level automation of that idea — one declarative `DatabaseSensor` CR instead of a hand-wired JMX exporter plus Grafana setup. On top of it, the operator adds the signals Debezium doesn't expose on its own: derived lag, DDL intelligence, and multi-sink alert fan-out. See [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) for how derived counts relate to Debezium 3.0's native counters.
+The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lays it out clearly: derive business-level signals straight from the change stream instead of instrumenting each service. Lactiflluus is the operator-level automation of that idea — one declarative `DatabaseSensor` CR instead of a hand-wired JMX exporter plus Grafana setup. On top of it, the operator adds the signals Debezium doesn't expose on its own: derived lag, DDL intelligence (only for connectors that emit schema changes; not PostgreSQL, see [Derived metrics](#derived-metrics)), and multi-sink alert fan-out. See [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) for how derived counts relate to Debezium 3.0's native counters.
 
 ## Key capabilities
 
 - Create and manage a `DebeziumServer` (via the official Debezium Operator) from a single CR.
-- Derive metrics: `insert_rate`, `update_rate`, `delete_rate`, `lag`, `schema_changes`.
+- Derive metrics: `insert_rate`, `update_rate`, `delete_rate`, `lag`, and `schema_changes` (not available on PostgreSQL, see [Derived metrics](#derived-metrics)).
 - Expose `/metrics` (Prometheus format) **always**, regardless of the configured sink.
 - Fan out alerts to multiple backends: Prometheus, Datadog, Webhook/Slack.
 - Embedded dashboard with live charts.
@@ -93,8 +93,17 @@ spec:
     host: postgres-svc.prod
     port: 5432
     user: debezium
-    passwordSecret: db-creds
+    passwordSecret: db-creds   # Secret in the same namespace, password under the key "password"
+    name: orders_db         # database to capture; required for PostgreSQL
   tables: ["orders", "users", "payments"]
+
+  transport:
+    type: http              # http (default) | kafka
+    http:
+      url: http://db-sensor-operator.db-sensor.svc:8080/cdc   # where Debezium POSTs events
+
+  snapshot:
+    offsetStore: persistent # memory (default) | persistent; see "Start and restarts"
 
   sink:
     type: all               # prometheus | datadog | webhook | all
@@ -155,9 +164,19 @@ validating them yet.
 | `debezium_events_total{op="c"}` (insert) | Count of `op=c` per window | `< N/min` → did traffic drop? |
 | `debezium_events_total{op="u"}` (update) | Count of `op=u` | `> N/min` → bulk update? |
 | `debezium_events_total{op="d"}` (delete) | Count of `op=d` | `> N/min` → mass delete? |
-| `debezium_schema_changes_total` | DDL event detected | Any DDL → unannounced migration? |
+| `debezium_schema_changes_total` | DDL event detected (**not on PostgreSQL**, see below) | Any DDL → unannounced migration? |
 | `debezium_lag_seconds` | `now() - ts_ms` of the event | `> 30s` → Debezium is falling behind |
 | `debezium_events_per_minute` | Event rate | — |
+
+Snapshot reads (`op=r`) are never counted: they report rows that already existed, not changes.
+
+**DDL on PostgreSQL.** PostgreSQL's logical decoding (`pgoutput`) carries no DDL, so Debezium's PostgreSQL connector emits no schema-change event. An `ALTER TABLE` on a monitored table was tested against a real cluster and produced no `debezium_schema_changes_total` series. Connectors that keep a schema history (such as MySQL) are expected to emit schema changes, but only PostgreSQL has been tested.
+
+## Start and restarts
+
+For PostgreSQL the operator starts Debezium with `snapshot.mode=no_data`: it does not read existing rows, so the sensor reports from the first live change instead of waiting for a snapshot. On a 100,000-row table the default `initial` snapshot kept a sensor blind for 57 s while `no_data` saw the first change in 6 s (Debezium 3.6.3, one run; see `bench/experiments/blind-window/RESULTS.md`). The cost is that existing rows are not delivered, which does not affect rates, lag or counts. Other engines keep Debezium's default until their non-blocking mode is verified.
+
+By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) and `.kiro/specs/snapshot-policy/`.
 
 ## Status (`kubectl get`)
 
@@ -285,6 +304,7 @@ this repo does not run them.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — hybrid status (conditions + measurements + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — HTTP default / Kafka optional transport.
 - [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derive event counts from the stream vs. native JMX metrics.
+- [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) — start the connector without a blocking snapshot and persist the offset.
 - [docs/articles/to-watermark-or-not.md](docs/articles/to-watermark-or-not.md) — a reflection on CDC snapshot models and why the operator is moving to watermark-based incremental snapshots.
 
 ## Development

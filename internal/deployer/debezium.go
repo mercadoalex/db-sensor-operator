@@ -59,11 +59,21 @@ var DebeziumServerGVK = schema.GroupVersionKind{
 	Kind:    "DebeziumServer",
 }
 
+// secretEnvPrefix is the prefix the DebeziumServer runtime applies to every key of
+// the referenced password Secret when exposing it as environment variables
+// (spec.runtime.environment.from[].prefix). The Secret key holding the password
+// must be named "password", so the variable the connector config refers to is
+// secretEnvPrefix + passwordSecretKey.
+const (
+	secretEnvPrefix   = "DATABASE_"
+	passwordSecretKey = "password"
+)
+
 // passwordPlaceholder is written into the DebeziumServer source config instead of
-// the real password (NFR-4: credentials are never inlined). Later tasks wire the
-// actual env/secret injection into the Debezium runtime; Task 4 only guarantees
-// the referenced Secret exists and is not embedded.
-const passwordPlaceholder = "${DATABASE_PASSWORD}"
+// the real password (NFR-4: credentials are never inlined). Debezium Server
+// resolves the ${...} expression from the pod environment, which the deployer
+// populates from the referenced Secret via spec.runtime.environment.from.
+const passwordPlaceholder = "${" + secretEnvPrefix + passwordSecretKey + "}"
 
 // ErrSecretNotFound is returned by EnsureDebeziumServer when the Secret named by
 // spec.database.passwordSecret does not exist (US-1.3). The controller maps it to
@@ -75,16 +85,19 @@ var ErrSecretNotFound = errors.New("database password secret not found")
 // this is defense-in-depth; the controller surfaces it as a Ready=False condition.
 var ErrUnsupportedDBType = errors.New("unsupported database type")
 
+// dbTypePostgres is the spec.database.type value for PostgreSQL.
+const dbTypePostgres = "postgresql"
+
 // connectorClasses maps spec.database.type to the fully-qualified Debezium
 // connector Java class (US-8).
 var connectorClasses = map[string]string{
-	"postgresql": "io.debezium.connector.postgresql.PostgresConnector",
-	"mysql":      "io.debezium.connector.mysql.MySqlConnector",
-	"mongodb":    "io.debezium.connector.mongodb.MongoDbConnector",
-	"sqlserver":  "io.debezium.connector.sqlserver.SqlServerConnector",
-	"oracle":     "io.debezium.connector.oracle.OracleConnector",
-	"db2":        "io.debezium.connector.db2.Db2Connector",
-	"cassandra":  "io.debezium.connector.cassandra.CassandraConnector",
+	dbTypePostgres: "io.debezium.connector.postgresql.PostgresConnector",
+	"mysql":        "io.debezium.connector.mysql.MySqlConnector",
+	"mongodb":      "io.debezium.connector.mongodb.MongoDbConnector",
+	"sqlserver":    "io.debezium.connector.sqlserver.SqlServerConnector",
+	"oracle":       "io.debezium.connector.oracle.OracleConnector",
+	"db2":          "io.debezium.connector.db2.Db2Connector",
+	"cassandra":    "io.debezium.connector.cassandra.CassandraConnector",
 }
 
 // BuildDebeziumServer maps a DatabaseSensor spec onto a DebeziumServer object.
@@ -127,8 +140,22 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 
 	// Per-type extras (US-8).
 	switch sensor.Spec.Database.Type {
-	case "postgresql":
+	case dbTypePostgres:
 		config["slot.name"] = slotName(sensor)
+		// Do not read existing rows: the sensor derives everything from live
+		// changes, so a blocking snapshot is a pure cost that leaves it blind
+		// until it ends. "no_data" is the non-blocking mode accepted by Debezium
+		// 3.6.3 (verified; "never" is rejected there). ADR-014.
+		config["snapshot.mode"] = "no_data"
+		// Debezium defaults to the decoderbufs output plugin, which stock
+		// PostgreSQL does not ship. pgoutput is built in since PG 10 and is what
+		// managed services support, so it is the only portable choice.
+		config["plugin.name"] = "pgoutput"
+		// The PostgreSQL connector requires the database to capture and cannot
+		// start without it.
+		if db.Name != "" {
+			config["database.dbname"] = db.Name
+		}
 	case "mysql":
 		config["database.server.id"] = strconv.FormatUint(uint64(serverID(sensor)), 10)
 	}
@@ -143,12 +170,110 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 	if err := unstructured.SetNestedField(obj.Object, class, "spec", "source", "class"); err != nil {
 		return nil, fmt.Errorf("setting source class: %w", err)
 	}
-	// Minimal, self-consistent sink placeholder. A real sink is out of Task 4 scope.
-	if err := unstructured.SetNestedField(obj.Object, "none", "spec", "sink", "type"); err != nil {
+	if persistentOffsets(sensor) {
+		if err := applyPersistentOffsets(obj); err != nil {
+			return nil, err
+		}
+	}
+
+	// Expose the referenced Secret to the Debezium Server pod so the
+	// ${DATABASE_password} expression in the source config resolves at runtime.
+	// Only the Secret's name is recorded here, never its data (NFR-4).
+	envFrom := []any{
+		map[string]any{
+			"prefix":    secretEnvPrefix,
+			"secretRef": map[string]any{"name": db.PasswordSecret},
+		},
+	}
+	if err := unstructured.SetNestedSlice(obj.Object, envFrom, "spec", "runtime", "environment", "from"); err != nil {
+		return nil, fmt.Errorf("setting runtime environment: %w", err)
+	}
+
+	sinkType, sinkConfig := sinkFor(sensor)
+	if err := unstructured.SetNestedField(obj.Object, sinkType, "spec", "sink", "type"); err != nil {
 		return nil, fmt.Errorf("setting sink type: %w", err)
+	}
+	if sinkConfig != nil {
+		if err := unstructured.SetNestedMap(obj.Object, sinkConfig, "spec", "sink", "config"); err != nil {
+			return nil, fmt.Errorf("setting sink config: %w", err)
+		}
 	}
 
 	return obj, nil
+}
+
+// Persistent offset store (ADR-014). All three values were verified against
+// Debezium Operator 3.6.3 (bench/experiments/offset-persistence):
+//   - the Operator rejects storage type "persistent" without a PVC template
+//     ("Missing PVC template"), so the volumeClaim template is required;
+//   - a relative offset fileName resolves against the process working directory,
+//     which is not writable (AccessDeniedException), not the data volume, so the
+//     path must be absolute.
+const (
+	offsetFilePath        = "/debezium/data/offsets.dat"
+	offsetVolumeSize      = "100Mi" // an offset file is a few hundred bytes
+	offsetStorePersistent = "persistent"
+)
+
+// SnapshotStatusFor explains, in one line, how the sensor's connector starts and
+// where it keeps its offset. It is a pure function of the spec (Requirement 4),
+// so it matches what BuildDebeziumServer generates and carries no secret values.
+func SnapshotStatusFor(sensor *sensoriov1.DatabaseSensor) sensoriov1.SnapshotStatus {
+	st := sensoriov1.SnapshotStatus{OffsetStore: "memory"}
+	if persistentOffsets(sensor) {
+		st.OffsetStore = offsetStorePersistent
+	}
+
+	if sensor.Spec.Database.Type != dbTypePostgres {
+		st.Strategy = "engine-default"
+		st.Reason = "Debezium's default snapshot applies; the non-blocking start is verified for PostgreSQL only"
+		return st
+	}
+
+	st.Strategy = "no-data"
+	if st.OffsetStore == offsetStorePersistent {
+		st.Reason = "Existing rows are not read; the offset is persisted, so a Debezium restart resumes where it stopped"
+	} else {
+		st.Reason = "Existing rows are not read; the offset is in memory, so a Debezium restart can re-deliver recent events"
+	}
+	return st
+}
+
+func persistentOffsets(sensor *sensoriov1.DatabaseSensor) bool {
+	return sensor.Spec.Snapshot != nil && sensor.Spec.Snapshot.OffsetStore == offsetStorePersistent
+}
+
+func applyPersistentOffsets(obj *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(obj.Object, "persistent", "spec", "runtime", "storage", "data", "type"); err != nil {
+		return fmt.Errorf("setting runtime storage: %w", err)
+	}
+	claim := map[string]any{
+		"accessModes": []any{"ReadWriteOnce"},
+		"resources":   map[string]any{"requests": map[string]any{"storage": offsetVolumeSize}},
+	}
+	if err := unstructured.SetNestedMap(obj.Object, claim, "spec", "runtime", "templates", "volumeClaim"); err != nil {
+		return fmt.Errorf("setting volume claim template: %w", err)
+	}
+	if err := unstructured.SetNestedField(obj.Object, offsetFilePath, "spec", "source", "offset", "file", "fileName"); err != nil {
+		return fmt.Errorf("setting offset file: %w", err)
+	}
+	return nil
+}
+
+// sinkFor chooses the Debezium Server sink (ADR-012). With the HTTP transport
+// and a configured spec.transport.http.url, Debezium POSTs every event to the
+// operator's /cdc endpoint; the operator's HTTP sink maps "url" to
+// debezium.sink.http.url. Without a URL (the synthetic demo, which POSTs events
+// to /cdc itself) or with the Kafka transport, the sink stays the "none"
+// placeholder: delivering to Kafka is not wired by the deployer.
+func sinkFor(sensor *sensoriov1.DatabaseSensor) (string, map[string]any) {
+	t := sensor.Spec.Transport
+	if t == nil || t.Type == "" || t.Type == "http" {
+		if t != nil && t.HTTP != nil && t.HTTP.URL != "" {
+			return "http", map[string]any{"url": t.HTTP.URL}
+		}
+	}
+	return "none", nil
 }
 
 // EnsureDebeziumServer reconciles the DebeziumServer for a DatabaseSensor:

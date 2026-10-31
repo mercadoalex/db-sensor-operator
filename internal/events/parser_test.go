@@ -89,6 +89,41 @@ func TestParse(t *testing.T) {
 				"source":{"db":"d","table":"t","ts_ms":1700000008000}}}`,
 			want: CDCEvent{Op: "c", DB: "d", Table: "t", TsMs: 1700000008000},
 		},
+		{
+			name: "snapshot read op=r is a snapshot event",
+			raw: `{"payload":{"op":"r","ts_ms":1700000009000,
+				"source":{"db":"d","table":"t","snapshot":"true"}}}`,
+			want: CDCEvent{Op: "r", DB: "d", Table: "t", TsMs: 1700000009000, Snapshot: true},
+		},
+		{
+			name: "snapshot=first is a snapshot event",
+			raw: `{"payload":{"op":"r","ts_ms":1700000010000,
+				"source":{"db":"d","table":"t","snapshot":"first"}}}`,
+			want: CDCEvent{Op: "r", DB: "d", Table: "t", TsMs: 1700000010000, Snapshot: true},
+		},
+		{
+			name: "snapshot marker wins even when op is c",
+			raw: `{"payload":{"op":"c","ts_ms":1700000011000,
+				"source":{"db":"d","table":"t","snapshot":"last"}}}`,
+			want: CDCEvent{Op: "c", DB: "d", Table: "t", TsMs: 1700000011000, Snapshot: true},
+		},
+		{
+			name: "incremental snapshot row is a snapshot event",
+			raw: `{"payload":{"op":"r","ts_ms":1700000012000,
+				"source":{"db":"d","table":"t","snapshot":"incremental"}}}`,
+			want: CDCEvent{Op: "r", DB: "d", Table: "t", TsMs: 1700000012000, Snapshot: true},
+		},
+		{
+			name: "snapshot=false is a live event",
+			raw: `{"payload":{"op":"c","ts_ms":1700000013000,
+				"source":{"db":"d","table":"t","snapshot":"false"}}}`,
+			want: CDCEvent{Op: "c", DB: "d", Table: "t", TsMs: 1700000013000},
+		},
+		{
+			name: "un-wrapped envelope snapshot marker",
+			raw:  `{"op":"c","ts_ms":1700000014000,"source":{"db":"d","table":"t","snapshot":"true"}}`,
+			want: CDCEvent{Op: "c", DB: "d", Table: "t", TsMs: 1700000014000, Snapshot: true},
+		},
 	}
 
 	for _, tc := range tests {

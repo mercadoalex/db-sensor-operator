@@ -1,0 +1,93 @@
+# Benchmark PostgreSQL. Dedicated to the benchmark: nothing else shares this
+# instance during a measured run (Requirement 12.1).
+#
+# wal_level=logical is set for ALL approaches, not only CDC, so that every run
+# (including the no-collector baseline) pays the same WAL cost and the
+# Approach-vs-baseline delta stays fair.
+#
+# pg_stat_statements is deliberately NOT preloaded here. Once enabled its
+# tracking is always on and cannot be isolated per run (Requirement 3.5), so it
+# is enabled only by the statement-stats collector (task 5).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bench
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bench-pg-creds
+  namespace: bench
+type: Opaque
+stringData:
+  # Throwaway credential for a local, disposable benchmark database.
+  password: bench-not-a-real-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bench-postgres
+  namespace: bench
+spec:
+  selector:
+    app: bench-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bench-postgres
+  namespace: bench
+spec:
+  serviceName: bench-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bench-postgres
+  template:
+    metadata:
+      labels:
+        app: bench-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          args:
+            - -c
+            - wal_level=logical
+            - -c
+            - max_replication_slots=10
+            - -c
+            - max_wal_senders=10
+          env:
+            - name: POSTGRES_USER
+              value: bench
+            - name: POSTGRES_DB
+              value: bench
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bench-pg-creds
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgres
+          readinessProbe:
+            exec:
+              # -h forces TCP: during initdb the image runs a temporary server
+              # that listens only on the unix socket, which would report ready
+              # too early.
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "bench", "-d", "bench"]
+            initialDelaySeconds: 5
+            periodSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}

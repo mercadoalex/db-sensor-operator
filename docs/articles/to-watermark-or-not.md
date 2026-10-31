@@ -104,9 +104,9 @@ What I am going to do is make LactiFluus a policy layer.
 
 The operator looks at the table. It asks the database a few questions. How big is this table? Do I have write access? What's the current GTID set? Is GTID even enabled? Based on the answers, it picks the capture strategy.
 
-One detail worth getting right: incremental snapshots are not a snapshot mode. You start the connector with a mode that skips the blocking read of existing rows, and then you ask Debezium to fill those rows in by sending it an execute-snapshot signal. The connector keeps streaming the whole time. So the policy layer makes two decisions: how to start the connector, and whether and how to send that signal. (Snapshot mode names differ by connector and version, so check yours.)
+One detail worth getting right: incremental snapshots are not a snapshot mode. You start the connector with a mode that skips the blocking read of existing rows, and then you ask Debezium to fill those rows in by sending it an execute-snapshot signal. The connector keeps streaming the whole time. So the policy layer makes two decisions: how to start the connector, and whether and how to send that signal. (Snapshot mode names differ by connector and version, so check yours. On Debezium 3.6.3 the PostgreSQL connector rejects `never` and accepts `no_data`; I checked.)
 
-Small table? Skip the blocking snapshot and just stream, for example snapshot.mode=never. The snapshot is a non-event. The sensor is useful in the first ten seconds.
+Small table? Skip the blocking snapshot and just stream, for example snapshot.mode=no_data. The snapshot is a non-event. The sensor is useful in the first ten seconds.
 
 Big table, write access? Start without the blocking snapshot, give the connector a signaling table (signal.data.collection), and send an execute-snapshot signal. Debezium writes its low and high watermarks into that table, and the chunks fill in in the background. The sensor is useful from the first log event.
 

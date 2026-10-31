@@ -33,12 +33,12 @@ El oficial (Apache 2.0, Java) solo gestiona el lifecycle de Debezium Server (dep
 
 ### Prior art y agradecimientos
 
-La idea de CDC-como-observabilidad no es nuestra. El post del blog de los maintainers de Debezium [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lo plantea con claridad: derivar señales de negocio directamente del change stream en lugar de instrumentar cada servicio. Lactiflluus es la automatización a nivel de operator de esa idea — un solo CR declarativo `DatabaseSensor` en vez de un JMX exporter cableado a mano más un setup de Grafana. Encima añade las señales que Debezium no expone por sí solo: lag derivado, inteligencia de DDL y fan-out de alertas multi-sink. Ver [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) para cómo se relacionan los conteos derivados con los counters nativos de Debezium 3.0.
+La idea de CDC-como-observabilidad no es nuestra. El post del blog de los maintainers de Debezium [Detect data mutation patterns with Debezium](https://debezium.io/blog/2024/10/14/Detect-data-mutation-patterns-with-Debezium/) (Mario Fiore Vitale) lo plantea con claridad: derivar señales de negocio directamente del change stream en lugar de instrumentar cada servicio. Lactiflluus es la automatización a nivel de operator de esa idea — un solo CR declarativo `DatabaseSensor` en vez de un JMX exporter cableado a mano más un setup de Grafana. Encima añade las señales que Debezium no expone por sí solo: lag derivado, inteligencia de DDL (solo para conectores que emiten cambios de esquema; no PostgreSQL, ver [Métricas derivadas](#métricas-derivadas)) y fan-out de alertas multi-sink. Ver [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) para cómo se relacionan los conteos derivados con los counters nativos de Debezium 3.0.
 
 ## Capacidades clave
 
 - Crear y gestionar un `DebeziumServer` (vía el Debezium Operator oficial) desde un solo CR.
-- Derivar métricas: `insert_rate`, `update_rate`, `delete_rate`, `lag`, `schema_changes`.
+- Derivar métricas: `insert_rate`, `update_rate`, `delete_rate`, `lag` y `schema_changes` (no disponible en PostgreSQL, ver [Métricas derivadas](#métricas-derivadas)).
 - Exponer `/metrics` (formato Prometheus) **siempre**, independientemente del sink configurado.
 - Fan-out de alertas a múltiples backends: Prometheus, Datadog, Webhook/Slack.
 - Dashboard embebido con gráficos en vivo.
@@ -93,8 +93,17 @@ spec:
     host: postgres-svc.prod
     port: 5432
     user: debezium
-    passwordSecret: db-creds
+    passwordSecret: db-creds   # Secret en el mismo namespace, con la contraseña bajo la clave "password"
+    name: orders_db         # base a capturar; obligatorio en PostgreSQL
   tables: ["orders", "users", "payments"]
+
+  transport:
+    type: http              # http (default) | kafka
+    http:
+      url: http://db-sensor-operator.db-sensor.svc:8080/cdc   # a dónde Debezium hace POST de los eventos
+
+  snapshot:
+    offsetStore: persistent # memory (default) | persistent; ver "Arranque y reinicios"
 
   sink:
     type: all               # prometheus | datadog | webhook | all
@@ -155,9 +164,19 @@ los valide.
 | `debezium_events_total{op="c"}` (insert) | Count de `op=c` por ventana | `< N/min` → ¿se cayó el tráfico? |
 | `debezium_events_total{op="u"}` (update) | Count de `op=u` | `> N/min` → ¿bulk update? |
 | `debezium_events_total{op="d"}` (delete) | Count de `op=d` | `> N/min` → ¿borrado masivo? |
-| `debezium_schema_changes_total` | Evento DDL detectado | Cualquier DDL → ¿migración sin aviso? |
+| `debezium_schema_changes_total` | Evento DDL detectado (**no en PostgreSQL**, ver abajo) | Cualquier DDL → ¿migración sin aviso? |
 | `debezium_lag_seconds` | `now() - ts_ms` del evento | `> 30s` → Debezium se queda atrás |
 | `debezium_events_per_minute` | Rate de eventos | — |
+
+Las lecturas de snapshot (`op=r`) nunca se cuentan: reportan filas que ya existían, no cambios.
+
+**DDL en PostgreSQL.** La decodificación lógica de PostgreSQL (`pgoutput`) no transporta DDL, así que el conector de Debezium para PostgreSQL no emite eventos de cambio de esquema. Se probó un `ALTER TABLE` sobre una tabla monitoreada en un cluster real y no generó ninguna serie `debezium_schema_changes_total`. Se espera que los conectores con historial de esquema (como MySQL) sí emitan cambios de esquema, pero solo se probó PostgreSQL.
+
+## Arranque y reinicios
+
+Para PostgreSQL el operator arranca Debezium con `snapshot.mode=no_data`: no lee las filas existentes, así que el sensor reporta desde el primer cambio vivo y no espera a un snapshot. En una tabla de 100.000 filas el snapshot `initial` por defecto dejó a un sensor ciego 57 s, mientras que `no_data` vio el primer cambio en 6 s (Debezium 3.6.3, una corrida; ver `bench/experiments/blind-window/RESULTS.md`). El costo es que las filas existentes no se entregan, lo que no afecta rates, lag ni conteos. Los otros motores conservan el default de Debezium hasta verificar su modo no bloqueante.
+
+Por defecto el Debezium Operator guarda su posición en memoria, así que un reinicio del pod de Debezium puede reentregar eventos recientes e inflar los conteos. `spec.snapshot.offsetStore: persistent` guarda el offset en un PersistentVolumeClaim, y en las pruebas un reinicio ordenado se reanudó sin reentrega. Un kill brusco aún puede repetir hasta un intervalo de flush; eso no se probó. `status.snapshot` muestra la estrategia, el offset store y una razón de una línea. Diseño y evidencia: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) y `.kiro/specs/snapshot-policy/`.
 
 ## Status (`kubectl get`)
 
@@ -285,6 +304,7 @@ este repo no las ejecuta.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — status híbrido (conditions + mediciones + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — transporte HTTP default / Kafka opcional.
 - [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derivar conteos del stream vs. métricas nativas JMX.
+- [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) — arrancar el conector sin snapshot bloqueante y persistir el offset.
 - [docs/articles/to-watermark-or-not.md](docs/articles/to-watermark-or-not.md) — una reflexión sobre los modelos de snapshot en CDC y por qué el operator avanza hacia snapshots incrementales basados en watermarks.
 
 ## Desarrollo

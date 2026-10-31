@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Avance de Lactiflluus: lo cubierto frente a lo que falta</title>
+<desc id="d">Tres flujos de trabajo: operador db-sensor entregado con casillas sin reconciliar; benchmark CDC con 2 de 12 tareas hechas; snapshot-policy con 9 de 16 tareas hechas. Debajo, el detalle por tarea del benchmark y de snapshot-policy.</desc>
+<rect width="1000" height="560" fill="#ffffff"/>
+<text x="32" y="38" font-size="22" font-weight="bold" fill="#1b1b1b">Lactiflluus: lo cubierto frente a lo que falta</text>
+<text x="32" y="60" font-size="13" fill="#555">Rama feat/cdc-benchmark-and-snapshot-policy · 2026-10-30 · cada cuadro = una tarea de su tasks.md</text>
+<text x="32" y="113" font-size="15" font-weight="bold" fill="#1b1b1b">Operador db-sensor</text>
+<text x="32" y="130" font-size="12" fill="#666">23 tareas</text>
+<rect x="250" y="96" width="614" height="40" fill="#81c784" rx="3"/>
+<text x="258" y="121" font-size="12" fill="#1b1b1b">22 entregadas*</text>
+<rect x="866" y="96" width="26" height="40" fill="#b0bec5" rx="3"/>
+<text x="32" y="177" font-size="15" font-weight="bold" fill="#1b1b1b">Benchmark CDC</text>
+<text x="32" y="194" font-size="12" fill="#666">12 tareas</text>
+<rect x="250" y="160" width="54" height="40" fill="#2e7d32" rx="3"/>
+<rect x="306" y="160" width="194" height="40" fill="#f9a825" rx="3"/>
+<text x="314" y="185" font-size="12" fill="#1b1b1b">7 núcleo pendientes</text>
+<rect x="502" y="160" width="82" height="40" fill="#b0bec5" rx="3"/>
+<text x="510" y="185" font-size="12" fill="#1b1b1b">3 opc.</text>
+<text x="32" y="241" font-size="15" font-weight="bold" fill="#1b1b1b">Snapshot policy</text>
+<text x="32" y="258" font-size="12" fill="#666">16 tareas</text>
+<rect x="250" y="224" width="250" height="40" fill="#2e7d32" rx="3"/>
+<text x="258" y="249" font-size="12" fill="#ffffff">9 hechas</text>
+<rect x="502" y="224" width="194" height="40" fill="#b0bec5" rx="3"/>
+<text x="510" y="249" font-size="12" fill="#1b1b1b">7 opcionales / diferidas</text>
+<rect x="32" y="290" width="14" height="14" fill="#2e7d32" rx="2"/>
+<text x="52" y="302" font-size="12" fill="#333">Hecha y verificada</text>
+<rect x="202.8" y="290" width="14" height="14" fill="#f9a825" rx="2"/>
+<text x="222.8" y="302" font-size="12" fill="#333">Núcleo pendiente</text>
+<rect x="360.4" y="290" width="14" height="14" fill="#b0bec5" rx="2"/>
+<text x="380.4" y="302" font-size="12" fill="#333">Opcional o diferida</text>
+<rect x="537.8" y="290" width="14" height="14" fill="#81c784" rx="2"/>
+<text x="557.8" y="302" font-size="12" fill="#333">Entregada (casillas sin marcar)</text>
+<text x="32" y="324" font-size="11" fill="#666">* 0 de 23 casillas marcadas en .kiro/specs/db-sensor/tasks.md; la entrega sale del historial de commits, no de una reconciliación tarea por tarea.</text>
+<line x1="32" y1="342" x2="968" y2="342" stroke="#e0e0e0"/>
+<text x="32" y="376" font-size="15" font-weight="bold" fill="#1b1b1b">Benchmark CDC, por tarea</text>
+<rect x="32.0" y="388" width="74.3" height="38" fill="#2e7d32" rx="3"/>
+<text x="69.2" y="412" font-size="12" text-anchor="middle" fill="#ffffff">1</text>
+<rect x="110.3" y="388" width="74.3" height="38" fill="#2e7d32" rx="3"/>
+<text x="147.5" y="412" font-size="12" text-anchor="middle" fill="#ffffff">2</text>
+<rect x="188.7" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="225.8" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">3</text>
+<rect x="267.0" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="304.2" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">4</text>
+<rect x="345.3" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="382.5" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">5</text>
+<rect x="423.7" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="460.8" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">6</text>
+<rect x="502.0" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="539.2" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">7</text>
+<rect x="580.3" y="388" width="74.3" height="38" fill="#b0bec5" rx="3"/>
+<text x="617.5" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">8</text>
+<rect x="658.7" y="388" width="74.3" height="38" fill="#b0bec5" rx="3"/>
+<text x="695.8" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">9</text>
+<rect x="737.0" y="388" width="74.3" height="38" fill="#b0bec5" rx="3"/>
+<text x="774.2" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">10</text>
+<rect x="815.3" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="852.5" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">11</text>
+<rect x="893.7" y="388" width="74.3" height="38" fill="#f9a825" rx="3"/>
+<text x="930.8" y="412" font-size="12" text-anchor="middle" fill="#1b1b1b">12</text>
+<text x="32" y="460" font-size="15" font-weight="bold" fill="#1b1b1b">Snapshot policy, por tarea</text>
+<rect x="32.0" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="59.4" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A0</text>
+<rect x="90.8" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="118.1" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A1</text>
+<rect x="149.5" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="176.9" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A2</text>
+<rect x="208.2" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="235.6" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A3</text>
+<rect x="267.0" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="294.4" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A4</text>
+<rect x="325.8" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="353.1" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A5</text>
+<rect x="384.5" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="411.9" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A6</text>
+<rect x="443.2" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="470.6" y="496" font-size="12" text-anchor="middle" fill="#ffffff">A7</text>
+<rect x="502.0" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="529.4" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B1</text>
+<rect x="560.8" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="588.1" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B2</text>
+<rect x="619.5" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="646.9" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B3</text>
+<rect x="678.2" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="705.6" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B4</text>
+<rect x="737.0" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="764.4" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B5</text>
+<rect x="795.8" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="823.1" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">B6</text>
+<rect x="854.5" y="472" width="54.8" height="38" fill="#b0bec5" rx="3"/>
+<text x="881.9" y="496" font-size="12" text-anchor="middle" fill="#1b1b1b">C1</text>
+<rect x="913.2" y="472" width="54.8" height="38" fill="#2e7d32" rx="3"/>
+<text x="940.6" y="496" font-size="12" text-anchor="middle" fill="#ffffff">D1</text>
+<text x="32" y="536" font-size="11" fill="#666">Benchmark: 3 y 4 son los colectores de polling y triggers; 5 es statement-stats; 7 es la matriz de capacidades (entregable principal); 12 es la revisión de honestidad, nunca opcional.</text>
+<text x="32" y="552" font-size="11" fill="#666">Snapshot policy: B1 a B6 son la Fase B (diferida: nadie consume hoy filas existentes); C1 es MySQL. A7 y D1 ya están cerradas.</text>
+</svg>

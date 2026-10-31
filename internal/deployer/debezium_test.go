@@ -125,3 +125,115 @@ func TestBuildDebeziumServer_UnsupportedType(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUnsupportedDBType))
 }
+
+func TestBuildDebeziumServer_HTTPSinkAndSecretInjection(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	sensor.Spec.Database.Name = "bench"
+	sensor.Spec.Transport = &sensoriov1.TransportConfig{
+		Type: "http",
+		HTTP: &sensoriov1.HTTPTransport{URL: "http://op.db-sensor.svc:8080/cdc"},
+	}
+
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+
+	sinkType, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "type")
+	assert.Equal(t, "http", sinkType)
+	url, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "config", "url")
+	assert.Equal(t, "http://op.db-sensor.svc:8080/cdc", url)
+
+	assert.Equal(t, "bench", sourceConfig(t, obj)["database.dbname"])
+	assert.Equal(t, "pgoutput", sourceConfig(t, obj)["plugin.name"])
+
+	// The Secret is exposed by reference (name + prefix) only; no value is embedded.
+	from, found, err := unstructured.NestedSlice(obj.Object, "spec", "runtime", "environment", "from")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Len(t, from, 1)
+	entry := from[0].(map[string]any)
+	assert.Equal(t, secretEnvPrefix, entry["prefix"])
+	assert.Equal(t, "db-creds", entry["secretRef"].(map[string]any)["name"])
+}
+
+func TestBuildDebeziumServer_PostgresStartsWithoutBlockingSnapshot(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
+	require.NoError(t, err)
+	assert.Equal(t, "no_data", sourceConfig(t, obj)["snapshot.mode"])
+
+	// Other engines are untouched: their mode names are not verified.
+	mysql, err := BuildDebeziumServer(newSensor("mysql", "app.orders"))
+	require.NoError(t, err)
+	assert.NotContains(t, sourceConfig(t, mysql), "snapshot.mode")
+}
+
+func TestBuildDebeziumServer_NoURLKeepsPlaceholderSink(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
+	require.NoError(t, err)
+
+	sinkType, _, _ := unstructured.NestedString(obj.Object, "spec", "sink", "type")
+	assert.Equal(t, "none", sinkType)
+	_, found, _ := unstructured.NestedMap(obj.Object, "spec", "sink", "config")
+	assert.False(t, found, "no sink config without a URL")
+}
+
+func TestBuildDebeziumServer_PersistentOffsets(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	sensor.Spec.Snapshot = &sensoriov1.SnapshotConfig{OffsetStore: "persistent"}
+
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+
+	typ, _, _ := unstructured.NestedString(obj.Object, "spec", "runtime", "storage", "data", "type")
+	assert.Equal(t, "persistent", typ)
+	// The Debezium Operator rejects persistent storage without a PVC template.
+	size, found, _ := unstructured.NestedString(obj.Object, "spec", "runtime", "templates", "volumeClaim", "resources", "requests", "storage")
+	require.True(t, found, "volumeClaim template is required")
+	assert.Equal(t, "100Mi", size)
+	// The offset path must be absolute: a relative one resolves to an unwritable cwd.
+	file, _, _ := unstructured.NestedString(obj.Object, "spec", "source", "offset", "file", "fileName")
+	assert.Equal(t, "/debezium/data/offsets.dat", file)
+	// The Secret environment from the HTTP sink change is still present.
+	_, found, _ = unstructured.NestedSlice(obj.Object, "spec", "runtime", "environment", "from")
+	assert.True(t, found)
+}
+
+func TestBuildDebeziumServer_MemoryOffsetsByDefault(t *testing.T) {
+	for _, snap := range []*sensoriov1.SnapshotConfig{nil, {}, {OffsetStore: "memory"}} {
+		sensor := newSensor("postgresql", "public.orders")
+		sensor.Spec.Snapshot = snap
+		obj, err := BuildDebeziumServer(sensor)
+		require.NoError(t, err)
+
+		_, found, _ := unstructured.NestedMap(obj.Object, "spec", "runtime", "storage")
+		assert.False(t, found, "no storage block for the memory store")
+		_, found, _ = unstructured.NestedMap(obj.Object, "spec", "source", "offset")
+		assert.False(t, found, "no offset block for the memory store")
+	}
+}
+
+func TestSnapshotStatusFor(t *testing.T) {
+	pg := newSensor("postgresql", "public.orders")
+	st := SnapshotStatusFor(pg)
+	assert.Equal(t, "no-data", st.Strategy)
+	assert.Equal(t, "memory", st.OffsetStore)
+	assert.Contains(t, st.Reason, "in memory")
+
+	pg.Spec.Snapshot = &sensoriov1.SnapshotConfig{OffsetStore: "persistent"}
+	st = SnapshotStatusFor(pg)
+	assert.Equal(t, "persistent", st.OffsetStore)
+	assert.Contains(t, st.Reason, "persisted")
+
+	// Engines whose non-blocking mode is unverified report the engine default.
+	st = SnapshotStatusFor(newSensor("mysql", "app.orders"))
+	assert.Equal(t, "engine-default", st.Strategy)
+	assert.Contains(t, st.Reason, "PostgreSQL only")
+}
+
+// The status reason must stay consistent with what the deployer generates.
+func TestSnapshotStatusMatchesGeneratedServer(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+	assert.Equal(t, "no_data", sourceConfig(t, obj)["snapshot.mode"])
+	assert.Equal(t, "no-data", SnapshotStatusFor(sensor).Strategy)
+}

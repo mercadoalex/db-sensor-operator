@@ -48,6 +48,10 @@ type CDCEvent struct {
 	DB    string
 	Table string
 	TsMs  int64
+	// Snapshot is true when the event reports an existing row read during a
+	// snapshot (blocking or incremental) and not a live change. Such events carry
+	// the timestamp of the read, so they must not feed lag, counters or history.
+	Snapshot bool
 }
 
 // ErrMalformedEvent is returned by Parse when the input is not valid JSON. It is
@@ -84,7 +88,26 @@ func Parse(raw []byte) (CDCEvent, error) {
 		Table: firstString(root, "payload.source.table", "source.table", "payload.source.collection", "source.collection"),
 		TsMs:  firstInt(root, "payload.ts_ms", "ts_ms", "payload.source.ts_ms", "source.ts_ms"),
 	}
+	ev.Snapshot = isSnapshot(root, ev.Op)
 	return ev, nil
+}
+
+// isSnapshot reports whether the event is a snapshot read and not a live change.
+// It uses the event's own fields, never timestamps: op "r" (read), or a
+// source.snapshot marker other than "false". Debezium emits "true", "first",
+// "first_in_data_collection", "last_in_data_collection", "last" for a blocking
+// snapshot and "incremental" for an incremental one; live changes carry "false"
+// or omit the field.
+func isSnapshot(root gjson.Result, op string) bool {
+	if op == "r" {
+		return true
+	}
+	switch firstString(root, "payload.source.snapshot", "source.snapshot") {
+	case "", "false":
+		return false
+	default:
+		return true
+	}
 }
 
 // deriveOp resolves the change kind, mapping any schema-change / DDL envelope to

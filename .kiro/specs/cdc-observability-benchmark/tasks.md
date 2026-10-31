@@ -10,16 +10,16 @@ The harness runs locally with Docker + kind + kubectl + helm only (no cloud), co
 
 ## Tasks
 
-- [ ] 1. Scaffold `bench/` and the workload generator on PostgreSQL in kind
-  - [ ] 1.1 Create the `bench/` layout and local cluster setup
+- [x] 1. Scaffold `bench/` and the workload generator on PostgreSQL in kind
+  - [x] 1.1 Create the `bench/` layout and local cluster setup
     - Add `bench/README.md`, `bench/Makefile` (targets: setup, run, collect, report, teardown), `bench/cluster/` (kind config + PostgreSQL manifest with `wal_level=logical`), consistent with `demo/` tone and tooling (Docker, kind, kubectl, helm; no cloud)
     - Provide a teardown path that removes everything it created
     - _Requirements: 6.1, 6.3, 6.4, 10.1_
-  - [ ] 1.2 Implement the Workload_Generator with a configurable i/u/d mix
+  - [x] 1.2 Implement the Workload_Generator with a configurable i/u/d mix
     - `bench/workload/`: apply a deterministic insert/update/delete sequence from a fixed, documented seed, with configurable mix, rate, and duration against the target tables
     - _Requirements: 6.2, 8.1, 3.1_
 
-- [ ] 2. Implement the CDC-derived collector (Lactiflluus over Debezium, HTTP transport)
+- [x] 2. Implement the CDC-derived collector (Lactiflluus over Debezium, HTTP transport)
   - Wire a `DatabaseSensor` CR + the official Debezium Operator against the benchmark PostgreSQL using the HTTP transport (no Kafka broker, per ADR-012); counts derived from the stream per ADR-013
   - Expose per-table insert/update/delete counts/rates, lag, and DDL counts for the collector to read
   - Document what it can observe (rates, lag, DDL, row detail) and its standing costs (Debezium dependency, replication slot, initial snapshot)

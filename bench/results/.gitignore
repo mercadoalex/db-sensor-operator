@@ -1,0 +1,2 @@
+# Raw run output stays local; summarized artifacts are committed under docs/benchmark/results/.
+raw/
