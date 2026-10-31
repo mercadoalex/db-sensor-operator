@@ -15,6 +15,8 @@
 #   5 a spec change (new generation) triggers a new inspection and the slot is then healthy
 #   6 a wrong password gives an error-only result: no facts, no plan, no derived conditions
 #   7 the Job is admitted under Pod Security "restricted"
+#   8 the operator can GET a named Secret but cannot list or watch them, and its log has no
+#     Secret informer errors (the manager does not cache Secrets)
 #
 # Env: CLUSTER (db-sensor-bench) NS (bench)
 set -uo pipefail
@@ -105,6 +107,14 @@ $K -n bench-psa create secret generic bench-pg-creds --from-literal=password="$(
 sensor_yaml psa-sensor bench-psa bench-postgres.bench.svc bench-pg-creds 0 | $K apply -f - >/dev/null
 wait_for 90 'test "$(cond bench-psa psa-sensor InspectionAvailable status)" = "True"' \
   && pass "7 inspector Job admitted and finished under restricted" || fail "7 $(cond bench-psa psa-sensor InspectionAvailable message)"
+
+echo "== 8 Secrets are read one by one, never listed or watched"
+SA="system:serviceaccount:db-sensor:db-sensor-db-sensor-operator-controller-manager"
+[ "$($K auth can-i get secrets --as="$SA" -n "$NS")" = "yes" ] && pass "8 operator can get a named Secret" || fail "8 operator cannot get Secrets"
+[ "$($K auth can-i list secrets --as="$SA" -A)" = "no" ] && [ "$($K auth can-i watch secrets --as="$SA" -A)" = "no" ] \
+  && pass "8 operator cannot list or watch Secrets" || fail "8 operator can list or watch Secrets"
+$K -n db-sensor logs deploy/db-sensor-db-sensor-operator-controller-manager --tail=2000 2>&1 | grep -q "v1.Secret" \
+  && fail "8 the log mentions a Secret informer" || pass "8 no Secret informer in the operator log"
 
 echo
 [ "$FAILS" -eq 0 ] && echo "ALL CHECKS PASSED" || { echo "$FAILS CHECK(S) FAILED"; exit 1; }

@@ -1,6 +1,6 @@
 # Lactifluus: technical brief for stakeholders
 
-Date: 2026-10-31 · Status: merged to `main`; inspection is off by default; end-to-end test in kind passed (12 checks, one local cluster) · [Versión en español](stakeholder-brief_spanish.md)
+Date: 2026-10-31 · Status: merged to `main`; inspection is off by default; end-to-end test in kind passed (15 checks, one local cluster) · [Versión en español](stakeholder-brief_spanish.md)
 Author: Alejandro Mercado Peña
 
 <picture>
@@ -147,7 +147,7 @@ What the slot diagnosis detects today (tested against a real PostgreSQL 16): mis
 | Orderly restart without redelivery | Measured by count, not by row key |
 | Slot and table diagnosis | Tested against a real PostgreSQL 16 |
 | Operator → Job → status flow | Integration tests with a fabricated pod; CI green |
-| Real operator creating the Job in kind | Measured: 12 checks pass (`bench/experiments/inspection-e2e`), incl. wrong password and Pod Security `restricted` |
+| Real operator creating the Job in kind | Measured: 15 checks pass (`bench/experiments/inspection-e2e`), incl. wrong password, Pod Security `restricted` and a Secrets permission of `get` only |
 | NetworkPolicy blocking the Job | **Not tested** |
 | MySQL | Mapped in the deployer, **never run** |
 | Hard restart (kill/OOM) | **Not tested** |
@@ -159,7 +159,7 @@ Limits worth saying out loud rather than hiding:
 - **Schema changes (DDL) are not visible on PostgreSQL** with this method; a real `ALTER TABLE` produced no signal.
 - **Backfill (safely copying existing data) is deferred**: today the plan is computed but not applied, because no feature consumes it yet.
 - An [idle table](#11-glossary) shows `Degraded` after 30 s; this is an open product decision.
-- One security finding is unresolved: the operator caches every Secret in the cluster, which weakens the password isolation the Job design promises.
+- Secrets: the operator no longer caches them, so it can no longer list or watch every Secret in the cluster (verified in kind). It can still read a Secret by name in any namespace, because the Secret names are chosen by users. Limiting that needs a namespaced Role per sensor namespace, which the chart supports (`rbac.namespaced`) but which was not tested.
 
 ## 7. Product-fit hypotheses (to validate, not facts)
 
@@ -225,7 +225,7 @@ The question is where the intelligence lives: is Lactifluus the system that depl
 ## 9. Next steps
 
 1. ~~End-to-end test of the real operator in kind~~ Done (see section 6). Next: NetworkPolicy, PostgreSQL 12 and 17.
-2. Close the Secret-cache finding.
+2. ~~Close the Secret-cache finding~~ Done: no list or watch on Secrets. Remaining: restrict reads to the sensor namespaces.
 3. Verify PostgreSQL 12 and 17, and MySQL, before promising them.
 4. Decide the idle-table behaviour and rewrite the benchmark thesis (DDL no longer differentiates CDC).
 5. Decide whether the inspection should block start-up or only report (section 1).

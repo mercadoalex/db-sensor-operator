@@ -206,6 +206,12 @@ func main() {
 			&batchv1.Job{}: {Label: inspectionSelector},
 			&corev1.Pod{}:  {Label: inspectionSelector},
 		}},
+		// Secrets are never cached. A cached read starts an informer, which lists and watches
+		// every Secret in the cluster and needs that permission. Reading them directly keeps
+		// the operator to a GET of one named Secret.
+		Client: client.Options{Cache: &client.CacheOptions{
+			DisableFor: []client.Object{&corev1.Secret{}},
+		}},
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
 		HealthProbeBindAddress: probeAddr,

@@ -98,7 +98,7 @@ type DatabaseSensorReconciler struct {
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sensor.io,resources=databasesensors/finalizers,verbs=update
 // +kubebuilder:rbac:groups=debezium.io,resources=debeziumservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete

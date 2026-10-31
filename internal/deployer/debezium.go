@@ -39,6 +39,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -270,11 +271,14 @@ func sinkFor(sensor *sensoriov1.DatabaseSensor) (string, map[string]any) {
 // updates the DebeziumServer with an owner reference back to the sensor
 // (US-1.2 → enables US-1.4 cascade delete). It is idempotent via CreateOrUpdate.
 func EnsureDebeziumServer(ctx context.Context, c client.Client, scheme *runtime.Scheme, sensor *sensoriov1.DatabaseSensor) error {
-	// US-1.3: the Secret must exist. We only check presence; we never read or log
-	// its data (NFR-4).
-	var secret corev1.Secret
+	// US-1.3: the Secret must exist. We only check presence, so we ask for its metadata:
+	// the data never reaches the operator (NFR-4). The manager's client does not cache
+	// Secrets (see cmd/main.go), so this is one direct GET of one named object and needs
+	// no list/watch permission.
 	secretKey := types.NamespacedName{Name: sensor.Spec.Database.PasswordSecret, Namespace: sensor.Namespace}
-	if err := c.Get(ctx, secretKey, &secret); err != nil {
+	secret := &metav1.PartialObjectMetadata{}
+	secret.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Secret"))
+	if err := c.Get(ctx, secretKey, secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("%w: %q", ErrSecretNotFound, sensor.Spec.Database.PasswordSecret)
 		}
