@@ -256,7 +256,7 @@ Que sean reglas y no una caja negra es una **ventaja**, no una limitación: cada
 
 ### IA en el horizonte (ver el [roadmap](../../ROADMAP.md))
 
-Hoy no usamos IA, y es deliberado. Sigue siendo una línea de exploración, **no un compromiso**: se revisa de forma periódica, pero primero se deben consolidar otras prioridades. Quedaron dos reglas:
+Hoy no usamos IA, y es deliberado. Sigue siendo una línea de exploración, **no un compromiso**: está en evaluación constante, pero primero se deben consolidar otras prioridades. Quedaron dos reglas:
 
 - **Nada de LLM externo.** Mandar esquemas, nombres de tablas o datos a un servicio de terceros es un riesgo de seguridad inaceptable para una herramienta que corre junto a bases de producción. Si algún día se explora, tendría que ser un modelo local o autoalojado, y esa viabilidad **no está evaluada**.
 - **Las reglas deciden; la IA, como mucho, sugiere**, con una persona que aprueba. Y se empezaría solo con métricas, sin filas ni datos sensibles.

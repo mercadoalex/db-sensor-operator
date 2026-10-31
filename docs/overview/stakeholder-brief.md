@@ -256,7 +256,7 @@ Being rules rather than a black box is an **advantage**, not a limitation: every
 
 ### AI on the horizon (see the [roadmap](../../ROADMAP.md))
 
-We use no AI today, and that is deliberate. It remains a line of exploration, **not a commitment**: it is reviewed periodically, but other priorities must be consolidated first. Two rules are set:
+We use no AI today, and that is deliberate. It remains a line of exploration, **not a commitment**: it is under constant evaluation, but other priorities must be consolidated first. Two rules are set:
 
 - **No external LLM.** Sending schemas, table names or data to a third-party service is an unacceptable security risk for a tool that runs next to production databases. If it is ever explored, it would have to be a local or self-hosted model, and that viability is **not evaluated**.
 - **Rules decide; AI, at most, suggests**, with a person approving. And it would start with metrics only, with no rows or sensitive data.
