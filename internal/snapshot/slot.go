@@ -80,56 +80,85 @@ const (
 	LevelUnknown  Level = "unknown"
 )
 
+// Reason codes of a SlotRisk. They are stable, so a status condition keyed on one of them
+// does not change while the situation does not.
+const (
+	CodeSlotHealthy                = "SlotHealthy"
+	CodeSlotMissing                = "SlotMissing"
+	CodeSlotNotInspected           = "SlotNotInspected"
+	CodeSlotInactive               = "SlotInactive"
+	CodeSlotAtRisk                 = "SlotAtRisk"
+	CodeSlotLost                   = "SlotLost"
+	CodeRetentionExtended          = "RetentionExtended"
+	CodeRetentionExtendedUnbounded = "RetentionExtendedUnbounded"
+)
+
 // SlotRisk is the diagnosis of the replication slot.
 type SlotRisk struct {
 	Level Level
-	// Reason is one line for the sensor status. It carries sizes and states, never credentials.
+	// Code is a stable reason code for a status condition.
+	Code string
+	// Reason is the message for the sensor status. It names states and configured limits but
+	// carries no value that changes from one inspection to the next (retained bytes, lag):
+	// those are facts, and putting them here would rewrite the status on every probe.
 	Reason string
 }
 
+// unboundedAdvice explains the cost of the obvious fix, because setting a cap trades one
+// risk for another and a DBA following the advice blindly can lose the connector's position.
+const unboundedAdvice = "Setting max_slot_wal_keep_size bounds the disk use, but PostgreSQL then invalidates the slot, " +
+	"and the changes since are lost, if the connector falls further behind than the cap: size it for the longest outage you accept, " +
+	"or monitor disk usage out of band."
+
 // DiagnoseSlot judges the replication slot. It is a pure function and uses no threshold of
-// its own: only the states PostgreSQL defines in wal_status and whether retention is bounded.
+// its own: only the states PostgreSQL defines in wal_status and whether retention is capped.
 // The most common production failure of a Debezium PostgreSQL connector is a slot that
 // retains WAL until the disk fills or the server drops the slot, and this is what it reports.
+//
+// wal_status reserved means the slot's required WAL is within max_wal_size, so a checkpoint
+// would have kept it anyway. extended means it is beyond max_wal_size but still retained,
+// by the slot or by wal_keep_size. With max_slot_wal_keep_size at -1 PostgreSQL has no bound
+// to measure against, so safe_wal_size is NULL and a slot cannot newly become unreserved or
+// lost; one that was lost under an earlier cap stays lost after the cap is lifted.
 func DiagnoseSlot(server ServerFacts, slot *SlotFacts) SlotRisk {
 	if server.InRecovery {
-		return SlotRisk{LevelUnknown, "the server is a standby, so the replication slot cannot be inspected"}
+		return SlotRisk{LevelUnknown, CodeSlotNotInspected, "the server is a standby, so the replication slot cannot be inspected"}
 	}
 	if slot == nil {
-		return SlotRisk{LevelUnknown, "the replication slot was not inspected"}
+		return SlotRisk{LevelUnknown, CodeSlotNotInspected, "the replication slot was not inspected"}
 	}
 	if !slot.Found {
-		return SlotRisk{LevelInfo, fmt.Sprintf("replication slot %q does not exist yet", slot.Name)}
+		return SlotRisk{LevelInfo, CodeSlotMissing, fmt.Sprintf("replication slot %q does not exist yet", slot.Name)}
 	}
 
 	switch slot.WALStatus {
 	case "lost":
-		return SlotRisk{LevelCritical, fmt.Sprintf(
-			"replication slot %q is lost: the WAL it needed was removed, so the changes since then cannot be recovered, the connector cannot resume and the slot must be recreated", slot.Name)}
+		return SlotRisk{LevelCritical, CodeSlotLost, fmt.Sprintf(
+			"replication slot %q is lost: the WAL it needed was removed, so the changes since then cannot be recovered, "+
+				"the connector cannot resume and the slot must be recreated", slot.Name)}
 	case "unreserved":
-		return SlotRisk{LevelCritical, fmt.Sprintf(
-			"replication slot %q no longer retains the WAL it needs and will be lost at the next checkpoint unless the connector catches up%s",
-			slot.Name, retained(slot))}
+		return SlotRisk{LevelCritical, CodeSlotAtRisk, fmt.Sprintf(
+			"replication slot %q is past max_slot_wal_keep_size and no longer retains the WAL it needs: "+
+				"PostgreSQL will remove it at the next checkpoint unless the connector catches up", slot.Name)}
 	}
 
-	bound := boundText(server)
+	unbounded := server.MaxSlotWALKeepSizeKnown && server.MaxSlotWALKeepSizeBytes == UnlimitedBytes
 	switch {
+	case slot.WALStatus == "extended" && unbounded:
+		return SlotRisk{LevelWarning, CodeRetentionExtendedUnbounded, fmt.Sprintf(
+			"Slot %s has wal_status=extended (its required WAL is beyond max_wal_size but still retained, by the slot or by wal_keep_size) "+
+				"and max_slot_wal_keep_size is -1, so PostgreSQL has no bound to measure against and safe_wal_size is NULL. "+
+				"The only limit is the free space of the pg_wal volume, which SQL cannot read. %s", slot.Name, unboundedAdvice)}
 	case slot.WALStatus == "extended":
-		return SlotRisk{LevelWarning, fmt.Sprintf(
-			"replication slot %q is retaining WAL beyond max_wal_size%s; %s", slot.Name, retained(slot), bound)}
+		return SlotRisk{LevelWarning, CodeRetentionExtended, fmt.Sprintf(
+			"Slot %s has wal_status=extended (its required WAL is beyond max_wal_size but still retained); %s",
+			slot.Name, boundText(server))}
 	case !slot.Active:
-		return SlotRisk{LevelWarning, fmt.Sprintf(
-			"replication slot %q is inactive (no connector attached)%s; %s", slot.Name, retained(slot), bound)}
+		return SlotRisk{LevelWarning, CodeSlotInactive, fmt.Sprintf(
+			"replication slot %q is inactive (no connector attached); %s", slot.Name, boundText(server))}
 	}
-	return SlotRisk{LevelOK, fmt.Sprintf("replication slot %q is active%s; %s", slot.Name, retained(slot), bound)}
-}
-
-// retained renders the retained WAL for a reason, or nothing when it is unknown.
-func retained(s *SlotFacts) string {
-	if s.RetainedBytes == UnknownBytes {
-		return ""
-	}
-	return ", retaining " + formatBytes(s.RetainedBytes)
+	return SlotRisk{LevelOK, CodeSlotHealthy, fmt.Sprintf(
+		"replication slot %q is active and its required WAL is within max_wal_size; %s", slot.Name, boundText(server))}
 }
 
 // boundText says whether the slot's retention is capped, being honest when it cannot tell.
