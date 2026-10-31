@@ -114,8 +114,9 @@ undone by the first restart unless offset persistence is decided as well.
 ## Open questions
 
 1. Is the backfill ladder worth building, given the metrics do not need rows?
-   Phase A ships first and the answer should come from a real user wanting
-   existing rows delivered.
+   **Deferred (2026-10-30).** Phase A shipped; Phase B waits for a consumer of
+   existing rows: a feature that needs them, a wired Kafka transport, or a real
+   user request. The triggers are recorded in the spec's `tasks.md`.
 2. What are the exact Debezium floors per connector? The snapshot-mode names
    are answered for 3.6.3 only: `no_data` is the non-blocking mode and `never`
    is rejected (`bench/experiments/snapshot-modes/RESULTS.md`). A different

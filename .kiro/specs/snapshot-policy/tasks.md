@@ -4,6 +4,14 @@
 
 Phase A (core) removes the blind window and stops snapshot events from distorting health, with no database inspection. Phase B (opt-in) adds the Inspector, the pure Policy, and the backfill ladder. Phase C (MySQL) is design-only. See `requirements.md`, `design.md` and ADR-014.
 
+**Decision (2026-10-30): Phase B is deferred.** Nothing consumes backfilled rows today: the only sink is the operator's `/cdc` endpoint, which drops snapshot events by design (A2). Revisit only when one of these holds:
+
+- a feature needs existing rows (for example a per-table baseline);
+- the Kafka transport is wired so other consumers read the topic (the deployer leaves the sink at `none` for Kafka today);
+- a real user asks for existing rows.
+
+If it is picked up, start with B1 and B2 (read-only catalog queries and a pure function), then B4 only for a concrete case, and B5 only if the read-only path is first verified on a real replica. A cheaper alternative is an explicit `spec.snapshot.mode` override that lets a user opt in to a blocking snapshot, with the status warning of the cost (57 s for 100k rows in `blind-window/RESULTS.md`).
+
 Phase A ships and is used before Phase B starts: the metrics do not need existing rows, so Phase B is built only if someone needs them (ADR-014 open question 1). Tasks marked `*` are optional or deferrable.
 
 Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then `make -C bench cdc-up`.
@@ -53,8 +61,8 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Record real-cluster versus unit-level verification in the results note
   - _Requirements: 1.1, 1.3, 2.1, 12.2, 12.3_
 
-- [ ] A7. Checkpoint - Phase A
-  - Ensure `go vet`, `go test` and `helm lint` pass; ask the user whether to proceed to Phase B
+- [x] A7. Checkpoint - Phase A
+  - Done 2026-10-30: `go vet`, `go test` (all packages except e2e), `helm lint` and `make lint` pass. The user decided to defer Phase B (see the decision note above)
 
 - [ ]* B1. Inspector interface and PostgreSQL Inspector
   - Define `TableFacts` and `Inspector`; implement the PostgreSQL Inspector with read-only catalog queries (planner-estimate row count, write privileges, `pg_is_in_recovery()`, `wal_level`); justify the added SQL driver dependency
@@ -86,7 +94,7 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Document the GTID facts to read; investigate the broker-free signal channel for Debezium Server and record the answer in ADR-014
   - _Requirements: 11.1, 11.2_
 
-- [ ] D1. Documentation
-  - Update `ROADMAP.md` status, the README, and `docs/articles/to-watermark-or-not.md` where it states Debezium versions for PostgreSQL read-only snapshots; add the benchmark variant note
-  - Fix the article's example `snapshot.mode=never` (line ~109): it is rejected on Debezium 3.6.3; `no_data` is the working non-blocking mode (A0)
+- [x] D1. Documentation
+  - Done: `ROADMAP.md` status; `README.md` and `README_spanish.md` (new CR fields, the PostgreSQL DDL limitation, a "Start and restarts" section, ADR-014 link); the article's `snapshot.mode=never` example now says `no_data`, with a note that 3.6.3 rejects `never`; the benchmark variant note was added to the benchmark design earlier
+  - Not changed: the article's "relatively recent 2.x" for PostgreSQL read-only incremental snapshots. An earlier note here called it wrong; that was a mistake. The current PostgreSQL connector docs list a read-only watermarking option and do not say when it arrived, so the claim is unverified, not contradicted. Read-only *replica* support is the newer piece (fixed in 3.6.2, announced in 3.7), which matches the article's parenthetical
   - _Requirements: 1.4, 10.1_
