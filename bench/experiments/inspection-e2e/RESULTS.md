@@ -7,11 +7,11 @@ operator copies it into `status.snapshot` and only then deletes the Job. Reprodu
 - **Cluster:** kind (one node, default CNI), PostgreSQL 16.15 (`wal_level=logical`), Debezium Operator 3.6.3
 - **Operator:** built from this repository, installed with the Helm chart; `OPERATOR_IMAGE` and
   `OPERATOR_IMAGE_PULL_POLICY=Never` set by the chart, so the Job uses the same image
-- **Run date:** 2026-10-31, one run of the script (12 checks) after one manual pass
+- **Run date:** 2026-10-31, one run of the script (12 checks) with the Secrets fix (check 8) deployed
 
 ## Result
 
-All 12 checks passed.
+All 15 checks passed.
 
 | # | Check | Result |
 |---|---|---|
@@ -22,6 +22,7 @@ All 12 checks passed.
 | 5 | A spec change (new generation) triggers a new inspection; slot reported `SlotHealthy` (`reserved`) | pass |
 | 6 | Wrong password: `AuthenticationFailed`, no facts, no plan, no derived conditions, password not in status | pass |
 | 7 | The Job is admitted and finishes in a namespace enforcing Pod Security `restricted` | pass |
+| 8 | The operator can `get` a named Secret, cannot `list` or `watch` Secrets, and its log has no Secret informer errors (3 checks) | pass |
 
 The inspector finished in under 5 seconds. Jobs are gone by the time a 4-second poll looks, so
 the checks read the Job events and the stored status, not the live Job.

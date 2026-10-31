@@ -5,7 +5,19 @@
 <h1 align="center">Lactifluus — DatabaseSensor Operator</h1>
 
 <p align="center">
+  <b>Policy-based CDC intelligence for PostgreSQL on Kubernetes.</b><br>
   A Kubernetes operator built on Debezium (CDC) as a database observability sensor.
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/overview/lactifluus-overview-dark.svg">
+    <img alt="Lactifluus overview: PostgreSQL to Debezium to the Lactifluus operator, with an inspector, three policies, the measured start-up comparison and a verification legend." src="docs/overview/lactifluus-overview-light.svg" width="900">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="docs/overview/stakeholder-brief.md">Technical brief for stakeholders</a>: what was measured, what is built but not yet verified, and what is still a hypothesis.
 </p>
 
 ---
@@ -42,6 +54,8 @@ The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [
 - Expose `/metrics` (Prometheus format) **always**, regardless of the configured sink.
 - Fan out alerts to multiple backends: Prometheus, Datadog, Webhook/Slack.
 - Embedded dashboard with live charts.
+- Opt-in **database inspection**: a read-only Job checks `wal_level`, the tables and the replication slot, and reports the result in `status.snapshot`. It reports and recommends; it does not block. Verified in kind on PostgreSQL 16. See [Database inspection](#database-inspection).
+- Explicit, deterministic **policies** (start-up, per-table backfill plan, WAL retention). Each decision is written to `status` with its reason. They are rules, not machine learning. The backfill plan is computed but never applied.
 - Enriched status visible with `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
 - Databases: PostgreSQL (verified against a real cluster) and MySQL (connector mapped, not yet verified). See [Supported databases](#supported-databases).
 
@@ -67,8 +81,9 @@ The reconciliation loop in detail:
 │   2. EnsureServiceMonitor() → Prometheus scrapes /metrics    │
 │   3. EnsureAlertRules()     → PrometheusRule (alerts)        │
 │   4. EnsureService()        → exposes /metrics + /dashboard  │
-│   5. HealthCheck()          → pod status + lag               │
-│   6. UpdateStatus()         → Phase, Lag, EventsPerMin...    │
+│   5. Inspection (opt-in)    → read-only Job → facts, plan    │
+│   6. HealthCheck()          → pod status + lag               │
+│   7. UpdateStatus()         → Phase, Lag, EventsPerMin...    │
 └───────────┬───────────────────┬───────────────┬─────────────┘
             ▼                   ▼               ▼
    ┌─────────────────┐  ┌──────────────┐  ┌──────────────┐
@@ -104,6 +119,10 @@ spec:
 
   snapshot:
     offsetStore: persistent # memory (default) | persistent; see "Start and restarts"
+    inspection:             # opt-in, PostgreSQL only; see "Database inspection"
+      enabled: true
+      intervalSeconds: 600  # 0 = once per spec change, otherwise at least 60
+      timeoutSeconds: 30
 
   sink:
     type: all               # prometheus | datadog | webhook | all
@@ -178,6 +197,31 @@ For PostgreSQL the operator starts Debezium with `snapshot.mode=no_data`: it doe
 
 By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md).
 
+## Database inspection
+
+Opt-in: set `spec.snapshot.inspection.enabled: true` (off by default). PostgreSQL only, and it needs `spec.database.name`. The operator runs a short read-only Job (the `/inspector` binary from the same image), which reads PostgreSQL's catalogs, and copies the result into `status.snapshot`. The Job has no Kubernetes API token: it hands its result back through the container's termination message, the operator is the only writer of `status`, and the Job is deleted only after the result is stored.
+
+What it reports:
+
+| Condition | Meaning |
+|---|---|
+| `InspectionAvailable` | The inspection ran, or why it could not (`AuthenticationFailed`, `ConnectionFailed`, `InspectorImageNotConfigured`, ...). A failed run keeps the error and drops any older facts. |
+| `LogicalDecodingReady` | `wal_level` is `logical` |
+| `TablesFound` | Every listed table exists |
+| `SlotRetentionHealthy` | The replication slot is healthy, at risk (`unreserved`) or lost; `SlotMissing` until Debezium creates it |
+
+`status.snapshot.inspection` holds the facts (estimated rows, whether the user can write, the slot's WAL status and retained bytes) and `status.snapshot.plan` holds a backfill choice per table with its reason. The plan always reads `applied: false`: no backfill exists yet (see [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md)).
+
+Things to know:
+
+- **It reports; it does not block.** Debezium is created whether or not the inspection finds a problem.
+- **Slot facts want a periodic interval.** With `intervalSeconds: 0` the first run can happen before Debezium creates its slot, and `status` keeps showing `SlotMissing`. The default (600 s) corrects it.
+- **Install with the Helm chart.** It sets `OPERATOR_IMAGE`, which the Job needs. A plain kustomize deploy has none, and the condition says `InspectorImageNotConfigured`.
+- **An error message can include the server address and the database user.** It never includes the password.
+- **Secrets are read one at a time.** The operator does not cache Secrets and its role has `get` only on them (no `list` or `watch`). It can still read a Secret by name in any namespace; the chart's `rbac.namespaced` option narrows that, but it was not tested.
+
+Verified in kind (PostgreSQL 16, one local cluster, 15 checks, including a wrong password, a namespace enforcing Pod Security `restricted`, and the Secrets permission): see [`bench/experiments/inspection-e2e/RESULTS.md`](bench/experiments/inspection-e2e/RESULTS.md). Not verified: a NetworkPolicy that blocks the Job, PostgreSQL 12 and 17, MySQL. In that Pod Security test the Debezium Server pods created by the Debezium Operator were rejected; the inspector Job was not.
+
 ## Status (`kubectl get`)
 
 The CR exposes an enriched status via the status subresource:
@@ -189,6 +233,8 @@ The CR exposes an enriched status via the status subresource:
 | `eventsPerMin` | Float with the event rate |
 | `lastEvent` | Relative time of the last event |
 | `lastError` | Error message (empty if none) |
+| `conditions` | `DebeziumAvailable`, `ReceivingEvents`, `Ready`, and the inspection conditions when it is enabled |
+| `snapshot` | How the connector starts, the offset store and, with inspection on, the facts and the plan |
 
 ## Supported databases
 
@@ -197,7 +243,7 @@ The CR exposes an enriched status via the status subresource:
 | PostgreSQL | Logical decoding (`pgoutput`) | Verified against a real cluster (Debezium 3.6.3, PostgreSQL 16) |
 | MySQL | Binary log (binlog) | Connector and `database.server.id` mapped; **not yet verified** against a real MySQL |
 
-For now the operator supports only these two. The API rejects any other `spec.database.type`. Debezium itself supports more engines (MongoDB, SQL Server, Oracle, Db2, Cassandra); they are not wired here and nothing about them has been tested. The non-blocking start, offset persistence and table inspector described above are implemented for PostgreSQL only.
+For now the operator supports only these two. The API rejects any other `spec.database.type`. Debezium itself supports more engines (MongoDB, SQL Server, Oracle, Db2, Cassandra); they are not wired here and nothing about them has been tested. The non-blocking start, offset persistence and database inspection described above are implemented for PostgreSQL only.
 
 ## Tech stack
 
@@ -301,7 +347,11 @@ this repo does not run them.
 - [ADR-011](docs/adr/ADR-011-hybrid-status-design.md) — hybrid status (conditions + measurements + phase).
 - [ADR-012](docs/adr/ADR-012-event-transport-http-default-kafka-optional.md) — HTTP default / Kafka optional transport.
 - [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derive event counts from the stream vs. native JMX metrics.
-- [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) — start the connector without a blocking snapshot and persist the offset.
+- [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) — start the connector without a blocking snapshot, persist the offset, and inspect the database.
+- [ADR-015](docs/adr/ADR-015-gradual-adoption-ladder.md) — **draft idea**, not a decision: a ladder of adoption stages opened by policy. Nothing of it is built.
+- [docs/overview/stakeholder-brief.md](docs/overview/stakeholder-brief.md) — technical brief for stakeholders ([español](docs/overview/stakeholder-brief_spanish.md)).
+- [docs/HANDOFF.md](docs/HANDOFF.md) — current state and pending work.
+- [bench/](bench/README.md) — reproducible kind cluster, workload and experiments, with their `RESULTS.md`.
 - [docs/articles/to-watermark-or-not.md](docs/articles/to-watermark-or-not.md) — a reflection on CDC snapshot models and why the operator is moving to watermark-based incremental snapshots.
 
 ## Development
@@ -334,11 +384,17 @@ db-sensor-operator/
 ├── internal/
 │   ├── controller/         # Main reconciler
 │   ├── deployer/           # Creates/updates the DebeziumServer CR
+│   ├── inspection/         # Builds the inspector Job, reads and evaluates its result
+│   ├── snapshot/           # Inspector queries, slot diagnosis, per-table plan
 │   ├── metrics/            # /metrics, ServiceMonitor, AlertRules
 │   ├── sink/               # Fan-out: Prometheus, Datadog, Webhook
 │   ├── health/             # Health check + LagTracker
 │   └── events/             # Consumer (Kafka/HTTP) + CDC parser
-├── cmd/main.go             # Entry point: manager + reconciler + HTTP server
+├── cmd/
+│   ├── main.go             # Entry point: manager + reconciler + HTTP server
+│   └── inspector/          # Read-only inspector binary (runs as a Job)
+├── bench/                  # kind cluster, workload and experiments (reproducible)
+├── docs/                   # ADRs, brief, articles, design tokens
 ├── config/                 # CRD, RBAC, manager, samples
 ├── charts/                 # Helm chart
 ├── Dockerfile

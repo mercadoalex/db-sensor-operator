@@ -1,6 +1,6 @@
 # Lactifluus: resumen técnico para stakeholders
 
-Fecha: 2026-10-31 · Estado: integrado en `main`; la inspección viene apagada por defecto; la prueba de punta a punta en kind pasó (12 comprobaciones, un cluster local) · [English version](stakeholder-brief.md)
+Fecha: 2026-10-31 · Estado: integrado en `main`; la inspección viene apagada por defecto; la prueba de punta a punta en kind pasó (15 comprobaciones, un cluster local) · [English version](stakeholder-brief.md)
 Autor: Alejandro Mercado Peña
 
 <picture>
@@ -147,7 +147,7 @@ Qué detecta hoy el diagnóstico del slot (probado contra un PostgreSQL 16 real)
 | Reinicio ordenado sin reentrega | Medido por conteo, no por clave de fila |
 | Diagnóstico del slot y de tablas | Probado contra PostgreSQL 16 real |
 | Flujo operador → Job → status | Tests de integración con pod fabricado; CI en verde |
-| Operador real creando el Job en kind | Medido: 12 comprobaciones pasan (`bench/experiments/inspection-e2e`), incl. contraseña incorrecta y Pod Security `restricted` |
+| Operador real creando el Job en kind | Medido: 15 comprobaciones pasan (`bench/experiments/inspection-e2e`), incl. contraseña incorrecta, Pod Security `restricted` y permiso de Secrets solo `get` |
 | NetworkPolicy que bloquee el Job | **No probado** |
 | MySQL | Mapeado en el deployer, **nunca ejecutado** |
 | Reinicio brusco (kill/OOM) | **No probado** |
@@ -159,7 +159,7 @@ Límites que conviene decir en voz alta, no esconder:
 - **Los cambios de esquema (DDL) no se ven en PostgreSQL** con este método; un `ALTER TABLE` real no generó señal.
 - **El backfill (copiar datos existentes de forma segura) está diferido**: hoy el plan se calcula pero no se aplica, porque ninguna función lo consume aún.
 - Una [tabla ociosa](#11-glosario) aparece como `Degraded` a los 30 s; es una decisión abierta de producto.
-- Hay un hallazgo de seguridad sin resolver: el operador cachea todos los Secrets del cluster, lo que debilita el aislamiento de la contraseña que el diseño del Job promete.
+- Secrets: el operator ya no los cachea, así que ya no puede listar ni vigilar todos los Secrets del cluster (verificado en kind). Sí puede leer un Secret por nombre en cualquier namespace, porque los nombres los eligen los usuarios. Limitarlo exige un Role por namespace de sensor, que el chart admite (`rbac.namespaced`) pero que no se probó.
 
 ## 7. Hipótesis de product fit (por validar, no son hechos)
 
@@ -225,7 +225,7 @@ La pregunta es dónde vive la inteligencia: ¿Lactifluus es el sistema que despl
 ## 9. Próximos pasos
 
 1. ~~Prueba de punta a punta del operador real en kind~~ Hecha (ver sección 6). Siguiente: NetworkPolicy, PostgreSQL 12 y 17.
-2. Cerrar el hallazgo de la caché de Secrets.
+2. ~~Cerrar el hallazgo de la caché de Secrets~~ Hecho: sin list ni watch sobre Secrets. Falta: limitar las lecturas a los namespaces de los sensores.
 3. Verificar PostgreSQL 12 y 17, y MySQL, antes de prometerlos.
 4. Decidir el comportamiento de la tabla ociosa y reescribir la tesis del benchmark (el DDL ya no diferencia a CDC).
 5. Decidir si la inspección debe frenar el arranque o solo informar (sección 1).

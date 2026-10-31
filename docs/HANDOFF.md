@@ -1,6 +1,28 @@
 # Handoff: snapshot policy, phase B3 (inspection)
 
-Merged to `main`. The kind end-to-end passed on 2026-10-31 (12 checks, `bench/experiments/inspection-e2e`). The inspection is off by default, so nothing changes for anyone who does not enable it.
+Merged to `main`. The kind end-to-end passed on 2026-10-31 (15 checks, `bench/experiments/inspection-e2e`). The inspection is off by default, so nothing changes for anyone who does not enable it.
+
+## Pending when the session ended (2026-10-31)
+
+Do first:
+- **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
+- **kind cluster is still up** (`db-sensor-bench`, running the build with the Secrets fix): `make -C bench teardown` when done.
+- **Two untracked PNGs in `assets/`** (`horizontal_fondo_blanco.png` 3 MB, `logo_navy.png` 2.5 MB): decide to optimize and version them, or leave them out. The diagrams embed their own small copies.
+
+Product and messaging:
+- The logo's own tagline says "DDL detection", which the brief contradicts (PostgreSQL does not show DDL). Regenerate the logo without that line, or with a true one.
+- Decide the "brake": should the inspection block start-up, or only report? Ask in the first user conversations (brief, section 7).
+- Run the first 5 to 10 user conversations before any code for ADR-015 (adoption ladder, draft).
+- Idle table reads `Degraded`; decide the behaviour. Rewrite thesis section 13.4 (DDL no longer differentiates CDC).
+- AI features are "under constant evaluation" (ROADMAP): no external LLM; rules decide, AI at most suggests.
+- OpenTelemetry export is roadmap only.
+
+Engineering follow-ups:
+- Secrets: the operator can still `get` a Secret by name in any namespace. Try the chart's `rbac.namespaced` and check what breaks. The Datadog sink's Secret read is unit-tested only.
+- e2e not covered: NetworkPolicy blocking the Job, operator restart or Job kill between Job end and status write.
+- Debezium Server pods (from the Debezium Operator) are rejected by Pod Security `restricted`; the inspector Job is not. Investigate if `restricted` namespaces matter.
+- Verify PostgreSQL 12 and 17, and MySQL, before promising them.
+- Design-token colour pairs have no measured contrast.
 
 ## State
 
@@ -26,9 +48,13 @@ Not verified:
    periodic `intervalSeconds` (with `0` the first run can freeze `SlotMissing` before Debezium
    creates its slot); the Debezium Server pods are not Pod Security `restricted`-compatible
    (Debezium Operator, not ours); test a NetworkPolicy and an operator restart mid-run.
-2. **Secret cache.** The cached client reads every Secret cluster-wide (`EnsureDebeziumServer`
-   does a `Get`; Datadog sink reads too). Make the existence check metadata-only, or the Job's
-   password isolation is weaker than documented.
+2. ~~Secret cache~~ Done. The manager no longer caches Secrets (`cmd/main.go`, `DisableFor`), the
+   existence check asks for metadata only, and the ClusterRole has `secrets: get` (no list or watch).
+   Reproduced first: with only `get` the old build failed with `failed to list *v1.Secret`.
+   Verified in kind (e2e check 8) and by a unit test that fails on the old code. Remaining: the
+   operator can still `get` a Secret by name in any namespace; limiting it needs a namespaced Role
+   (`rbac.namespaced` exists in the chart, untested). The Datadog sink also reads Secrets (by name,
+   with `get`); that path is covered by unit tests only, not by the kind run.
 3. **Server capability.** Encode PG version/capability so "absent" and "not measured" differ on
    PG<13. Test on a PG12 container.
 4. **Heartbeat.** Deployer sets none. Stall detection (confirmedLagBytes growing across probes)
@@ -44,7 +70,7 @@ Not verified:
   (alternative: a `CaptureStrategyHonored=False` condition).
 - Quiet table reads Degraded (no events is not always a fault).
 - Rewrite thesis section 13.4 with the verified facts (`no_data` works, `never` is rejected).
-- Open the PR after item 1.
+- PRs for the inspection are merged (#2, #3).
 
 ## Review checklist before the PR
 
