@@ -1,6 +1,6 @@
 # Snapshot-mode experiment: results
 
-Task A0 of `.kiro/specs/snapshot-policy/`. Reproduce with
+Task A0 of the snapshot policy (ADR-014). Reproduce with
 `make -C bench setup && bench/experiments/snapshot-modes/run.sh`.
 
 - **Debezium Operator / Server:** 3.6.3 (the connector reports `3.6.3.Final`)

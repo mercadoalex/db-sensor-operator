@@ -4,7 +4,7 @@ A reproducible, local-only harness for comparing four ways to get data-activity
 (mutation) observability from PostgreSQL: CDC-derived (Lactiflluus over
 Debezium), polling (`pg_stat_user_tables`), triggers, and `pg_stat_statements`.
 
-The spec lives in `.kiro/specs/cdc-observability-benchmark/`. The report will
+The benchmark's design is not versioned in this repository. The report will
 live in `docs/benchmark/`. This directory holds the harness only.
 
 Like `demo/`, it needs no cloud account or paid service. You need Docker, kind

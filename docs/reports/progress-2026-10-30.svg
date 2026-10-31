@@ -30,7 +30,7 @@
 <text x="380.4" y="302" font-size="12" fill="#333">Opcional o diferida</text>
 <rect x="537.8" y="290" width="14" height="14" fill="#81c784" rx="2"/>
 <text x="557.8" y="302" font-size="12" fill="#333">Entregada (casillas sin marcar)</text>
-<text x="32" y="324" font-size="11" fill="#666">* 0 de 23 casillas marcadas en .kiro/specs/db-sensor/tasks.md; la entrega sale del historial de commits, no de una reconciliación tarea por tarea.</text>
+<text x="32" y="324" font-size="11" fill="#666">* 0 de 23 casillas marcadas en el tasks.md del spec db-sensor (local); la entrega sale del historial de commits, no de una reconciliación tarea por tarea.</text>
 <line x1="32" y1="342" x2="968" y2="342" stroke="#e0e0e0"/>
 <text x="32" y="376" font-size="15" font-weight="bold" fill="#1b1b1b">Benchmark CDC, por tarea</text>
 <rect x="32.0" y="388" width="74.3" height="38" fill="#2e7d32" rx="3"/>

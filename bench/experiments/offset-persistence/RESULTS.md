@@ -1,6 +1,6 @@
 # Offset-persistence experiment: results
 
-Task A4 of `.kiro/specs/snapshot-policy/`, following
+Task A4 of the snapshot policy (ADR-014), following
 `../snapshot-modes/RESULTS.md`. Reproduce with
 `make -C bench setup && bench/experiments/offset-persistence/run.sh`.
 

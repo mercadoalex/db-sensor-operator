@@ -4,9 +4,10 @@
 - **Date:** 2026-10-30
 - **Context:** `ROADMAP.md` Tier 2 "Snapshot strategy / policy layer"; the
   article `docs/articles/to-watermark-or-not.md`; the CDC benchmark
-  (`.kiro/specs/cdc-observability-benchmark/`). Relates to ADR-012 (HTTP
+  (`bench/`). Relates to ADR-012 (HTTP
   transport, no broker) and ADR-013 (counts derived from the stream).
-  Implemented by `.kiro/specs/snapshot-policy/`.
+  The requirements, design and task plan for this ADR are kept locally and are
+  not versioned; the experiments that support it are under `bench/experiments/`.
 - **Prior art:** Netflix DBLog, *A Watermark Based Change-Data-Capture
   Framework* (Andreakis & Papapanagiotou, 2020),
   <https://arxiv.org/abs/2010.12597>. Debezium implements it as incremental

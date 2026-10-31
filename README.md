@@ -176,7 +176,7 @@ Snapshot reads (`op=r`) are never counted: they report rows that already existed
 
 For PostgreSQL the operator starts Debezium with `snapshot.mode=no_data`: it does not read existing rows, so the sensor reports from the first live change instead of waiting for a snapshot. On a 100,000-row table the default `initial` snapshot kept a sensor blind for 57 s while `no_data` saw the first change in 6 s (Debezium 3.6.3, one run; see `bench/experiments/blind-window/RESULTS.md`). The cost is that existing rows are not delivered, which does not affect rates, lag or counts. Other engines keep Debezium's default until their non-blocking mode is verified.
 
-By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) and `.kiro/specs/snapshot-policy/`.
+By default the Debezium Operator keeps its position in memory, so a restart of the Debezium pod can re-deliver recent events and inflate counts. `spec.snapshot.offsetStore: persistent` stores the offset on a PersistentVolumeClaim, and a graceful restart then resumed without re-delivery in testing. A hard kill can still replay up to one flush interval; that was not tested. `status.snapshot` shows the strategy, the offset store and a one-line reason. Design and evidence: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md).
 
 ## Status (`kubectl get`)
 

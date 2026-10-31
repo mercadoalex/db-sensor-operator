@@ -2,9 +2,8 @@
 
 How to develop and test the DatabaseSensor operator **without a Kubernetes
 cluster, a running database, Kafka, or Datadog**. This guide is the practical
-companion to the test-strategy sections in [`DESIGN.MD`](../DESIGN.MD) and
-[`.kiro/specs/db-sensor/design.md`](../.kiro/specs/db-sensor/design.md) — read
-those for the rationale; read this for how to actually run things.
+companion to the test-strategy sections in [`DESIGN.MD`](../DESIGN.MD) — read
+it for the rationale; read this for how to actually run things.
 
 ## TL;DR
 
@@ -166,6 +165,4 @@ in kind with synthetic traffic rather than production data.
 
 - [`DESIGN.MD`](../DESIGN.MD) — test pyramid, TDD-by-feature order, the three
   golden rules (convergence over actions, idempotency, 80% envtest).
-- [`.kiro/specs/db-sensor/design.md`](../.kiro/specs/db-sensor/design.md) —
-  per-component test lists and the `CDCEvent` contract.
 - [`AGENTS.md`](../AGENTS.md) — kubebuilder/controller testing conventions.
