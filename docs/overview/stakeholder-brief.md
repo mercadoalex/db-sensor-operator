@@ -159,7 +159,7 @@ Limits worth saying out loud rather than hiding:
 
 None of these has market evidence yet.
 
-1. Platform/SRE teams running **PostgreSQL** on Kubernetes feel the pain of "I don't know if it is safe to turn on CDC". (Today the product supports only PostgreSQL and MySQL; MySQL is mapped but unverified. Other engines are out of scope.)
+1. Platform/SRE teams running **PostgreSQL** on Kubernetes feel the pain of "I don't know if it is safe to turn on CDC". (Today the scope is PostgreSQL and MySQL: PostgreSQL is measured; MySQL is mapped but unverified. Other engines are outside the current scope; see the [roadmap](../../ROADMAP.md).)
 2. They would adopt, or pay, for **adoption safety** (pre-checks, no blindness) more than for metrics.
 3. "No application code changes" outweighs the comparison with [polling or triggers](#11-glossary).
 4. A "brake" on a database that is not ready (section 1) is something they want, or they prefer to just be notified.
@@ -229,7 +229,7 @@ Technical detail and decisions: `docs/adr/ADR-014-snapshot-policy-layer.md` · p
 
 ## 10. Closing: why this approach is better
 
-**Is it a "brain"? No, and it should not be sold as one.** We use no AI or machine learning. What we have are **policies**: explicit, deterministic rules that look at the database's facts and decide or recommend something. Today there are three:
+**Is it a "brain"? No, and it should not be sold as one.** At this moment there is no use of AI or machine learning. What we have are **policies**: explicit, deterministic rules that look at the database's facts and decide or recommend something. Today there are three:
 
 1. **Start-up policy:** how to begin observing without going blind (on PostgreSQL, no initial copy).
 2. **Per-table backfill policy:** whether a table is small, large, or unreliable to measure, and which loading strategy would apply. Today it is computed and shown, **not applied**: it calculates and recommends; execution comes later. It will be built when something needs the existing rows, when the Kafka transport is wired, or when a user asks for it.
@@ -254,9 +254,9 @@ Being rules rather than a black box is an **advantage**, not a limitation: every
 - Only PostgreSQL is measured; MySQL is mapped but unverified.
 - None of this has market validation yet (section 7).
 
-### AI on the horizon (on hold)
+### AI on the horizon (see the [roadmap](../../ROADMAP.md))
 
-We use no AI today, and that is deliberate. This is a line of exploration, **not a commitment**, and it is on hold. Two rules are set:
+We use no AI today, and that is deliberate. It remains a line of exploration, **not a commitment**: it is reviewed periodically, but other priorities must be consolidated first. Two rules are set:
 
 - **No external LLM.** Sending schemas, table names or data to a third-party service is an unacceptable security risk for a tool that runs next to production databases. If it is ever explored, it would have to be a local or self-hosted model, and that viability is **not evaluated**.
 - **Rules decide; AI, at most, suggests**, with a person approving. And it would start with metrics only, with no rows or sensitive data.

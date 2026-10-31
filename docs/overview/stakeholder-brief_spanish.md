@@ -159,7 +159,7 @@ Límites que conviene decir en voz alta, no esconder:
 
 Ninguna de estas tiene evidencia de mercado todavía.
 
-1. Equipos de plataforma/SRE con **PostgreSQL** en Kubernetes sienten el dolor de "no sé si es seguro activar CDC". (Hoy el producto soporta solo PostgreSQL y MySQL; MySQL está mapeado pero sin verificar. Otros motores no están en el alcance.)
+1. Equipos de plataforma/SRE con **PostgreSQL** en Kubernetes sienten el dolor de "no sé si es seguro activar CDC". (Hoy el alcance es PostgreSQL y MySQL: PostgreSQL está medido; MySQL está mapeado pero sin verificar. Otros motores no están en el alcance actual; ver el [roadmap](../../ROADMAP.md).)
 2. Pagarían, o adoptarían, por **seguridad de adopción** (diagnóstico previo, sin ceguera) más que por métricas.
 3. El valor de "sin tocar código de la app" pesa más que la comparación con [polling o triggers](#11-glosario).
 4. Un "freno" ante una base no lista (sección 1) es algo que quieren, o prefieren que solo se les avise.
@@ -229,7 +229,7 @@ Detalle técnico y decisiones: `docs/adr/ADR-014-snapshot-policy-layer.md` · pe
 
 ## 10. Cierre: por qué este enfoque es mejor
 
-**¿Es un "cerebro"? No, y no conviene venderlo así.** No usamos IA ni aprendizaje automático. Lo que hay son **políticas**: reglas explícitas y deterministas que miran los hechos de la base y deciden o recomiendan algo. Hoy son tres:
+**¿Es un "cerebro"? No, y no conviene venderlo así.** En este momento no hay uso de IA ni aprendizaje automático. Lo que tenemos son **políticas**: reglas explícitas y deterministas que miran los hechos de la base y deciden o recomiendan algo. Hoy son tres:
 
 1. **Política de arranque:** cómo empezar a observar sin quedarse ciego (en PostgreSQL, sin copia inicial).
 2. **Política de backfill por tabla:** si una tabla es chica, grande o no confiable de medir, qué estrategia de carga correspondería. Hoy se calcula y se muestra, **no se aplica**: calcula y recomienda; la ejecución viene después. Se construirá cuando algo necesite las filas existentes, cuando se conecte el transporte Kafka, o cuando un usuario lo pida.
@@ -254,9 +254,9 @@ Que sean reglas y no una caja negra es una **ventaja**, no una limitación: cada
 - Solo PostgreSQL está medido; MySQL está mapeado pero sin verificar.
 - Nada de esto tiene aún validación de mercado (sección 7).
 
-### IA en el horizonte (en pausa)
+### IA en el horizonte (ver el [roadmap](../../ROADMAP.md))
 
-Hoy no usamos IA, y es deliberado. Es una línea de exploración, **no un compromiso**, y está en pausa. Quedaron dos reglas:
+Hoy no usamos IA, y es deliberado. Sigue siendo una línea de exploración, **no un compromiso**: se revisa de forma periódica, pero primero se deben consolidar otras prioridades. Quedaron dos reglas:
 
 - **Nada de LLM externo.** Mandar esquemas, nombres de tablas o datos a un servicio de terceros es un riesgo de seguridad inaceptable para una herramienta que corre junto a bases de producción. Si algún día se explora, tendría que ser un modelo local o autoalojado, y esa viabilidad **no está evaluada**.
 - **Las reglas deciden; la IA, como mucho, sugiere**, con una persona que aprueba. Y se empezaría solo con métricas, sin filas ni datos sensibles.

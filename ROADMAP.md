@@ -173,7 +173,7 @@ Tracked so they aren't lost, but not prioritized:
 - **Gradual adoption ladder (policy-gated stages) — IDEA, to validate.** See
   [ADR-015](docs/adr/ADR-015-gradual-adoption-ladder.md). Nothing built; do not add API
   fields until the first user conversations say a brake is wanted.
-- **AI-assisted features — ON HOLD (exploration only, not committed).** Candidate uses:
+- **AI-assisted features — ON HOLD (exploration only, not committed; reviewed periodically, other priorities first).** Candidate uses:
   statistical-then-ML anomaly detection, natural-language explanation of a diagnosis,
   suggested configuration changes. Constraints decided: **no external/third-party LLM**
   (schemas, table names and data must not leave the cluster); a local or self-hosted model
