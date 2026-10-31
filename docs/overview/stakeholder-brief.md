@@ -1,6 +1,6 @@
 # Lactifluus: technical brief for stakeholders
 
-Date: 2026-10-31 · Status: merged to `main`; inspection is off by default and its end-to-end test in kind is pending · [Versión en español](stakeholder-brief_spanish.md)
+Date: 2026-10-31 · Status: merged to `main`; inspection is off by default; end-to-end test in kind passed (12 checks, one local cluster) · [Versión en español](stakeholder-brief_spanish.md)
 Author: Alejandro Mercado Peña
 
 <picture>
@@ -28,7 +28,7 @@ What it does **not** do yet:
   - **The inspection itself could not run**: an internal or access error (could not connect, password rejected, timed out). It shows up as `InspectionAvailable=False` with the error code, and with no stale data that could mislead.
 - It does not apply any fix or stop the process on its own.
 
-A "brake" (for example, do not start while the database is not ready, or ask for confirmation) is an open product decision. We have not built it because blocking automatically on a diagnosis we have not yet tested end to end in a real cluster would be riskier than reporting. It is a question for the first conversations (section 7).
+A "brake" (for example, do not start while the database is not ready, or ask for confirmation) is an open product decision. We have not built it because blocking automatically is riskier than reporting: the diagnosis has been checked end to end only on PostgreSQL 16 in one local cluster. It is a question for the first conversations (section 7).
 
 ## 2. The pivot
 
@@ -147,7 +147,8 @@ What the slot diagnosis detects today (tested against a real PostgreSQL 16): mis
 | Orderly restart without redelivery | Measured by count, not by row key |
 | Slot and table diagnosis | Tested against a real PostgreSQL 16 |
 | Operator → Job → status flow | Integration tests with a fabricated pod; CI green |
-| **Real operator creating the Job in kind** | **Not tested yet** |
+| Real operator creating the Job in kind | Measured: 12 checks pass (`bench/experiments/inspection-e2e`), incl. wrong password and Pod Security `restricted` |
+| NetworkPolicy blocking the Job | **Not tested** |
 | MySQL | Mapped in the deployer, **never run** |
 | Hard restart (kill/OOM) | **Not tested** |
 | Kafka as transport | **Not tested** |
@@ -223,7 +224,7 @@ The question is where the intelligence lives: is Lactifluus the system that depl
 
 ## 9. Next steps
 
-1. End-to-end test of the real operator in kind (pending; until then the inspection flow is tested only with simulations).
+1. ~~End-to-end test of the real operator in kind~~ Done (see section 6). Next: NetworkPolicy, PostgreSQL 12 and 17.
 2. Close the Secret-cache finding.
 3. Verify PostgreSQL 12 and 17, and MySQL, before promising them.
 4. Decide the idle-table behaviour and rewrite the benchmark thesis (DDL no longer differentiates CDC).
@@ -246,7 +247,7 @@ Being rules rather than a black box is an **advantage**, not a limitation: every
 
 | Before | Now | Evidence |
 |---|---|---|
-| CDC is switched on and problems surface in production | The database is inspected and reported on before it is trusted | Tested against PostgreSQL 16; kind e2e missing |
+| CDC is switched on and problems surface in production | The database is inspected and reported on before it is trusted | Verified in kind with the real operator (PostgreSQL 16) |
 | A large snapshot leaves the sensor blind | It starts seeing live changes | 57 s → 6 s on 100k rows |
 | A restart can duplicate counts | Orderly restart without redelivery | Measured by count |
 | A lagging slot can fill the disk without a clear warning | WAL risk is diagnosed and explained | Tested against PostgreSQL 16 |
