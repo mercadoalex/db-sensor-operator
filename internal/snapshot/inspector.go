@@ -121,7 +121,7 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, req 
 	}
 	db, err := pgx.ConnectConfig(ctx, cfg)
 	if err != nil {
-		return Facts{}, fmt.Errorf("connecting to %s: %w", conn, redact(err, conn.Password))
+		return Facts{}, fmt.Errorf("%w: connecting to %s: %w", ErrConnect, conn, redact(err, conn.Password))
 	}
 	defer func() { _ = db.Close(ctx) }()
 

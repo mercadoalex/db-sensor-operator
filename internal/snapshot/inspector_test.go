@@ -112,7 +112,7 @@ func TestInspectAgainstPostgres(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	facts, err := PostgresInspector{}.Inspect(ctx, conn, Request{Tables: []string{"public.orders", "orders", "public.does_not_exist"}})
+	facts, err := PostgresInspector{}.Inspect(ctx, conn, Request{Tables: []string{tblOrders, "orders", "public.does_not_exist"}})
 	require.NoError(t, err)
 	got := facts.Tables
 	require.Len(t, got, 3)

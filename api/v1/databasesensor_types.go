@@ -400,8 +400,11 @@ type DatabaseSensorStatus struct {
 
 // SnapshotStatus explains the connector's start behaviour in one line.
 type SnapshotStatus struct {
-	// strategy is how the connector starts: "no-data" (existing rows are not
-	// read) or "engine-default" (the Debezium default snapshot applies).
+	// strategy is the START MODE of the connector: "no-data" (it starts without reading
+	// existing rows) or "engine-default" (the Debezium default snapshot applies). It is not
+	// the capture strategy. Whether and how existing rows would be delivered is
+	// plan.tables[].backfill. The two sound alike and mean different things: starting without
+	// reading rows is how every path begins, including the ones that backfill afterwards.
 	// +optional
 	Strategy string `json:"strategy,omitempty"`
 
@@ -530,7 +533,8 @@ type SlotInspection struct {
 	ConfirmedLagBytes *int64 `json:"confirmedLagBytes,omitempty"`
 }
 
-// SnapshotPlan is what the backfill policy would do. It is not executed.
+// SnapshotPlan is what the backfill policy would do. It is not executed: no sink consumes
+// backfilled rows, so reading "backfill: signal-table" here does not mean a backfill is running.
 type SnapshotPlan struct {
 	// applied is false until something consumes backfilled rows; the plan is information only.
 	Applied bool `json:"applied"`
@@ -547,7 +551,8 @@ type TablePlan struct {
 	// name is the table as named in spec.tables.
 	Name string `json:"name"`
 
-	// backfill is how existing rows would be delivered.
+	// backfill is the capture strategy: whether and how existing rows would be delivered after
+	// the connector has started. It is independent of the start mode in status.snapshot.strategy.
 	// +kubebuilder:validation:Enum=stream-only;signal-table;read-only-incremental;none
 	Backfill string `json:"backfill"`
 
