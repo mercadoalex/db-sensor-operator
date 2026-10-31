@@ -27,7 +27,7 @@ import (
 const tblOrders = "public.orders"
 
 func facts(rows int64, canWrite, replica bool) TableFacts {
-	return TableFacts{Table: tblOrders, Found: true, EstimatedRows: rows, EstimateReliable: true, CanWrite: canWrite, ReadOnlyServer: replica, WALLevel: "logical"}
+	return TableFacts{Table: tblOrders, Found: true, EstimatedRows: rows, EstimateReliable: true, CanWrite: canWrite, ReadOnlyServer: replica, WALLevel: walLogical}
 }
 
 func TestDecide(t *testing.T) {
@@ -59,7 +59,7 @@ func TestDecide(t *testing.T) {
 		{name: "custom threshold", facts: facts(2_000, true, false), cfg: PolicyConfig{SmallTableRows: 1_000}, want: StrategySignalTable},
 		{name: "custom threshold keeps small tables small", facts: facts(900, true, false), cfg: PolicyConfig{SmallTableRows: 1_000}, want: StrategyStreamOnly},
 		{name: "non-positive threshold falls back to the default", facts: facts(500, true, false), cfg: PolicyConfig{SmallTableRows: -5}, want: StrategyStreamOnly},
-		{name: "missing table is degraded", facts: TableFacts{Table: tblOrders, WALLevel: "logical"}, want: StrategyNone, degraded: true, reason: "not found"},
+		{name: "missing table is degraded", facts: TableFacts{Table: tblOrders, WALLevel: walLogical}, want: StrategyNone, degraded: true, reason: "not found"},
 		{name: "wal_level replica is degraded", facts: TableFacts{Table: tblOrders, Found: true, EstimatedRows: 10, WALLevel: "replica"}, want: StrategyNone, degraded: true, reason: "wal_level"},
 		{name: "override wins over everything", facts: facts(5_000_000, false, true), cfg: PolicyConfig{Override: StrategyStreamOnly}, want: StrategyStreamOnly, reason: "set manually"},
 		{name: "override wins even over a failed precondition", facts: TableFacts{Table: tblOrders}, cfg: PolicyConfig{Override: StrategySignalTable}, want: StrategySignalTable},

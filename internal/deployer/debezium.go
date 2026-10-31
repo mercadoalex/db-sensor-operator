@@ -130,7 +130,7 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 	// Per-type extras (US-8).
 	switch sensor.Spec.Database.Type {
 	case dbTypePostgres:
-		config["slot.name"] = slotName(sensor)
+		config["slot.name"] = SlotName(sensor)
 		// Do not read existing rows: the sensor derives everything from live
 		// changes, so a blocking snapshot is a pure cost that leaves it blind
 		// until it ends. "no_data" is the non-blocking mode accepted by Debezium
@@ -315,10 +315,10 @@ func topicPrefix(sensor *sensoriov1.DatabaseSensor) string {
 
 var invalidSlotChars = regexp.MustCompile(`[^a-z0-9_]`)
 
-// slotName derives a stable Postgres replication slot name from the sensor name.
+// SlotName derives a stable Postgres replication slot name from the sensor name.
 // Postgres slot names must be lowercase alphanumerics or underscores and at most
 // 63 characters.
-func slotName(sensor *sensoriov1.DatabaseSensor) string {
+func SlotName(sensor *sensoriov1.DatabaseSensor) string {
 	name := strings.ToLower(sensor.Namespace + "_" + sensor.Name)
 	name = invalidSlotChars.ReplaceAllString(name, "_")
 	if len(name) > 63 {

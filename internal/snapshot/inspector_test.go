@@ -87,7 +87,7 @@ func TestInspectUnreachableDoesNotLeakPassword(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	// Port 1 on localhost refuses connections.
-	_, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{Host: "127.0.0.1", Port: 1, User: "u", Password: secretPassword, Database: "d", SSLMode: sslDisable}, []string{"t"})
+	_, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{Host: "127.0.0.1", Port: 1, User: "u", Password: secretPassword, Database: "d", SSLMode: sslDisable}, Request{Tables: []string{"t"}})
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), secretPassword)
 }
@@ -112,15 +112,16 @@ func TestInspectAgainstPostgres(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	got, err := PostgresInspector{}.Inspect(ctx, conn, []string{"public.orders", "orders", "public.does_not_exist"})
+	facts, err := PostgresInspector{}.Inspect(ctx, conn, Request{Tables: []string{"public.orders", "orders", "public.does_not_exist"}})
 	require.NoError(t, err)
+	got := facts.Tables
 	require.Len(t, got, 3)
 
 	assert.True(t, got[0].Found)
 	assert.True(t, got[1].Found, "a bare name is looked up in public")
 	assert.False(t, got[2].Found)
 
-	assert.Equal(t, "logical", got[0].WALLevel)
+	assert.Equal(t, walLogical, got[0].WALLevel)
 	assert.False(t, got[0].ReadOnlyServer)
 	// DBSENSOR_TEST_PG_EXPECT_WRITE=false is for a user without CREATE on the schema.
 	assert.Equal(t, os.Getenv("DBSENSOR_TEST_PG_EXPECT_WRITE") != "false", got[0].CanWrite)
@@ -170,12 +171,13 @@ func TestInspectUnanalyzedTable(t *testing.T) {
 	got, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{
 		Host: host, Port: int32(port), User: os.Getenv("DBSENSOR_TEST_PG_USER"),
 		Password: os.Getenv("DBSENSOR_TEST_PG_PASSWORD"), Database: os.Getenv("DBSENSOR_TEST_PG_DB"), SSLMode: sslDisable,
-	}, []string{"public.fresh_unanalyzed"})
+	}, Request{Tables: []string{"public.fresh_unanalyzed"}})
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.True(t, got[0].Found)
-	assert.Equal(t, UnknownRows, got[0].EstimatedRows)
-	assert.Equal(t, StrategySignalTable, Decide(got[0], PolicyConfig{}, Capabilities{}).Kind)
+	require.Len(t, got.Tables, 1)
+	tbl := got.Tables[0]
+	assert.True(t, tbl.Found)
+	assert.Equal(t, UnknownRows, tbl.EstimatedRows)
+	assert.Equal(t, StrategySignalTable, Decide(tbl, PolicyConfig{}, Capabilities{}).Kind)
 }
 
 func TestEstimate(t *testing.T) {
@@ -221,11 +223,11 @@ func TestInspectStaleStatistics(t *testing.T) {
 	got, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{
 		Host: host, Port: int32(port), User: os.Getenv("DBSENSOR_TEST_PG_USER"),
 		Password: os.Getenv("DBSENSOR_TEST_PG_PASSWORD"), Database: os.Getenv("DBSENSOR_TEST_PG_DB"), SSLMode: sslDisable,
-	}, []string{"public.stale_estimate", "public.orders"})
+	}, Request{Tables: []string{"public.stale_estimate", "public.orders"}})
 	require.NoError(t, err)
-	require.Len(t, got, 2)
+	require.Len(t, got.Tables, 2)
 
-	stale, fresh := got[0], got[1]
+	stale, fresh := got.Tables[0], got.Tables[1]
 	t.Logf("stale: %+v", stale)
 	t.Logf("fresh: %+v", fresh)
 	assert.True(t, stale.Found)
@@ -235,4 +237,27 @@ func TestInspectStaleStatistics(t *testing.T) {
 	assert.NotEqual(t, StrategyStreamOnly, Decide(stale, PolicyConfig{}, Capabilities{}).Kind)
 
 	assert.True(t, fresh.EstimateReliable, "orders was analyzed and is untouched")
+}
+
+// TestInspectSlotAgainstPostgres inspects the replication slot named by DBSENSOR_TEST_PG_SLOT
+// and logs the facts and the diagnosis. Skipped without a database and a slot name.
+func TestInspectSlotAgainstPostgres(t *testing.T) {
+	host, slotName := os.Getenv("DBSENSOR_TEST_PG_HOST"), os.Getenv("DBSENSOR_TEST_PG_SLOT")
+	if host == "" || slotName == "" {
+		t.Skip("needs DBSENSOR_TEST_PG_HOST and DBSENSOR_TEST_PG_SLOT")
+	}
+	port, _ := strconv.Atoi(os.Getenv("DBSENSOR_TEST_PG_PORT"))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	got, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{
+		Host: host, Port: int32(port), User: os.Getenv("DBSENSOR_TEST_PG_USER"),
+		Password: os.Getenv("DBSENSOR_TEST_PG_PASSWORD"), Database: os.Getenv("DBSENSOR_TEST_PG_DB"), SSLMode: sslDisable,
+	}, Request{Slot: slotName})
+	require.NoError(t, err)
+	require.NotNil(t, got.Slot)
+	risk := DiagnoseSlot(got.Server, got.Slot)
+	t.Logf("server: %+v", got.Server)
+	t.Logf("slot:   %+v", *got.Slot)
+	t.Logf("risk:   %s | %s", risk.Level, risk.Reason)
+	assert.True(t, got.Slot.Found)
 }
