@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
-<title id="t">Avance de Lactiflluus: lo cubierto frente a lo que falta</title>
+<title id="t">Avance de Lactifluus: lo cubierto frente a lo que falta</title>
 <desc id="d">Tres flujos de trabajo: operador db-sensor entregado con casillas sin reconciliar; benchmark CDC con 2 de 12 tareas hechas; snapshot-policy con 9 de 16 tareas hechas. Debajo, el detalle por tarea del benchmark y de snapshot-policy.</desc>
 <rect width="1000" height="560" fill="#ffffff"/>
-<text x="32" y="38" font-size="22" font-weight="bold" fill="#1b1b1b">Lactiflluus: lo cubierto frente a lo que falta</text>
+<text x="32" y="38" font-size="22" font-weight="bold" fill="#1b1b1b">Lactifluus: lo cubierto frente a lo que falta</text>
 <text x="32" y="60" font-size="13" fill="#555">Rama feat/cdc-benchmark-and-snapshot-policy · 2026-10-30 · cada cuadro = una tarea de su tasks.md</text>
 <text x="32" y="113" font-size="15" font-weight="bold" fill="#1b1b1b">Operador db-sensor</text>
 <text x="32" y="130" font-size="12" fill="#666">23 tareas</text>

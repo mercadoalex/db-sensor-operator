@@ -1,6 +1,6 @@
 # Roadmap
 
-Where Lactiflluus (the DatabaseSensor operator) could go next. This is a living,
+Where Lactifluus (the DatabaseSensor operator) could go next. This is a living,
 prioritized document — not a commitment. It is grounded in what the operator is
 **today** (declarative CDC observability: derived metrics, multi-sink alerting,
 built-in dashboard, Helm packaging, hybrid status) versus what teams running
@@ -170,6 +170,9 @@ Tracked so they aren't lost, but not prioritized:
   constants remain the defaults); per-table thresholds are still future (see Tier 1).
 - Full real-database demo (Postgres + official Debezium Operator) — the synthetic
   demo kit (`demo/`, `DEMO.md`) covers the pipeline today.
+- **Gradual adoption ladder (policy-gated stages) — IDEA, to validate.** See
+  [ADR-015](docs/adr/ADR-015-gradual-adoption-ladder.md). Nothing built; do not add API
+  fields until the first user conversations say a brake is wanted.
 - **AI-assisted features — ON HOLD (exploration only, not committed).** Candidate uses:
   statistical-then-ML anomaly detection, natural-language explanation of a diagnosis,
   suggested configuration changes. Constraints decided: **no external/third-party LLM**

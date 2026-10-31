@@ -1,4 +1,4 @@
-# DatabaseSensor for the CDC-derived Approach. Lactiflluus creates the
+# DatabaseSensor for the CDC-derived Approach. Lactifluus creates the
 # DebeziumServer (official Debezium Operator runs it); Debezium POSTs every change
 # event to the operator's /cdc endpoint (HTTP transport, ADR-012: no Kafka broker).
 #

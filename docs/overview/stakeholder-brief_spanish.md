@@ -1,4 +1,4 @@
-# Lactiflluus: resumen técnico para stakeholders
+# Lactifluus: resumen técnico para stakeholders
 
 Fecha: 2026-10-31 · Estado: rama `feat/snapshot-policy-phase-b` (CI en verde, sin mergear) · [English version](stakeholder-brief.md)
 Autor: Alejandro Mercado Peña
@@ -7,9 +7,10 @@ Este documento separa tres cosas para que no se confundan: lo que **medimos**, l
 
 ## 1. En una frase
 
-**Observabilidad de bases de datos con adopción segura, guiada por políticas.**
+**Inteligencia de CDC basada en políticas, para PostgreSQL en Kubernetes.**
+*Reglas explícitas, no una caja negra: revisa tu base, arranca sin cegarse y explica cada decisión. Hoy revisa y recomienda; la dirección es actuar según esas políticas.*
 
-Lactiflluus es un operator de Kubernetes que observa una base de datos **sin tocar el código de la aplicación**: declaras en un YAML las tablas a vigilar y él despliega Debezium, deriva métricas, avisa de anomalías e **inspecciona la base y te informa si está lista para ser vigilada**.
+Lactifluus es un operator de Kubernetes que observa una base de datos **sin tocar el código de la aplicación**: declaras en un YAML las tablas a vigilar y él despliega Debezium, deriva métricas, avisa de anomalías e **inspecciona la base y te informa si está lista para ser vigilada**.
 
 ### ¿Y si la inspección dice que no está lista?
 
@@ -26,13 +27,13 @@ Un "freno" (por ejemplo, no arrancar mientras la base no esté lista, o pedir co
 
 ## 2. El giro
 
-Lactiflluus sigue dando métricas y alertas. Lo que cambia es el **énfasis**: la parte difícil de adoptar CDC no son las métricas, es **el riesgo de ponerlo en una base de producción**. Por eso el producto pasa de "te muestro lo que pasa" a "te ayudo a adoptarlo sin sustos y te explico por qué".
+Lactifluus sigue dando métricas y alertas. Lo que cambia es el **énfasis**: la parte difícil de adoptar CDC no son las métricas, es **el riesgo de ponerlo en una base de producción**. Por eso el producto pasa de "te muestro lo que pasa" a "te ayudo a adoptarlo sin sustos y te explico por qué".
 
 Esta idea nace de dos cosas que cuenta el [artículo](../articles/to-watermark-or-not.md) que redactamos a partir de distintas fuentes: ver un sensor atascado en `Pending` durante 8 horas por un snapshot bloqueante en una tabla grande, y una conversación con un maintainer de Debezium sobre un enfoque alternativo (watermarks). Es una reflexión de construcción, **no un hallazgo de mercado**: todavía no hemos preguntado a usuarios.
 
 Medidas para atacar ese riesgo:
 
-| Miedo del equipo que adopta | Qué hace ahora Lactiflluus |
+| Miedo del equipo que adopta | Qué hace ahora Lactifluus |
 |---|---|
 | "Se queda ciego mientras copia mi tabla grande" | Arranca sin copiar datos existentes (`no_data`) |
 | "Si reinicia, duplica eventos y mis conteos mienten" | Offset persistente: un reinicio ordenado no reentrega |
@@ -47,9 +48,9 @@ Medidas para atacar ese riesgo:
 ```mermaid
 flowchart LR
     H["Helm chart<br/>(instala el operator, una vez)"] -.->|"instala"| OP
-    U["Usuario: kubectl apply<br/>DatabaseSensor (YAML)"] --> OP["Lactiflluus Operator<br/>(reconciler)"]
+    U["Usuario: kubectl apply<br/>DatabaseSensor (YAML)"] --> OP["Lactifluus Operator<br/>(reconciler)"]
     OP -->|"crea y gestiona<br/>vía el Debezium Operator oficial"| DBZ["Debezium Server"]
-    OP -->|"Job de solo lectura"| INS["Lactiflluus Inspector<br/>(binario aparte, ~13 MB)"]
+    OP -->|"Job de solo lectura"| INS["Lactifluus Inspector<br/>(binario aparte, ~13 MB)"]
     DB[("PostgreSQL")] -->|"WAL / pgoutput"| DBZ
     INS -->|"consulta catálogos"| DB
     DBZ -->|"eventos CDC (HTTP)"| OP
@@ -71,8 +72,8 @@ flowchart LR
 
 **Quién es quién:**
 
-- **Lactiflluus Operator** (nuestro, azul): el reconciler que lee tu YAML y orquesta todo lo demás.
-- **Lactiflluus Inspector** (nuestro, azul): un binario pequeño, aparte del operator, que corre como Job de solo lectura. No es un segundo operator.
+- **Lactifluus Operator** (nuestro, azul): el reconciler que lee tu YAML y orquesta todo lo demás.
+- **Lactifluus Inspector** (nuestro, azul): un binario pequeño, aparte del operator, que corre como Job de solo lectura. No es un segundo operator.
 - **Debezium Operator oficial** (de terceros, gris): lo orquestamos, no lo escribimos. Es quien despliega y mantiene Debezium Server.
 - **Exportación OpenTelemetry** (blanco, punteado): está en el roadmap y **todavía no existe**. Se muestra para indicar hacia dónde va.
 - **Helm** (naranja, punteado): solo se usa para instalar el operator en el cluster. El uso del día a día es `kubectl apply` de un `DatabaseSensor`.
@@ -186,7 +187,7 @@ Sobre alcance e integración:
 
 ## 8. Nota técnica: ¿operator propio o integrado al monitoreo existente?
 
-La pregunta es dónde vive la inteligencia: ¿Lactiflluus es el sistema que despliega, mide y alerta, o es un proveedor de señales para el sistema que el cliente ya tiene (Prometheus, Datadog, Zabbix, Grafana)?
+La pregunta es dónde vive la inteligencia: ¿Lactifluus es el sistema que despliega, mide y alerta, o es un proveedor de señales para el sistema que el cliente ya tiene (Prometheus, Datadog, Zabbix, Grafana)?
 
 **Lo que hace hoy el producto (verificado en código y tests):**
 
@@ -262,14 +263,14 @@ Hoy no usamos IA, y es deliberado. Es una línea de exploración, **no un compro
 
 Usos posibles, sin orden de prioridad: detección de anomalías (empezando estadística, como ya dice el roadmap), explicar un diagnóstico en lenguaje natural y sugerir ajustes de configuración.
 
-**En dos frases:** adoptar CDC suele dar miedo porque se hace a ciegas. Lactiflluus lo convierte en un proceso declarativo que primero revisa, empieza sin cegarse y explica cada decisión con una razón.
+**En dos frases:** adoptar CDC suele dar miedo porque se hace a ciegas. Lactifluus lo convierte en un proceso declarativo que primero revisa, empieza sin cegarse y explica cada decisión con una razón.
 
 ## 11. Glosario
 
 | Término | Qué significa |
 |---|---|
 | **CDC** (Change Data Capture) | Leer los cambios de una base (inserts, updates, deletes) desde su propio registro de transacciones, sin consultar las tablas ni tocar la aplicación. |
-| **Debezium** | Herramienta de código abierto que hace CDC y publica los cambios como eventos. Lactiflluus la despliega y la gestiona. |
+| **Debezium** | Herramienta de código abierto que hace CDC y publica los cambios como eventos. Lactifluus la despliega y la gestiona. |
 | **WAL** (Write-Ahead Log) | El registro de transacciones de PostgreSQL. Debezium lo lee para ver los cambios. |
 | **Slot de replicación** | Marcador en PostgreSQL que le dice a la base "guarda el WAL hasta que este lector lo haya leído". Si el lector se atrasa o se detiene, el WAL se acumula y puede **llenar el disco**; si se acumula demasiado, el slot puede invalidarse. |
 | **Snapshot** | Copia inicial de las filas existentes que hace Debezium al conectarse. En tablas grandes puede tardar y dejar al sensor ciego. |

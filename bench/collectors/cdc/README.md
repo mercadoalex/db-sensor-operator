@@ -1,14 +1,14 @@
-# CDC-derived collector (Lactiflluus over Debezium, HTTP transport)
+# CDC-derived collector (Lactifluus over Debezium, HTTP transport)
 
 The CDC Approach: the official Debezium Operator runs a Debezium Server against
-the benchmark PostgreSQL; Lactiflluus creates that `DebeziumServer` from the
+the benchmark PostgreSQL; Lactifluus creates that `DebeziumServer` from the
 `DatabaseSensor` in `sensor.yaml` and derives per-table counts and lag from the
 event stream (ADR-013). Events travel over HTTP, so there is no Kafka broker
 (ADR-012).
 
 ```bash
 make -C bench setup        # cluster + PostgreSQL
-make -C bench cdc-up       # Debezium Operator + Lactiflluus + the DatabaseSensor
+make -C bench cdc-up       # Debezium Operator + Lactifluus + the DatabaseSensor
 make -C bench run          # drive the workload
 bench/collectors/cdc/read.sh          # all debezium_* series
 bench/collectors/cdc/read.sh events   # per-table insert/update/delete counts
@@ -26,7 +26,7 @@ Verified against the benchmark workload (seed 42, 500 operations):
 |---|---|
 | Per-table insert / update / delete counts | Exact: 252 / 205 / 43 reported, matching the 252 / 205 / 43 the workload applied |
 | Change lag (`now() - ts_ms`) | About 0.2 s under 50 ops/s |
-| Per-row detail | Present in each event; Lactiflluus keeps only counts and a recent-events buffer |
+| Per-row detail | Present in each event; Lactifluus keeps only counts and a recent-events buffer |
 | Schema / DDL changes | **Not observed on PostgreSQL** (see below) |
 
 ### DDL is not observed on PostgreSQL

@@ -1,8 +1,8 @@
-# Lactiflluus (DatabaseSensor Operator) — Documento de Diseño
+# Lactifluus (DatabaseSensor Operator) — Documento de Diseño
 
 ## 1. Visión General
 
-**Lactiflluus** es un operator de Kubernetes basado en Debezium que orquesta la observabilidad de métricas, el fan-out de alertas multi-sink y la detección de DDL (cambios de esquema), implementado como el custom resource `DatabaseSensor`.
+**Lactifluus** es un operator de Kubernetes basado en Debezium que orquesta la observabilidad de métricas, el fan-out de alertas multi-sink y la detección de DDL (cambios de esquema), implementado como el custom resource `DatabaseSensor`.
 
 Un **operator de Kubernetes** en Go que usa **Debezium** (CDC) como sensor de observabilidad de bases de datos. Permite declarar en un YAML "monitorea estas tablas y avísame si X", y el operator orquesta Debezium + Prometheus + Alertmanager automáticamente.
 

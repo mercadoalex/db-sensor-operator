@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # bench/collectors/cdc/up.sh — deploy the CDC-derived Approach into the benchmark
-# cluster: official Debezium Operator + Lactiflluus + the bench DatabaseSensor.
+# cluster: official Debezium Operator + Lactifluus + the bench DatabaseSensor.
 #
 # Requires `make -C bench setup` to have created the cluster and PostgreSQL.
 #
@@ -45,11 +45,11 @@ helm upgrade --install debezium-operator debezium/debezium-operator \
   --version "$DEBEZIUM_OPERATOR_VERSION" --kube-context "$CTX" \
   -n debezium --create-namespace --wait --timeout 300s >/dev/null
 
-echo "==> [3/5] build the Lactiflluus image and load it into kind"
+echo "==> [3/5] build the Lactifluus image and load it into kind"
 (cd "$REPO_ROOT" && make docker-build IMG="$IMG")
 kind load docker-image "$IMG" --name "$CLUSTER"
 
-echo "==> [4/5] install Lactiflluus (operator HTTP server on :8080)"
+echo "==> [4/5] install Lactifluus (operator HTTP server on :8080)"
 helm upgrade --install db-sensor "${REPO_ROOT}/charts/db-sensor-operator" \
   --kube-context "$CTX" -n "$OP_NS" --create-namespace \
   --set operatorHttp.enabled=true \

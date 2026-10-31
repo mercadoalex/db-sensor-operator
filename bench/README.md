@@ -1,7 +1,7 @@
 # CDC Observability Benchmark harness
 
 A reproducible, local-only harness for comparing four ways to get data-activity
-(mutation) observability from PostgreSQL: CDC-derived (Lactiflluus over
+(mutation) observability from PostgreSQL: CDC-derived (Lactifluus over
 Debezium), polling (`pg_stat_user_tables`), triggers, and `pg_stat_statements`.
 
 The benchmark's design is not versioned in this repository. The report will
@@ -27,7 +27,7 @@ measurement harness and the report come in later tasks. `make collect` and
 cd bench
 make setup      # kind cluster + PostgreSQL (wal_level=logical) + schema
 make run        # deterministic workload, default 50 ops/s for 60s
-make cdc-up     # CDC Approach: Debezium Operator + Lactiflluus (see collectors/cdc/)
+make cdc-up     # CDC Approach: Debezium Operator + Lactifluus (see collectors/cdc/)
 make cdc-down   # remove it, including the replication slot
 make teardown   # delete the kind cluster
 ```

@@ -56,7 +56,7 @@ import (
 //go:embed index.html
 var indexHTML []byte
 
-// logoJPEG is the embedded Lactiflluus header logo (a web-sized copy of
+// logoJPEG is the embedded Lactifluus header logo (a web-sized copy of
 // assets/lactifluss-hori.jpeg). It is served at /dashboard/logo and referenced
 // by index.html so the branded logo renders without an external request.
 //
@@ -142,7 +142,7 @@ func (s *Server) dashboardHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(indexHTML)
 }
 
-// logoHandler serves the embedded Lactiflluus header logo when the dashboard is
+// logoHandler serves the embedded Lactifluus header logo when the dashboard is
 // enabled, and returns 404 otherwise (it is part of the gated dashboard UI).
 func (s *Server) logoHandler(w http.ResponseWriter, r *http.Request) {
 	if s.gate == nil || !s.gate.Enabled() {

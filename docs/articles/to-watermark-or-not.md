@@ -1,18 +1,18 @@
 # To Watermark, or Not to Watermark: That Is the Operator's Dilemma
 
-*How a conversation in the Debezium community made LactiFluus learn to see sooner.*
+*How a conversation in the Debezium community made Lactifluus learn to see sooner.*
 
-I built a Kubernetes operator. It wraps Debezium, watches database tables, and reports metrics. I named it LactiFluus after the milk cap mushroom, because when you break one, it oozes a milky latex, and that's what my operator does when you poke it. It bleeds metrics. Inserts per minute. Update rate. Lag. The whole thing.
+I built a Kubernetes operator. It wraps Debezium, watches database tables, and reports metrics. I named it Lactifluus after the milk cap mushroom, because when you break one, it oozes a milky latex, and that's what my operator does when you poke it. It bleeds metrics. Inserts per minute. Update rate. Lag. The whole thing.
 
 For about three months, I thought it was a good idea. A solid idea. The kind of idea where you build it, it works, you feel slightly proud, and you move on.
 
 Then a Debezium maintainer sent me a direct message and said, in essence: the model you're sitting on has an interesting alternative, here's the paper, and also one of the authors is giving a talk today, want to come?
 
-This is how that happened, what the paper actually does, and why it's going to make LactiFluus better.
+This is how that happened, what the paper actually does, and why it's going to make Lactifluus better.
 
 ## The thing I was building
 
-LactiFluus is an operator. You deploy it to a cluster, you create a custom resource that says "observe this table on this database," and it spins up a Debezium connector, points it at the table, and starts streaming change events. From those events, it computes metrics. The operator has a phase field. Pending, Running, Degraded, Failed. Clean. Declarative. The kind of thing that looks good in a slide.
+Lactifluus is an operator. You deploy it to a cluster, you create a custom resource that says "observe this table on this database," and it spins up a Debezium connector, points it at the table, and starts streaming change events. From those events, it computes metrics. The operator has a phase field. Pending, Running, Degraded, Failed. Clean. Declarative. The kind of thing that looks good in a slide.
 
 The part with the most room to grow is Pending.
 
@@ -24,7 +24,7 @@ I accepted that. For three months, I accepted that. It was the documented defaul
 
 ## The other tools, and what they have in common
 
-Before I built LactiFluus, I looked at the landscape. Maxwell. SpinalTap. Yelp's MySQL Streamer. Debezium. They all look different on the surface. Maxwell is Go, talks HTTP. SpinalTap is a library, not a service. Debezium is Java, talks Kafka. But the architecture underneath is the same. Each one follows the same two-phase model: snapshot first, stream second. The snapshot is a one-time, blocking, "I need to see the whole table before I can start" operation. The stream is what happens after.
+Before I built Lactifluus, I looked at the landscape. Maxwell. SpinalTap. Yelp's MySQL Streamer. Debezium. They all look different on the surface. Maxwell is Go, talks HTTP. SpinalTap is a library, not a service. Debezium is Java, talks Kafka. But the architecture underneath is the same. Each one follows the same two-phase model: snapshot first, stream second. The snapshot is a one-time, blocking, "I need to see the whole table before I can start" operation. The stream is what happens after.
 
 I told myself they all use the same principles, and I was right. They do. The replication protocol is the same. The binlog is the same. The WAL is the same. The difference between them is language, transport, and polish. Not model.
 
@@ -100,7 +100,7 @@ I'm not going to rip out Debezium. I'm not going to hand-roll a watermark in Go.
 
 One caveat I'll state plainly: read-only incremental snapshots for PostgreSQL only exist in a relatively recent 2.x release of Debezium (and read-only replica support is newer still). If your operator pins an older version, that path doesn't exist yet, and your only option for read-only connections is "no snapshot, stream only," which means you're blind to existing rows. So I'm pinning a recent enough version. If you're not, that's your first upgrade, and it's not optional. Check the exact version against your own connector before you rely on it.
 
-What I am going to do is make LactiFluus a policy layer.
+What I am going to do is make Lactifluus a policy layer.
 
 The operator looks at the table. It asks the database a few questions. How big is this table? Do I have write access? What's the current GTID set? Is GTID even enabled? Based on the answers, it picks the capture strategy.
 

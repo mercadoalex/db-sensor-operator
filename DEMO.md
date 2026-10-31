@@ -1,4 +1,4 @@
-# Lactiflluus — Demo Walkthrough
+# Lactifluus — Demo Walkthrough
 
 A documented, end-to-end run of the **synthetic-event demo**: the DatabaseSensor
 operator driving its full observability pipeline (derived metrics, lag, events/min,
@@ -118,7 +118,7 @@ traffic:
 Open the dashboard: <http://localhost:8080/dashboard>
 
 <p align="center">
-  <img src="assets/dashboard.png" alt="The DatabaseSensor dashboard: Lactiflluus logo and title in the header, a debezium_lag_seconds line chart (per table) with a hover tooltip, a debezium_events_per_minute bar chart, and a Recent events table listing op/db/table/ts_ms rows" width="900">
+  <img src="assets/dashboard.png" alt="The DatabaseSensor dashboard: Lactifluus logo and title in the header, a debezium_lag_seconds line chart (per table) with a hover tooltip, a debezium_events_per_minute bar chart, and a Recent events table listing op/db/table/ts_ms rows" width="900">
 </p>
 
 ## 4. Feed synthetic events — the pipeline lights up

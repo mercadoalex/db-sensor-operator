@@ -47,7 +47,7 @@ undone by the first restart unless offset persistence is decided as well.
 1. **Add a decision step to reconcile.** The reconcile loop goes from
    "generate a static spec" to "inspect, decide, generate a spec". The
    operator is still an operator: it watches a CR, inspects the world, decides,
-   reconciles. The watermark algorithm stays Debezium's job; Lactiflluus only
+   reconciles. The watermark algorithm stays Debezium's job; Lactifluus only
    chooses how to start the connector and whether to send a snapshot signal.
 2. **Split the work into two phases, because the metrics do not need rows.**
    - **Phase A, non-blocking start (default).** Start the connector so it
