@@ -168,6 +168,39 @@ PostgreSQL 16.
   full copy of the tables (that is how native logical-replication subscriptions behave). How
   Debezium recovers from a lost slot was not tested.
 
+## How the inspection result travels
+
+The inspection runs as a Job. The Job is transport; the sensor's status is the store.
+
+- The inspector writes one JSON document to `/dev/termination-log`. With
+  `terminationMessagePolicy: File` the kubelet copies it into the Pod, on success and on failure.
+- The operator reads it from `Pod.status.containerStatuses[].state.terminated.message` of the
+  `inspector` container. That is the only source: a Job has no message of its own.
+- **Design constraint: the reconciler must transcribe the message into the status before the Pod
+  disappears.** The Pod's lifetime bounds the message. So the operator deletes the Job only after
+  the status write succeeded (`inspectionOutcome.after`), and the Job's TTL (600s) is only a safety
+  net for a Job the operator never collected.
+- The operator is the only writer of `status.snapshot.inspection`, `plan` and their conditions.
+- The kubelet keeps 4096 bytes. The inspector drops tables to fit and says so with
+  `truncated: true`; the operator rejects anything larger rather than guess.
+
+### Two regimes for WAL retention
+
+Whether a slot can lose WAL depends on `max_slot_wal_keep_size`:
+
+- **Bounded** (a value in bytes): `safe_wal_size` is a real quantity and goes negative once the
+  cap is exceeded. `unreserved` and `lost` are reachable.
+- **Unbounded (-1)**: the slot is never invalidated by size, but the disk can fill, and SQL has
+  nothing to measure a margin against. `safe_wal_size` is NULL and is reported as not measured.
+  Advice to set a cap warns that doing so can invalidate a slot that retains more than the cap.
+
+### Server capability (pending)
+
+`wal_status` and `safe_wal_size` exist from PostgreSQL 13. On 12 they are not "absent", they are
+"cannot be known", and the two must stay distinguishable. `factsVersion` today versions the shape
+only. Until capability is encoded, `postgres.serverVersion` is the signal and an older server's
+slot facts are simply not measured. This is not yet implemented or tested on PG 12.
+
 ## Known limitations
 
 These are accepted trade-offs of the table inspector, not bugs.
