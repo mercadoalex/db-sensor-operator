@@ -4,6 +4,8 @@
 
 Phase A (core) removes the blind window and stops snapshot events from distorting health, with no database inspection. Phase B (opt-in) adds the Inspector, the pure Policy, and the backfill ladder. Phase C (MySQL) is design-only. See `requirements.md`, `design.md` and ADR-014.
 
+**Update (2026-10-31): Phase B reopened by the user, who ranked the policy layer above the benchmark. B1 and B2 are built (read-only inspector and pure policy); B3 onward is next. The note below is the original deferral and its reasoning, which still describes why backfilled rows have no consumer today.**
+
 **Decision (2026-10-30): Phase B is deferred.** Nothing consumes backfilled rows today: the only sink is the operator's `/cdc` endpoint, which drops snapshot events by design (A2). Revisit only when one of these holds:
 
 - a feature needs existing rows (for example a per-table baseline);
@@ -64,11 +66,13 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
 - [x] A7. Checkpoint - Phase A
   - Done 2026-10-30: `go vet`, `go test` (all packages except e2e), `helm lint` and `make lint` pass. The user decided to defer Phase B (see the decision note above)
 
-- [ ]* B1. Inspector interface and PostgreSQL Inspector
+- [x]* B1. Inspector interface and PostgreSQL Inspector
+  - Done in `internal/snapshot` (`inspector.go`). Verified on PostgreSQL 16 in kind: the row estimate (151,000 after `analyze`), `reltuples = -1` for a never-analyzed table, a missing table, `wal_level`, and write capability for a normal user versus one without CREATE. The session is read-only (`default_transaction_read_only=on`, 5 s statement timeout) and a write is refused even for a superuser. The password is never printed (`ConnectionRef` redacts it) and is scrubbed from driver errors. Not verified: a real read-only replica (`pg_is_in_recovery()` true). `CanWrite` is CREATE on the table's schema, an approximation of write access. Added `github.com/jackc/pgx/v5` v5.12.0
   - Define `TableFacts` and `Inspector`; implement the PostgreSQL Inspector with read-only catalog queries (planner-estimate row count, write privileges, `pg_is_in_recovery()`, `wal_level`); justify the added SQL driver dependency
   - _Requirements: 7.1, 7.6, 7.7, 9.1_
 
-- [ ]* B2. Pure Policy
+- [x]* B2. Pure Policy
+  - Done in `internal/snapshot` (`policy.go`): `Decide(facts, cfg, caps)` with table-driven tests covering every rule, the threshold boundary, the override and the Degraded cases. Unknown statistics are treated as large. `Capabilities.ReadOnlyIncremental` is false until B5 verifies it. The default small-table threshold is 100,000 rows, anchored on the one measurement that such a table takes about a minute to snapshot
   - Implement `Decide(facts, cfg, caps)` and the capability table per engine and Debezium version; unit-test every row, the threshold boundary, the override, and the Degraded case
   - _Requirements: 5.3, 7.2, 7.3, 7.4, 7.5, 8.1, 10.1, 10.2_
 

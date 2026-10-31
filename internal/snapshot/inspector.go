@@ -1,0 +1,168 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package snapshot
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// ConnectionRef is what an Inspector needs to reach the database. Password is a
+// secret: the String and GoString methods omit it so that logging a ConnectionRef
+// with %v, %+v or %#v never leaks it.
+type ConnectionRef struct {
+	Host     string
+	Port     int32
+	User     string
+	Password string
+	Database string
+	// SSLMode is a libpq sslmode (disable, require, verify-full, ...). Empty means
+	// "prefer", libpq's own default.
+	SSLMode string
+}
+
+// String implements fmt.Stringer without the password.
+func (c ConnectionRef) String() string {
+	return fmt.Sprintf("%s@%s:%d/%s", c.User, c.Host, c.Port, c.Database)
+}
+
+// GoString implements fmt.GoStringer without the password.
+func (c ConnectionRef) GoString() string { return "snapshot.ConnectionRef{" + c.String() + "}" }
+
+// Inspector reads facts about monitored tables. Implementations must use only
+// read-only queries.
+type Inspector interface {
+	Inspect(ctx context.Context, conn ConnectionRef, tables []string) ([]TableFacts, error)
+}
+
+const (
+	inspectConnectTimeout   = 5 * time.Second
+	inspectStatementTimeout = "5000" // milliseconds, applied to every statement
+)
+
+// PostgresInspector is the PostgreSQL Inspector.
+type PostgresInspector struct{}
+
+// connConfig builds the pgx config. The password is placed in the URL's userinfo,
+// which url.UserPassword escapes, and never formatted into an error message.
+func (PostgresInspector) connConfig(c ConnectionRef) (*pgx.ConnConfig, error) {
+	if c.Host == "" || c.User == "" || c.Database == "" {
+		return nil, errors.New("connection needs host, user and database")
+	}
+	u := url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(c.User, c.Password),
+		Host:   c.Host + ":" + strconv.Itoa(int(c.Port)),
+		Path:   "/" + c.Database,
+	}
+	if c.SSLMode != "" {
+		q := url.Values{}
+		q.Set("sslmode", c.SSLMode)
+		u.RawQuery = q.Encode()
+	}
+	cfg, err := pgx.ParseConfig(u.String())
+	if err != nil {
+		// pgx errors can echo the connection string, which carries the password.
+		return nil, errors.New("invalid connection settings")
+	}
+	cfg.ConnectTimeout = inspectConnectTimeout
+	// Defense in depth: the session is read-only, so even a bug here cannot write.
+	cfg.RuntimeParams["default_transaction_read_only"] = "on"
+	cfg.RuntimeParams["statement_timeout"] = inspectStatementTimeout
+	return cfg, nil
+}
+
+// Inspect reads the server's recovery state and wal_level once, then the row
+// estimate and schema privilege of each table. It returns one TableFacts per
+// requested table, in order. A table that does not exist yields Found=false and
+// no error.
+func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, tables []string) ([]TableFacts, error) {
+	cfg, err := p.connConfig(conn)
+	if err != nil {
+		return nil, err
+	}
+	db, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to %s: %w", conn, redact(err, conn.Password))
+	}
+	defer func() { _ = db.Close(ctx) }()
+
+	var inRecovery bool
+	var walLevel string
+	if err := db.QueryRow(ctx, `select pg_is_in_recovery(), current_setting('wal_level')`).Scan(&inRecovery, &walLevel); err != nil {
+		return nil, fmt.Errorf("reading server state: %w", redact(err, conn.Password))
+	}
+
+	out := make([]TableFacts, 0, len(tables))
+	for _, t := range tables {
+		schema, name := splitTable(t)
+		f := TableFacts{Table: t, ReadOnlyServer: inRecovery, WALLevel: walLevel}
+
+		// relkind r = table, p = partitioned table. reltuples is -1 until the table
+		// has been analyzed (PostgreSQL 14+) and 0 on older servers for the same case.
+		var tuples float64
+		var canCreate bool
+		err := db.QueryRow(ctx, `
+			select c.reltuples, has_schema_privilege(current_user, n.oid, 'CREATE')
+			from pg_class c join pg_namespace n on n.oid = c.relnamespace
+			where n.nspname = $1 and c.relname = $2 and c.relkind in ('r', 'p')`,
+			schema, name).Scan(&tuples, &canCreate)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// Found stays false.
+		case err != nil:
+			return nil, fmt.Errorf("inspecting table %q: %w", t, redact(err, conn.Password))
+		default:
+			f.Found = true
+			f.CanWrite = canCreate
+			f.EstimatedRows = UnknownRows
+			if tuples >= 0 {
+				f.EstimatedRows = int64(tuples)
+			}
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// splitTable splits "schema.table" into its parts; a bare name is in "public".
+func splitTable(t string) (schema, name string) {
+	if schema, name, ok := strings.Cut(t, "."); ok {
+		return schema, name
+	}
+	return "public", t
+}
+
+// redact removes the password from an error message, in case a driver error
+// echoes it.
+func redact(err error, password string) error {
+	if err == nil || password == "" {
+		return err
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, password) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(msg, password, "[redacted]"))
+}

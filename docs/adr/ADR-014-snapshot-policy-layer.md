@@ -114,7 +114,7 @@ undone by the first restart unless offset persistence is decided as well.
 ## Open questions
 
 1. Is the backfill ladder worth building, given the metrics do not need rows?
-   **Deferred (2026-10-30).** Phase A shipped; Phase B waits for a consumer of
+   **Deferred (2026-10-30), then reopened (2026-10-31)** when the user ranked the policy layer above the benchmark; B1 and B2 (inspector and pure policy) are built. The original reasoning stands: nothing consumes backfilled rows today. Phase A shipped; Phase B waits for a consumer of
    existing rows: a feature that needs them, a wired Kafka transport, or a real
    user request. The triggers are recorded in the spec's `tasks.md`.
 2. What are the exact Debezium floors per connector? The snapshot-mode names
