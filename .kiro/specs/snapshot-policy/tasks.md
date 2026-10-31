@@ -39,7 +39,9 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Original scope: add the field, map it to the Debezium Operator's runtime storage and offset store, do not change existing sensors on upgrade
   - _Requirements: 3.1, 3.2, 3.4_
 
-- [ ] A5. Status block and reasons
+- [x] A5. Status block and reasons
+  - Done: `status.snapshot` (`strategy`, `offsetStore`, `reason`) computed by the pure `deployer.SnapshotStatusFor` from the spec and written on every status path. PostgreSQL reports `no-data`; other engines report `engine-default` because their non-blocking mode is unverified. With the in-memory store the reason says a restart can re-deliver recent events
+  - Not added as a printer column; it is visible in `kubectl get -o yaml` and `describe`
   - Add `status.snapshot` (`strategy`, `reason`, `offsetStore`); with the in-memory store, set the reason described in Requirement 3.3
   - _Requirements: 3.1, 3.3, 4.1, 4.3_
 

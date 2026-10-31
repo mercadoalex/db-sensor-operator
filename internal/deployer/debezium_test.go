@@ -210,3 +210,30 @@ func TestBuildDebeziumServer_MemoryOffsetsByDefault(t *testing.T) {
 		assert.False(t, found, "no offset block for the memory store")
 	}
 }
+
+func TestSnapshotStatusFor(t *testing.T) {
+	pg := newSensor("postgresql", "public.orders")
+	st := SnapshotStatusFor(pg)
+	assert.Equal(t, "no-data", st.Strategy)
+	assert.Equal(t, "memory", st.OffsetStore)
+	assert.Contains(t, st.Reason, "in memory")
+
+	pg.Spec.Snapshot = &sensoriov1.SnapshotConfig{OffsetStore: "persistent"}
+	st = SnapshotStatusFor(pg)
+	assert.Equal(t, "persistent", st.OffsetStore)
+	assert.Contains(t, st.Reason, "persisted")
+
+	// Engines whose non-blocking mode is unverified report the engine default.
+	st = SnapshotStatusFor(newSensor("mysql", "app.orders"))
+	assert.Equal(t, "engine-default", st.Strategy)
+	assert.Contains(t, st.Reason, "PostgreSQL only")
+}
+
+// The status reason must stay consistent with what the deployer generates.
+func TestSnapshotStatusMatchesGeneratedServer(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+	assert.Equal(t, "no_data", sourceConfig(t, obj)["snapshot.mode"])
+	assert.Equal(t, "no-data", SnapshotStatusFor(sensor).Strategy)
+}

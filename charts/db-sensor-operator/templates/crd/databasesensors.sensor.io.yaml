@@ -438,6 +438,27 @@ spec:
                   phase is a convenience summary derived from Conditions on each reconcile.
                   One of: Pending, Running, Degraded, Failed.
                 type: string
+              snapshot:
+                description: |-
+                  snapshot reports how the connector starts and where it keeps its offset,
+                  with a one-line reason (ADR-014). It is derived from the spec, so it is
+                  present even when the sensor is not healthy.
+                properties:
+                  offsetStore:
+                    description: 'offsetStore is the offset store in effect: "memory"
+                      or "persistent".'
+                    type: string
+                  reason:
+                    description: |-
+                      reason is a one-line explanation of the strategy and its consequences.
+                      It never contains secret values or row data.
+                    type: string
+                  strategy:
+                    description: |-
+                      strategy is how the connector starts: "no-data" (existing rows are not
+                      read) or "engine-default" (the Debezium default snapshot applies).
+                    type: string
+                type: object
             type: object
         required:
         - spec

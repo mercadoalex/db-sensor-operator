@@ -85,16 +85,19 @@ var ErrSecretNotFound = errors.New("database password secret not found")
 // this is defense-in-depth; the controller surfaces it as a Ready=False condition.
 var ErrUnsupportedDBType = errors.New("unsupported database type")
 
+// dbTypePostgres is the spec.database.type value for PostgreSQL.
+const dbTypePostgres = "postgresql"
+
 // connectorClasses maps spec.database.type to the fully-qualified Debezium
 // connector Java class (US-8).
 var connectorClasses = map[string]string{
-	"postgresql": "io.debezium.connector.postgresql.PostgresConnector",
-	"mysql":      "io.debezium.connector.mysql.MySqlConnector",
-	"mongodb":    "io.debezium.connector.mongodb.MongoDbConnector",
-	"sqlserver":  "io.debezium.connector.sqlserver.SqlServerConnector",
-	"oracle":     "io.debezium.connector.oracle.OracleConnector",
-	"db2":        "io.debezium.connector.db2.Db2Connector",
-	"cassandra":  "io.debezium.connector.cassandra.CassandraConnector",
+	dbTypePostgres: "io.debezium.connector.postgresql.PostgresConnector",
+	"mysql":        "io.debezium.connector.mysql.MySqlConnector",
+	"mongodb":      "io.debezium.connector.mongodb.MongoDbConnector",
+	"sqlserver":    "io.debezium.connector.sqlserver.SqlServerConnector",
+	"oracle":       "io.debezium.connector.oracle.OracleConnector",
+	"db2":          "io.debezium.connector.db2.Db2Connector",
+	"cassandra":    "io.debezium.connector.cassandra.CassandraConnector",
 }
 
 // BuildDebeziumServer maps a DatabaseSensor spec onto a DebeziumServer object.
@@ -137,7 +140,7 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 
 	// Per-type extras (US-8).
 	switch sensor.Spec.Database.Type {
-	case "postgresql":
+	case dbTypePostgres:
 		config["slot.name"] = slotName(sensor)
 		// Do not read existing rows: the sensor derives everything from live
 		// changes, so a blocking snapshot is a pure cost that leaves it blind
@@ -207,13 +210,37 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 //     which is not writable (AccessDeniedException), not the data volume, so the
 //     path must be absolute.
 const (
-	offsetFilePath    = "/debezium/data/offsets.dat"
-	offsetVolumeSize  = "100Mi" // an offset file is a few hundred bytes
-	offsetStorePersis = "persistent"
+	offsetFilePath        = "/debezium/data/offsets.dat"
+	offsetVolumeSize      = "100Mi" // an offset file is a few hundred bytes
+	offsetStorePersistent = "persistent"
 )
 
+// SnapshotStatusFor explains, in one line, how the sensor's connector starts and
+// where it keeps its offset. It is a pure function of the spec (Requirement 4),
+// so it matches what BuildDebeziumServer generates and carries no secret values.
+func SnapshotStatusFor(sensor *sensoriov1.DatabaseSensor) sensoriov1.SnapshotStatus {
+	st := sensoriov1.SnapshotStatus{OffsetStore: "memory"}
+	if persistentOffsets(sensor) {
+		st.OffsetStore = offsetStorePersistent
+	}
+
+	if sensor.Spec.Database.Type != dbTypePostgres {
+		st.Strategy = "engine-default"
+		st.Reason = "Debezium's default snapshot applies; the non-blocking start is verified for PostgreSQL only"
+		return st
+	}
+
+	st.Strategy = "no-data"
+	if st.OffsetStore == offsetStorePersistent {
+		st.Reason = "Existing rows are not read; the offset is persisted, so a Debezium restart resumes where it stopped"
+	} else {
+		st.Reason = "Existing rows are not read; the offset is in memory, so a Debezium restart can re-deliver recent events"
+	}
+	return st
+}
+
 func persistentOffsets(sensor *sensoriov1.DatabaseSensor) bool {
-	return sensor.Spec.Snapshot != nil && sensor.Spec.Snapshot.OffsetStore == offsetStorePersis
+	return sensor.Spec.Snapshot != nil && sensor.Spec.Snapshot.OffsetStore == offsetStorePersistent
 }
 
 func applyPersistentOffsets(obj *unstructured.Unstructured) error {

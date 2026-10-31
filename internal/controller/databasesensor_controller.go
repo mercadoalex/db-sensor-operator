@@ -292,6 +292,11 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 
+		// ADR-014: explain how the connector starts. Derived from the spec, so it
+		// is written on every path, including mapped failures.
+		snap := deployer.SnapshotStatusFor(&fresh)
+		fresh.Status.Snapshot = &snap
+
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
 		return r.Status().Update(ctx, &fresh)
 	}); err != nil {

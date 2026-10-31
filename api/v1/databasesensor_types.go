@@ -355,6 +355,29 @@ type DatabaseSensorStatus struct {
 	// debeziumServer is the name of the managed DebeziumServer resource.
 	// +optional
 	DebeziumServer string `json:"debeziumServer,omitempty"`
+
+	// snapshot reports how the connector starts and where it keeps its offset,
+	// with a one-line reason (ADR-014). It is derived from the spec, so it is
+	// present even when the sensor is not healthy.
+	// +optional
+	Snapshot *SnapshotStatus `json:"snapshot,omitempty"`
+}
+
+// SnapshotStatus explains the connector's start behaviour in one line.
+type SnapshotStatus struct {
+	// strategy is how the connector starts: "no-data" (existing rows are not
+	// read) or "engine-default" (the Debezium default snapshot applies).
+	// +optional
+	Strategy string `json:"strategy,omitempty"`
+
+	// offsetStore is the offset store in effect: "memory" or "persistent".
+	// +optional
+	OffsetStore string `json:"offsetStore,omitempty"`
+
+	// reason is a one-line explanation of the strategy and its consequences.
+	// It never contains secret values or row data.
+	// +optional
+	Reason string `json:"reason,omitempty"`
 }
 
 // +kubebuilder:object:root=true
