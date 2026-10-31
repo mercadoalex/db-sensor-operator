@@ -155,6 +155,14 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, tabl
 // since the last ANALYZE. These are PostgreSQL's defaults for
 // autovacuum_analyze_threshold and autovacuum_analyze_scale_factor, and the same test
 // decides here whether the planner's estimate is stale.
+//
+// Known limitations (documented in ADR-014, not bugs):
+//   - The server's own settings and per-table storage parameters are not read. A server
+//     with looser settings makes this test flag staleness earlier than autovacuum would
+//     (conservative); one with stricter settings makes it more lenient than autovacuum,
+//     by at most about 10% of reltuples, which the max with n_live_tup narrows.
+//   - n_mod_since_analyze and n_live_tup restart from zero after crash recovery or
+//     pg_stat_reset(), so a stale reltuples can look reliable until the next ANALYZE.
 const (
 	autovacuumAnalyzeThreshold   = 50
 	autovacuumAnalyzeScaleFactor = 0.1

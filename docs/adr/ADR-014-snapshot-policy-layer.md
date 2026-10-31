@@ -94,6 +94,24 @@ undone by the first restart unless offset persistence is decided as well.
   three CDC costs the benchmark discloses. A non-blocking start is a mitigation
   worth measuring as a separate variant, reported next to the default.
 
+## Known limitations
+
+These are accepted trade-offs of the table inspector, not bugs.
+
+- **Autovacuum settings are not read.** Whether a row estimate is stale is judged with
+  PostgreSQL's default `autovacuum_analyze_threshold` (50) and
+  `autovacuum_analyze_scale_factor` (0.1), not the server's or a table's own values.
+  If the server's settings are looser, the inspector flags staleness earlier than
+  autovacuum would, which is the conservative direction. If they are stricter, the
+  inspector is more lenient than autovacuum by at most about 10% of the estimate;
+  taking the larger of `reltuples` and `n_live_tup` narrows that error.
+- **Statistics counters can be reset.** `n_live_tup` and `n_mod_since_analyze` start
+  from zero after crash recovery or `pg_stat_reset()`. Until the next `ANALYZE`, a
+  stale `reltuples` can then look reliable. This was not tested.
+- **"Can write" is approximated** by the CREATE privilege on the table's schema, not by
+  an actual write.
+- **PostgreSQL only.** There is no MySQL inspector yet.
+
 ## Alternatives considered
 
 - **Keep the static spec and document the blind window.** Zero code, but the
