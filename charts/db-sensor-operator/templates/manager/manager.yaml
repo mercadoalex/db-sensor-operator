@@ -89,7 +89,14 @@ spec:
         {{- end }}
         command:
         - /manager
-        image: "{{ .Values.manager.image.repository | default "controller" }}{{- if not (contains "@" (.Values.manager.image.repository | default "controller")) }}:{{ .Values.manager.image.tag | default .Chart.AppVersion }}{{- end }}"
+        image: "{{ include "db-sensor-operator.managerImage" . }}"
+        env:
+        - name: OPERATOR_IMAGE
+          value: "{{ include "db-sensor-operator.managerImage" . }}"
+        {{- with .Values.manager.image.pullPolicy }}
+        - name: OPERATOR_IMAGE_PULL_POLICY
+          value: {{ . | quote }}
+        {{- end }}
         {{- with .Values.manager.image.pullPolicy }}
         imagePullPolicy: {{ . }}
         {{- end }}

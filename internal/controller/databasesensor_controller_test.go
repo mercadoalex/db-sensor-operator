@@ -206,13 +206,24 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Recording inspection facts and a plan, as the inspection step will")
+			By("Enabling inspection, once per generation, so the stored facts are current and nothing is started")
 			sensor := &sensoriov1.DatabaseSensor{}
 			Expect(k8sClient.Get(ctx, typeNamespacedName, sensor)).To(Succeed())
+			sensor.Spec.Database.Name = "orders"
+			sensor.Spec.Snapshot = &sensoriov1.SnapshotConfig{
+				Inspection: &sensoriov1.InspectionConfig{Enabled: true, IntervalSeconds: new(int32)},
+			}
+			Expect(k8sClient.Update(ctx, sensor)).To(Succeed())
+			Expect(k8sClient.Get(ctx, typeNamespacedName, sensor)).To(Succeed())
+
+			By("Recording inspection facts and a plan, as the inspection step will")
 			Expect(sensor.Status.Snapshot).NotTo(BeNil())
+			observedAt := metav1.Now()
 			sensor.Status.Snapshot.Inspection = &sensoriov1.InspectionStatus{
-				FactsVersion: 1,
-				Tables:       []sensoriov1.TableInspection{{Name: tableOrders, Found: true, EstimateReliable: true}},
+				FactsVersion:       1,
+				ObservedAt:         &observedAt,
+				ObservedGeneration: sensor.Generation,
+				Tables:             []sensoriov1.TableInspection{{Name: tableOrders, Found: true, EstimateReliable: true}},
 			}
 			sensor.Status.Snapshot.Plan = &sensoriov1.SnapshotPlan{
 				Tables: []sensoriov1.TablePlan{{Name: tableOrders, Backfill: "stream-only", Reason: "small"}},
