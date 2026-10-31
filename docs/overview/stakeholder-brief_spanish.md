@@ -1,6 +1,6 @@
 # Lactifluus: resumen técnico para stakeholders
 
-Fecha: 2026-10-31 · Estado: integrado en `main`; la inspección viene apagada por defecto y su prueba de punta a punta en kind está pendiente · [English version](stakeholder-brief.md)
+Fecha: 2026-10-31 · Estado: integrado en `main`; la inspección viene apagada por defecto; la prueba de punta a punta en kind pasó (12 comprobaciones, un cluster local) · [English version](stakeholder-brief.md)
 Autor: Alejandro Mercado Peña
 
 <picture>
@@ -28,7 +28,7 @@ Lo que **no** hace todavía:
   - **La inspección misma no pudo correr**: error interno o de acceso (no se conectó, la contraseña fue rechazada, se acabó el tiempo). Queda `InspectionAvailable=False` con el código del error, y sin datos viejos que puedan confundir.
 - No aplica por sí sola ninguna corrección ni detiene el proceso.
 
-Un "freno" (por ejemplo, no arrancar mientras la base no esté lista, o pedir confirmación) es una decisión de producto abierta. La razón de no haberlo hecho aún: bloquear automáticamente con un diagnóstico que todavía no probamos de punta a punta en un cluster real sería más riesgoso que informar. Es una pregunta para las primeras conversaciones (sección 7).
+Un "freno" (por ejemplo, no arrancar mientras la base no esté lista, o pedir confirmación) es una decisión de producto abierta. La razón de no haberlo hecho aún: bloquear automáticamente es más riesgoso que informar, y el diagnóstico solo se comprobó de punta a punta en PostgreSQL 16 y un cluster local. Es una pregunta para las primeras conversaciones (sección 7).
 
 ## 2. El giro
 
@@ -147,7 +147,8 @@ Qué detecta hoy el diagnóstico del slot (probado contra un PostgreSQL 16 real)
 | Reinicio ordenado sin reentrega | Medido por conteo, no por clave de fila |
 | Diagnóstico del slot y de tablas | Probado contra PostgreSQL 16 real |
 | Flujo operador → Job → status | Tests de integración con pod fabricado; CI en verde |
-| **Operador real creando el Job en kind** | **No probado todavía** |
+| Operador real creando el Job en kind | Medido: 12 comprobaciones pasan (`bench/experiments/inspection-e2e`), incl. contraseña incorrecta y Pod Security `restricted` |
+| NetworkPolicy que bloquee el Job | **No probado** |
 | MySQL | Mapeado en el deployer, **nunca ejecutado** |
 | Reinicio brusco (kill/OOM) | **No probado** |
 | Kafka como transporte | **No probado** |
@@ -223,7 +224,7 @@ La pregunta es dónde vive la inteligencia: ¿Lactifluus es el sistema que despl
 
 ## 9. Próximos pasos
 
-1. Prueba de punta a punta del operador real en kind (pendiente; mientras tanto el flujo de inspección solo está probado con simulaciones).
+1. ~~Prueba de punta a punta del operador real en kind~~ Hecha (ver sección 6). Siguiente: NetworkPolicy, PostgreSQL 12 y 17.
 2. Cerrar el hallazgo de la caché de Secrets.
 3. Verificar PostgreSQL 12 y 17, y MySQL, antes de prometerlos.
 4. Decidir el comportamiento de la tabla ociosa y reescribir la tesis del benchmark (el DDL ya no diferencia a CDC).
@@ -246,7 +247,7 @@ Que sean reglas y no una caja negra es una **ventaja**, no una limitación: cada
 
 | Antes | Ahora | Evidencia |
 |---|---|---|
-| Se activa CDC y los problemas se descubren en producción | Se inspecciona la base y se informa antes de confiar en ella | Probado contra PostgreSQL 16; falta e2e en kind |
+| Se activa CDC y los problemas se descubren en producción | Se inspecciona la base y se informa antes de confiar en ella | Verificado en kind con el operador real (PostgreSQL 16) |
 | Un snapshot grande deja al sensor ciego | Arranca viendo cambios en vivo | 57 s → 6 s en 100k filas |
 | Un reinicio puede duplicar conteos | Reinicio ordenado sin reentrega | Medido por conteo |
 | Un slot atrasado puede llenar el disco sin aviso claro | El riesgo de WAL se diagnostica y se explica | Probado contra PostgreSQL 16 |

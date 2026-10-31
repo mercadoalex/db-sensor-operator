@@ -1,0 +1,32 @@
+# DatabaseSensor with the inspection on. intervalSeconds: 0 means once per spec change,
+# so a second Job must NOT appear after the first result is stored.
+apiVersion: sensor.io/v1
+kind: DatabaseSensor
+metadata:
+  name: bench-cdc
+  namespace: bench
+spec:
+  database:
+    type: postgresql
+    host: bench-postgres
+    port: 5432
+    user: bench
+    name: bench
+    passwordSecret: bench-pg-creds
+  tables:
+    - public.orders
+    - public.users
+    - public.payments
+  transport:
+    type: http
+    http:
+      url: http://db-sensor-db-sensor-operator-operator-http.db-sensor.svc:8080/cdc
+  sink:
+    type: prometheus
+    prometheus:
+      serviceMonitor: false
+  snapshot:
+    inspection:
+      enabled: true
+      intervalSeconds: 0
+      timeoutSeconds: 30

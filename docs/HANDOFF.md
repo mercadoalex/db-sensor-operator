@@ -1,6 +1,6 @@
 # Handoff: snapshot policy, phase B3 (inspection)
 
-Merged to `main` from `feat/snapshot-policy-phase-b` with item 1 below (kind end-to-end) still pending, by decision of the owner. The inspection is off by default, so nothing changes for anyone who does not enable it. Until item 1 is done, treat the inspection flow as built and tested with simulations only (envtest with a fabricated Pod), not as verified.
+Merged to `main`. The kind end-to-end passed on 2026-10-31 (12 checks, `bench/experiments/inspection-e2e`). The inspection is off by default, so nothing changes for anyone who does not enable it.
 
 ## State
 
@@ -11,17 +11,21 @@ Done and verified (unit, envtest, lint, helm lint/template):
   (operator is the only writer), Job deleted after the write. 8 envtest specs with a fabricated Pod.
 - Chart: CRD resynced, `jobs` and `pods` RBAC added, `OPERATOR_IMAGE` env rendered.
 
+Verified in kind with the real operator (PostgreSQL 16, one local cluster): Job creation, result via termination message, status write, Job deletion, no second Job, re-inspection on a spec change, wrong password, Pod Security `restricted` for the inspector Job.
+
 Not verified:
-- A real operator creating the Job in kind (image pull, Pod Security `restricted`, NetworkPolicy).
+- NetworkPolicy blocking the Job (kind's default CNI, no policy applied).
+- Operator restart or Job kill between Job end and status write.
 - PostgreSQL 12 (no `wal_status` / `safe_wal_size`).
 - MySQL (mapped in the deployer, never run).
 
 ## To do, in order
 
-1. **Kind e2e.** `make -C bench setup`, helm install the operator, apply a sensor with
-   `snapshot.inspection.enabled: true` and `database.name: bench`. Check: Job runs, facts reach
-   status, Job is deleted, no new Job with `intervalSeconds: 0`. Add the result to `bench/` RESULTS.
-   Note: a kustomize deploy has no `OPERATOR_IMAGE`, so it shows `InspectorImageNotConfigured`.
+1. ~~Kind e2e~~ Done. Note: a kustomize deploy has no `OPERATOR_IMAGE`, so it shows
+   `InspectorImageNotConfigured`. Follow-ups from its findings: document that slot facts want a
+   periodic `intervalSeconds` (with `0` the first run can freeze `SlotMissing` before Debezium
+   creates its slot); the Debezium Server pods are not Pod Security `restricted`-compatible
+   (Debezium Operator, not ours); test a NetworkPolicy and an operator restart mid-run.
 2. **Secret cache.** The cached client reads every Secret cluster-wide (`EnsureDebeziumServer`
    does a `Get`; Datadog sink reads too). Make the existence check metadata-only, or the Job's
    password isolation is weaker than documented.
