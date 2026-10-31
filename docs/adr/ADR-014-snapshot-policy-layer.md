@@ -94,6 +94,53 @@ undone by the first restart unless offset persistence is decided as well.
   three CDC costs the benchmark discloses. A non-blocking start is a mitigation
   worth measuring as a separate variant, reported next to the default.
 
+## Deferred design: applies only once a backfill exists
+
+Nothing below is built, and none of it can be measured today: the connector always starts
+with `snapshot.mode=no_data`, so there is no blocking snapshot and no backfill to time.
+It is recorded so it is not lost and not implemented blind.
+
+**Goal and policy.** The goal is zero blindness: the sensor sees live changes from the
+first moment and, when a backfill is wanted, existing rows are delivered without losing
+that. Row counts are not the criterion; they plan the cost. A blocking `initial`
+snapshot is not zero blindness: in the blind-window experiment no live change arrived
+until all 100,089 rows had been delivered (57 s). An incremental snapshot keeps the live
+stream flowing. So the mechanism follows capability, not size:
+
+1. With write access or a verified read-only path, use the incremental snapshot, at any size.
+2. With neither, use `initial` only if its estimated blind time fits the budget.
+3. Otherwise report `Degraded` with the reason. Never omit the backfill silently.
+
+"No backfill" stays an explicit user value (`stream-only`) and the default, so nothing
+changes on upgrade. `auto` must never return it. `no_data` remains the start mode of every
+path, since an incremental snapshot starts without reading rows and then receives a signal.
+Resuming chunks after a restart only holds with a persistent offset store.
+
+**Unit.** The threshold is time, not rows: the longest blind window the user accepts. Rows
+only estimate it. The row estimate must come from a reliable source (see the inspector).
+
+**Calibration.** Throughput is a property of one sensor (its sink, row width and network
+path), not a constant of the project. It would live in `status.snapshot.calibration`
+(`rowsPerSec`, `measuredAt`, `sampleRows`, `source: measured | default | user-override`,
+`confidence: low` until three runs). The only measurement so far is one run: 100,089 rows
+in 57 s, of which about 6 s was pod start, so roughly 1,960 rows per second net, on one
+host with the local HTTP sink. It is a starting default, not a baseline. Storing it before a
+backfill can produce samples would be a dead field that suggests a capability that is not there.
+
+**WAL headroom gate.** Retention comes from the whole cluster's WAL, not from the captured
+table, and full-page writes can make a small update cost a full page. It only matters for
+a blocking snapshot, because a streaming connector keeps acknowledging. The headroom is
+bounded by `max_slot_wal_keep_size` (PostgreSQL 13+; `-1` is unlimited), not by
+`wal_keep_size`, which does not limit slots. With `-1` the real limit is the free space of
+`pg_wal`, which SQL does not expose, so the headroom is unknown and must be treated
+conservatively. The WAL rate can be sampled with `pg_wal_lsn_diff` over two
+`pg_current_wal_lsn()` readings (not available on a standby), over a window long enough to
+smooth checkpoint bursts. None of this was tested.
+
+**Status shape.** The plan is reported as `status.snapshot.plan` with `applied: false` until
+a consumer exists, so a status never reads as if a backfill were happening. `captureStrategy:
+auto` is not exposed in the spec until it acts.
+
 ## Known limitations
 
 These are accepted trade-offs of the table inspector, not bugs.
