@@ -261,3 +261,53 @@ func TestInspectSlotAgainstPostgres(t *testing.T) {
 	t.Logf("risk:   %s | %s", risk.Level, risk.Reason)
 	assert.True(t, got.Slot.Found)
 }
+
+func TestEstimatePartitioned(t *testing.T) {
+	tests := []struct {
+		name         string
+		reltuples    float64
+		leafLive     int64
+		wantRows     int64
+		wantReliable bool
+	}{
+		{name: "parent and leaves agree", reltuples: 300_000, leafLive: 300_000, wantRows: 300_000, wantReliable: true},
+		{name: "within tolerance", reltuples: 100_000, leafLive: 105_000, wantRows: 105_000, wantReliable: true},
+		{name: "a small parent that was loaded afterwards", reltuples: 1_000, leafLive: 600_000, wantRows: 600_000, wantReliable: false},
+		{name: "the parent was never analyzed", reltuples: -1, leafLive: 300_000, wantRows: 300_000, wantReliable: false},
+		{name: "leaf counters were reset", reltuples: 500_000, leafLive: 0, wantRows: 500_000, wantReliable: false},
+		{name: "the leaf statistics are unavailable", reltuples: 5_000, leafLive: -1, wantRows: 5_000, wantReliable: false},
+		{name: "rows were deleted since the parent was analyzed", reltuples: 500_000, leafLive: 10_000, wantRows: 500_000, wantReliable: false},
+		{name: "an empty partitioned table", reltuples: 0, leafLive: 0, wantRows: 0, wantReliable: true},
+		{name: "nothing known", reltuples: -1, leafLive: 0, wantRows: UnknownRows, wantReliable: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, reliable := estimatePartitioned(tc.reltuples, tc.leafLive)
+			assert.Equal(t, tc.wantRows, rows)
+			assert.Equal(t, tc.wantReliable, reliable)
+		})
+	}
+}
+
+// TestInspectPartitionedAgainstPostgres expects public.part_small to be a partitioned table
+// analyzed at about 1,000 rows and loaded to far more since. Set DBSENSOR_TEST_PG_PARTITIONED=1.
+func TestInspectPartitionedAgainstPostgres(t *testing.T) {
+	host := os.Getenv("DBSENSOR_TEST_PG_HOST")
+	if host == "" || os.Getenv("DBSENSOR_TEST_PG_PARTITIONED") == "" {
+		t.Skip("needs DBSENSOR_TEST_PG_HOST and DBSENSOR_TEST_PG_PARTITIONED=1")
+	}
+	port, _ := strconv.Atoi(os.Getenv("DBSENSOR_TEST_PG_PORT"))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	got, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{
+		Host: host, Port: int32(port), User: os.Getenv("DBSENSOR_TEST_PG_USER"),
+		Password: os.Getenv("DBSENSOR_TEST_PG_PASSWORD"), Database: os.Getenv("DBSENSOR_TEST_PG_DB"), SSLMode: sslDisable,
+	}, Request{Tables: []string{"public.part_small"}})
+	require.NoError(t, err)
+	require.Len(t, got.Tables, 1)
+	f := got.Tables[0]
+	t.Logf("part_small: %+v", f)
+	assert.Greater(t, f.EstimatedRows, DefaultSmallTableRows, "the leaves expose the real size")
+	assert.False(t, f.EstimateReliable)
+	assert.NotEqual(t, StrategyStreamOnly, Decide(f, PolicyConfig{}, Capabilities{}).Kind)
+}

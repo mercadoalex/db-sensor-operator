@@ -182,6 +182,12 @@ These are accepted trade-offs of the table inspector, not bugs.
 - **Statistics counters can be reset.** `n_live_tup` and `n_mod_since_analyze` start
   from zero after crash recovery or `pg_stat_reset()`. Until the next `ANALYZE`, a
   stale `reltuples` can then look reliable. This was not tested.
+- **Partitioned tables.** A partitioned parent has a row in `pg_stat_user_tables` but with
+  zero counters: autovacuum never analyzes a parent and the changes are counted on its leaf
+  partitions. So its estimate is the larger of the parent's `reltuples` and the sum of the leaves'
+  `n_live_tup`, and it is reliable only while the two agree within what autovacuum tolerates.
+  Verified on PostgreSQL 16 with single-level range partitioning; multi-level trees and foreign
+  partitions (which have no statistics) were not tested.
 - **"Can write" is approximated** by the CREATE privilege on the table's schema, not by
   an actual write.
 - **PostgreSQL only.** There is no MySQL inspector yet.

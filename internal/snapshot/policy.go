@@ -149,16 +149,17 @@ func Decide(f TableFacts, cfg PolicyConfig, caps Capabilities) Strategy {
 
 	if f.EstimatedRows != UnknownRows && f.EstimateReliable && f.EstimatedRows <= threshold {
 		return Strategy{Kind: StrategyStreamOnly,
-			Reason: fmt.Sprintf("%s: about %d rows, at or below %d, so existing rows are not backfilled", f.Table, f.EstimatedRows, threshold)}
+			Reason: fmt.Sprintf("%s: at or below %d rows, so existing rows are not backfilled", f.Table, threshold)}
 	}
 
-	size := fmt.Sprintf("about %d rows, above %d", f.EstimatedRows, threshold)
+	// The reason goes into the sensor status, so it carries the configured threshold and never
+	// the estimate: the estimate is a fact and changes with every ANALYZE.
+	size := fmt.Sprintf("above %d rows", threshold)
 	switch {
 	case f.EstimatedRows == UnknownRows:
 		size = "size unknown (never analyzed), treated as large"
 	case !f.EstimateReliable && f.EstimatedRows <= threshold:
-		size = fmt.Sprintf("about %d rows but the statistics are stale (%d changes since the last ANALYZE), treated as large",
-			f.EstimatedRows, f.ModsSinceAnalyze)
+		size = "the statistics are stale (more changes since the last ANALYZE than autovacuum tolerates), treated as large"
 	}
 
 	if f.CanWrite && !f.ReadOnlyServer {

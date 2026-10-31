@@ -146,19 +146,27 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, req 
 
 		// relkind r = table, p = partitioned table. reltuples is -1 until the table
 		// has been analyzed (PostgreSQL 14+) and 0 on older servers for the same case.
-		// n_live_tup and n_mod_since_analyze come from the statistics system; a
-		// partitioned parent has no row there, so they are -1 (left join).
+		// n_live_tup and n_mod_since_analyze come from the statistics system. A partitioned
+		// parent does have a row there, but with zero counters: autovacuum never analyzes a
+		// parent and the changes are counted on its leaf partitions. So for a parent the live
+		// tuples are summed over the leaves (pg_partition_tree), and the parent's own counters
+		// are not used.
 		var tuples float64
 		var canCreate bool
-		var liveTuples, mods int64
+		var relkind string
+		var liveTuples, mods, leafLive int64
 		err := db.QueryRow(ctx, `
-			select c.reltuples, has_schema_privilege(current_user, n.oid, 'CREATE'),
-			       coalesce(s.n_live_tup, -1), coalesce(s.n_mod_since_analyze, -1)
+			select c.reltuples, has_schema_privilege(current_user, n.oid, 'CREATE'), c.relkind::text,
+			       coalesce(s.n_live_tup, -1), coalesce(s.n_mod_since_analyze, -1),
+			       case when c.relkind = 'p' then
+			         coalesce((select sum(ls.n_live_tup) from pg_partition_tree(c.oid) t
+			                   join pg_stat_user_tables ls on ls.relid = t.relid where t.isleaf), -1)::bigint
+			       else -1 end
 			from pg_class c
 			join pg_namespace n on n.oid = c.relnamespace
 			left join pg_stat_user_tables s on s.relid = c.oid
 			where n.nspname = $1 and c.relname = $2 and c.relkind in ('r', 'p')`,
-			schema, name).Scan(&tuples, &canCreate, &liveTuples, &mods)
+			schema, name).Scan(&tuples, &canCreate, &relkind, &liveTuples, &mods, &leafLive)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			// Found stays false.
@@ -167,8 +175,13 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, req 
 		default:
 			f.Found = true
 			f.CanWrite = canCreate
-			f.EstimatedRows, f.EstimateReliable = estimate(tuples, liveTuples, mods)
-			f.ModsSinceAnalyze = mods
+			if relkind == "p" {
+				f.EstimatedRows, f.EstimateReliable = estimatePartitioned(tuples, leafLive)
+				f.ModsSinceAnalyze = UnknownRows // not defined for a parent
+			} else {
+				f.EstimatedRows, f.EstimateReliable = estimate(tuples, liveTuples, mods)
+				f.ModsSinceAnalyze = mods
+			}
 		}
 		out = append(out, f)
 	}
@@ -293,6 +306,31 @@ func estimate(reltuples float64, liveTuples, modsSinceAnalyze int64) (rows int64
 	}
 	staleAfter := float64(autovacuumAnalyzeThreshold) + autovacuumAnalyzeScaleFactor*reltuples
 	return rows, float64(modsSinceAnalyze) <= staleAfter
+}
+
+// estimatePartitioned is estimate for a partitioned parent. The parent's reltuples only changes
+// when someone runs ANALYZE on the parent, and its own modification counters stay at zero, so a
+// parent analyzed small and then loaded looks reliable. What does move is n_live_tup of the leaf
+// partitions, so the estimate is the larger of the two and it is reliable only while the parent's
+// reltuples still agrees with the leaves within what autovacuum tolerates. If the leaf counters
+// were reset (crash recovery), they read 0 and disagree, which is reported as unreliable.
+func estimatePartitioned(reltuples float64, leafLive int64) (rows int64, reliable bool) {
+	rows = UnknownRows
+	if reltuples >= 0 {
+		rows = int64(reltuples)
+	}
+	if leafLive > 0 && leafLive > rows {
+		rows = leafLive
+	}
+	if reltuples < 0 || leafLive < 0 {
+		return rows, false
+	}
+	tolerance := float64(autovacuumAnalyzeThreshold) + autovacuumAnalyzeScaleFactor*reltuples
+	diff := float64(leafLive) - reltuples
+	if diff < 0 {
+		diff = -diff
+	}
+	return rows, diff <= tolerance
 }
 
 // splitTable splits "schema.table" into its parts; a bare name is in "public".
