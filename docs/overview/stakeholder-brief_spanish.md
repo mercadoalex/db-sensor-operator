@@ -5,6 +5,13 @@ Autor: Alejandro Mercado Peña
 
 Este documento separa tres cosas para que no se confundan: lo que **medimos**, lo que **construimos pero aún no probamos de punta a punta**, y lo que son **hipótesis de mercado** por validar. Los términos técnicos están explicados en el [glosario](#11-glosario) al final.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="lactifluus-overview-dark.svg">
+  <img alt="Resumen de Lactifluus: PostgreSQL a Debezium al operator de Lactifluus, con un inspector, tres políticas, la comparación medida del arranque y una leyenda de verificación." src="lactifluus-overview-light.svg">
+</picture>
+
+*Resumen. Borde sólido: construido y verificado. Discontinuo: construido, aún sin probar de punta a punta. Punteado: roadmap. Versiones clara y oscura: `lactifluus-overview-light.svg` y `lactifluus-overview-dark.svg`.*
+
 ## 1. En una frase
 
 **Inteligencia de CDC basada en políticas, para PostgreSQL en Kubernetes.**
