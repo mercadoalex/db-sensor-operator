@@ -105,6 +105,9 @@ type ResultSlot struct {
 	WALStatus         string `json:"walStatus,omitempty"`
 	RetainedBytes     *int64 `json:"retainedBytes,omitempty"`
 	ConfirmedLagBytes *int64 `json:"confirmedLagBytes,omitempty"`
+	// SafeWALSize is PostgreSQL's own margin before the slot is at risk; negative once the cap is
+	// exceeded, absent while the cap is -1 (there is nothing to measure against).
+	SafeWALSize *int64 `json:"safeWalSize,omitempty"`
 }
 
 // NewResult converts the facts of a successful inspection. A value that is unknown is left out
@@ -134,6 +137,10 @@ func NewResult(f Facts) Result {
 		if f.Slot.ConfirmedLagBytes != UnknownBytes {
 			v := f.Slot.ConfirmedLagBytes
 			s.ConfirmedLagBytes = &v
+		}
+		if f.Slot.SafeWALBytes != UnknownBytes {
+			v := f.Slot.SafeWALBytes
+			s.SafeWALSize = &v
 		}
 		pg.ReplicationSlot = s
 	}

@@ -266,6 +266,8 @@ type DashboardConfig struct {
 }
 
 // DatabaseSensorSpec defines the desired state of DatabaseSensor
+// +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || self.database.type == 'postgresql'",message="spec.snapshot.inspection is only available for postgresql"
+// +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || (has(self.database.name) && self.database.name != ”)",message="spec.snapshot.inspection requires spec.database.name"
 type DatabaseSensorSpec struct {
 	// database is the connection to the database to monitor.
 	// +kubebuilder:validation:Required
@@ -531,6 +533,13 @@ type SlotInspection struct {
 	// WAL position, absent when unknown. A single reading does not show a stalled connector.
 	// +optional
 	ConfirmedLagBytes *int64 `json:"confirmedLagBytes,omitempty"`
+
+	// safeWalSize is PostgreSQL's own margin before the slot is at risk, in bytes. It is negative
+	// once max_slot_wal_keep_size is exceeded (how far past it the slot is) and absent while that
+	// cap is -1, because there is then nothing to measure against. It is not exactly the cap minus
+	// retainedBytes, so it carries information the other two do not.
+	// +optional
+	SafeWALSize *int64 `json:"safeWalSize,omitempty"`
 }
 
 // SnapshotPlan is what the backfill policy would do. It is not executed: no sink consumes

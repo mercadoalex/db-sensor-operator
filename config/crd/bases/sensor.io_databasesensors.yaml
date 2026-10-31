@@ -374,6 +374,13 @@ spec:
             - database
             - tables
             type: object
+            x-kubernetes-validations:
+            - message: spec.snapshot.inspection is only available for postgresql
+              rule: '!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled)
+                || self.database.type == ''postgresql'''
+            - message: spec.snapshot.inspection requires spec.database.name
+              rule: '!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled)
+                || (has(self.database.name) && self.database.name != '''')'
           status:
             description: status defines the observed state of DatabaseSensor
             properties:
@@ -537,6 +544,14 @@ spec:
                                 description: |-
                                   retainedBytes is the WAL kept for the slot, absent when unknown. It is cluster-wide WAL,
                                   not only the captured tables.
+                                format: int64
+                                type: integer
+                              safeWalSize:
+                                description: |-
+                                  safeWalSize is PostgreSQL's own margin before the slot is at risk, in bytes. It is negative
+                                  once max_slot_wal_keep_size is exceeded (how far past it the slot is) and absent while that
+                                  cap is -1, because there is then nothing to measure against. It is not exactly the cap minus
+                                  retainedBytes, so it carries information the other two do not.
                                 format: int64
                                 type: integer
                               walStatus:

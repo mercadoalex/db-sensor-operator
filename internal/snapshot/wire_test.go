@@ -145,3 +145,14 @@ func TestClassify(t *testing.T) {
 
 	assert.NotEqual(t, ExitOK, ExitConfig)
 }
+
+func TestNewResultCarriesANegativeSafeWALSize(t *testing.T) {
+	f := sampleFacts()
+	f.Slot.SafeWALBytes = -112066448
+	r := NewResult(f)
+	require.NotNil(t, r.Postgres.ReplicationSlot.SafeWALSize)
+	assert.Equal(t, int64(-112066448), *r.Postgres.ReplicationSlot.SafeWALSize, "past the cap by 112 MB")
+
+	f.Slot.SafeWALBytes = UnknownBytes
+	assert.Nil(t, NewResult(f).Postgres.ReplicationSlot.SafeWALSize, "NULL under an unlimited cap stays absent")
+}
