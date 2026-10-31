@@ -121,13 +121,19 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, tabl
 
 		// relkind r = table, p = partitioned table. reltuples is -1 until the table
 		// has been analyzed (PostgreSQL 14+) and 0 on older servers for the same case.
+		// n_live_tup and n_mod_since_analyze come from the statistics system; a
+		// partitioned parent has no row there, so they are -1 (left join).
 		var tuples float64
 		var canCreate bool
+		var liveTuples, mods int64
 		err := db.QueryRow(ctx, `
-			select c.reltuples, has_schema_privilege(current_user, n.oid, 'CREATE')
-			from pg_class c join pg_namespace n on n.oid = c.relnamespace
+			select c.reltuples, has_schema_privilege(current_user, n.oid, 'CREATE'),
+			       coalesce(s.n_live_tup, -1), coalesce(s.n_mod_since_analyze, -1)
+			from pg_class c
+			join pg_namespace n on n.oid = c.relnamespace
+			left join pg_stat_user_tables s on s.relid = c.oid
 			where n.nspname = $1 and c.relname = $2 and c.relkind in ('r', 'p')`,
-			schema, name).Scan(&tuples, &canCreate)
+			schema, name).Scan(&tuples, &canCreate, &liveTuples, &mods)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			// Found stays false.
@@ -136,14 +142,44 @@ func (p PostgresInspector) Inspect(ctx context.Context, conn ConnectionRef, tabl
 		default:
 			f.Found = true
 			f.CanWrite = canCreate
-			f.EstimatedRows = UnknownRows
-			if tuples >= 0 {
-				f.EstimatedRows = int64(tuples)
-			}
+			f.EstimatedRows, f.EstimateReliable = estimate(tuples, liveTuples, mods)
+			f.ModsSinceAnalyze = mods
 		}
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+// Autovacuum re-analyzes a table once more than
+// autovacuumAnalyzeThreshold + autovacuumAnalyzeScaleFactor*reltuples rows changed
+// since the last ANALYZE. These are PostgreSQL's defaults for
+// autovacuum_analyze_threshold and autovacuum_analyze_scale_factor, and the same test
+// decides here whether the planner's estimate is stale.
+const (
+	autovacuumAnalyzeThreshold   = 50
+	autovacuumAnalyzeScaleFactor = 0.1
+)
+
+// estimate turns the raw statistics into a row estimate and a reliability flag.
+//
+// The estimate is the larger of reltuples and n_live_tup (overestimating is the safe
+// direction). It is reliable only when the table has been analyzed (reltuples >= 0),
+// the modification counter is available, and few enough rows changed since the last
+// ANALYZE that autovacuum would not yet have re-analyzed it. A bulk load without
+// ANALYZE fails the last test even though reltuples then looks like a valid number.
+func estimate(reltuples float64, liveTuples, modsSinceAnalyze int64) (rows int64, reliable bool) {
+	rows = UnknownRows
+	if reltuples >= 0 {
+		rows = int64(reltuples)
+	}
+	if liveTuples > 0 && liveTuples > rows {
+		rows = liveTuples
+	}
+	if reltuples < 0 || modsSinceAnalyze < 0 {
+		return rows, false
+	}
+	staleAfter := float64(autovacuumAnalyzeThreshold) + autovacuumAnalyzeScaleFactor*reltuples
+	return rows, float64(modsSinceAnalyze) <= staleAfter
 }
 
 // splitTable splits "schema.table" into its parts; a bare name is in "public".

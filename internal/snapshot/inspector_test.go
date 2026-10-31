@@ -177,3 +177,62 @@ func TestInspectUnanalyzedTable(t *testing.T) {
 	assert.Equal(t, UnknownRows, got[0].EstimatedRows)
 	assert.Equal(t, StrategySignalTable, Decide(got[0], PolicyConfig{}, Capabilities{}).Kind)
 }
+
+func TestEstimate(t *testing.T) {
+	tests := []struct {
+		name         string
+		reltuples    float64
+		live, mods   int64
+		wantRows     int64
+		wantReliable bool
+	}{
+		{name: "analyzed and untouched", reltuples: 151_000, live: 151_000, mods: 0, wantRows: 151_000, wantReliable: true},
+		{name: "never analyzed but loaded", reltuples: -1, live: 150_000, mods: 150_000, wantRows: 150_000, wantReliable: false},
+		{name: "bulk load after a small ANALYZE", reltuples: 1_000, live: 501_000, mods: 500_000, wantRows: 501_000, wantReliable: false},
+		{name: "within autovacuum tolerance", reltuples: 100_000, live: 100_500, mods: 500, wantRows: 100_500, wantReliable: true},
+		{name: "exactly at the tolerance is still reliable", reltuples: 100_000, live: 110_050, mods: 10_050, wantRows: 110_050, wantReliable: true},
+		{name: "one change past the tolerance", reltuples: 100_000, live: 110_051, mods: 10_051, wantRows: 110_051, wantReliable: false},
+		{name: "modification counter unavailable", reltuples: 5_000, live: 5_000, mods: UnknownRows, wantRows: 5_000, wantReliable: false},
+		{name: "nothing known", reltuples: -1, live: 0, mods: UnknownRows, wantRows: UnknownRows, wantReliable: false},
+		{name: "small analyzed table", reltuples: 20, live: 20, mods: 3, wantRows: 20, wantReliable: true},
+		{name: "live counter reset to zero keeps reltuples", reltuples: 500_000, live: 0, mods: 0, wantRows: 500_000, wantReliable: true},
+		{name: "the larger of the two wins", reltuples: 90_000, live: 95_000, mods: 100, wantRows: 95_000, wantReliable: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, reliable := estimate(tc.reltuples, tc.live, tc.mods)
+			assert.Equal(t, tc.wantRows, rows)
+			assert.Equal(t, tc.wantReliable, reliable)
+		})
+	}
+}
+
+// TestInspectStaleStatistics expects public.stale_estimate to exist with a small old
+// reltuples and many rows loaded since (autovacuum disabled on it). Set
+// DBSENSOR_TEST_PG_STALE=1 to run it.
+func TestInspectStaleStatistics(t *testing.T) {
+	host := os.Getenv("DBSENSOR_TEST_PG_HOST")
+	if host == "" || os.Getenv("DBSENSOR_TEST_PG_STALE") == "" {
+		t.Skip("needs DBSENSOR_TEST_PG_HOST and DBSENSOR_TEST_PG_STALE=1")
+	}
+	port, _ := strconv.Atoi(os.Getenv("DBSENSOR_TEST_PG_PORT"))
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	got, err := PostgresInspector{}.Inspect(ctx, ConnectionRef{
+		Host: host, Port: int32(port), User: os.Getenv("DBSENSOR_TEST_PG_USER"),
+		Password: os.Getenv("DBSENSOR_TEST_PG_PASSWORD"), Database: os.Getenv("DBSENSOR_TEST_PG_DB"), SSLMode: sslDisable,
+	}, []string{"public.stale_estimate", "public.orders"})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+
+	stale, fresh := got[0], got[1]
+	t.Logf("stale: %+v", stale)
+	t.Logf("fresh: %+v", fresh)
+	assert.True(t, stale.Found)
+	assert.False(t, stale.EstimateReliable, "reltuples is small but many rows changed since ANALYZE")
+	assert.Greater(t, stale.ModsSinceAnalyze, int64(10_000))
+	assert.Greater(t, stale.EstimatedRows, DefaultSmallTableRows, "n_live_tup exposes the real size")
+	assert.NotEqual(t, StrategyStreamOnly, Decide(stale, PolicyConfig{}, Capabilities{}).Kind)
+
+	assert.True(t, fresh.EstimateReliable, "orders was analyzed and is untouched")
+}

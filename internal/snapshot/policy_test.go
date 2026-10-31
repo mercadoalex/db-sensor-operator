@@ -27,7 +27,7 @@ import (
 const tblOrders = "public.orders"
 
 func facts(rows int64, canWrite, replica bool) TableFacts {
-	return TableFacts{Table: tblOrders, Found: true, EstimatedRows: rows, CanWrite: canWrite, ReadOnlyServer: replica, WALLevel: "logical"}
+	return TableFacts{Table: tblOrders, Found: true, EstimatedRows: rows, EstimateReliable: true, CanWrite: canWrite, ReadOnlyServer: replica, WALLevel: "logical"}
 }
 
 func TestDecide(t *testing.T) {
@@ -54,6 +54,8 @@ func TestDecide(t *testing.T) {
 		{name: "replica uses read-only when verified", facts: facts(5_000_000, true, true), caps: roCaps, want: StrategyReadOnlyIncremental},
 		{name: "unknown size is treated as large", facts: facts(UnknownRows, true, false), want: StrategySignalTable, reason: "never analyzed"},
 		{name: "unknown size without any path is degraded", facts: facts(UnknownRows, false, false), want: StrategyNone, degraded: true},
+		{name: "a small but unreliable estimate is treated as large", facts: staleFacts(1_000, 800_000), want: StrategySignalTable, reason: "stale"},
+		{name: "a stale estimate without write access is degraded", facts: func() TableFacts { f := staleFacts(1_000, 800_000); f.CanWrite = false; return f }(), want: StrategyNone, degraded: true, reason: "stale"},
 		{name: "custom threshold", facts: facts(2_000, true, false), cfg: PolicyConfig{SmallTableRows: 1_000}, want: StrategySignalTable},
 		{name: "custom threshold keeps small tables small", facts: facts(900, true, false), cfg: PolicyConfig{SmallTableRows: 1_000}, want: StrategyStreamOnly},
 		{name: "non-positive threshold falls back to the default", facts: facts(500, true, false), cfg: PolicyConfig{SmallTableRows: -5}, want: StrategyStreamOnly},
@@ -74,6 +76,14 @@ func TestDecide(t *testing.T) {
 			}
 		})
 	}
+}
+
+// staleFacts is a table whose small reltuples survived a bulk load without ANALYZE.
+func staleFacts(rows, mods int64) TableFacts {
+	f := facts(rows, true, false)
+	f.EstimateReliable = false
+	f.ModsSinceAnalyze = mods
+	return f
 }
 
 // Degraded is set exactly for the "none" strategy that is not a manual override.

@@ -63,10 +63,21 @@ type TableFacts struct {
 	Table string
 	// Found is false when the table does not exist (or is not a table).
 	Found bool
-	// EstimatedRows is the planner's row estimate, or UnknownRows. It is an
-	// estimate and not count(*): it can be stale, which is acceptable for a
-	// small-versus-large decision.
+	// EstimatedRows is the row estimate, or UnknownRows. It is the larger of the
+	// planner's reltuples and the live-tuple counter n_live_tup: when they
+	// disagree, overestimating the size is the safe direction, because "large"
+	// leads to the non-blocking paths. It is an estimate and not count(*).
 	EstimatedRows int64
+	// EstimateReliable is false when the statistics cannot be trusted: the table was
+	// never analyzed, or enough rows changed since the last ANALYZE that reltuples is
+	// stale. A stale estimate is worse than an unknown one because it looks
+	// trustworthy (a table bulk-loaded without ANALYZE keeps its old, small
+	// reltuples), so Decide never lets an unreliable estimate say "small".
+	EstimateReliable bool
+	// ModsSinceAnalyze is n_mod_since_analyze (rows inserted, updated or deleted
+	// since the last ANALYZE), or UnknownRows when unavailable. It is kept so the
+	// reason can say why the estimate was not trusted.
+	ModsSinceAnalyze int64
 	// CanWrite reports whether the connection may create a signaling table in the
 	// table's schema. It is an approximation of "has write access".
 	CanWrite bool
@@ -109,14 +120,15 @@ type Strategy struct {
 //  1. A manual override wins and is reported as such.
 //  2. A missing table, or wal_level other than "logical", is a precondition
 //     failure: no Strategy can work, so the result is Degraded.
-//  3. At or below the small-table threshold: stream-only.
-//  4. Above it (or with unknown statistics) and able to write: signal-table.
+//  3. At or below the small-table threshold, with a reliable estimate: stream-only.
+//  4. Above it, or with an unknown or unreliable estimate, and able to write:
+//     signal-table.
 //  5. Above it, unable to write, and read-only incremental verified: that.
 //  6. Otherwise: none, Degraded, naming what is missing.
 //
 // A read-only replica cannot write, so it never gets signal-table.
-// Unknown statistics are treated as large, because a never-analyzed table could
-// be of any size and the large-table paths are the non-blocking ones.
+// Unknown or unreliable statistics are treated as large, because such a table
+// could be of any size and the large-table paths are the non-blocking ones.
 func Decide(f TableFacts, cfg PolicyConfig, caps Capabilities) Strategy {
 	if cfg.Override != "" {
 		return Strategy{Kind: cfg.Override, Reason: fmt.Sprintf("%s: strategy set manually by spec.snapshot.strategy", f.Table)}
@@ -135,14 +147,18 @@ func Decide(f TableFacts, cfg PolicyConfig, caps Capabilities) Strategy {
 		threshold = DefaultSmallTableRows
 	}
 
-	if f.EstimatedRows != UnknownRows && f.EstimatedRows <= threshold {
+	if f.EstimatedRows != UnknownRows && f.EstimateReliable && f.EstimatedRows <= threshold {
 		return Strategy{Kind: StrategyStreamOnly,
 			Reason: fmt.Sprintf("%s: about %d rows, at or below %d, so existing rows are not backfilled", f.Table, f.EstimatedRows, threshold)}
 	}
 
 	size := fmt.Sprintf("about %d rows, above %d", f.EstimatedRows, threshold)
-	if f.EstimatedRows == UnknownRows {
+	switch {
+	case f.EstimatedRows == UnknownRows:
 		size = "size unknown (never analyzed), treated as large"
+	case !f.EstimateReliable && f.EstimatedRows <= threshold:
+		size = fmt.Sprintf("about %d rows but the statistics are stale (%d changes since the last ANALYZE), treated as large",
+			f.EstimatedRows, f.ModsSinceAnalyze)
 	}
 
 	if f.CanWrite && !f.ReadOnlyServer {
