@@ -380,7 +380,7 @@ spec:
                 || self.database.type == ''postgresql'''
             - message: spec.snapshot.inspection requires spec.database.name
               rule: '!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled)
-                || (has(self.database.name) && self.database.name != '''')'
+                || (has(self.database.name) && size(self.database.name) > 0)'
           status:
             description: status defines the observed state of DatabaseSensor
             properties:

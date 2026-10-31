@@ -267,7 +267,7 @@ type DashboardConfig struct {
 
 // DatabaseSensorSpec defines the desired state of DatabaseSensor
 // +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || self.database.type == 'postgresql'",message="spec.snapshot.inspection is only available for postgresql"
-// +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || (has(self.database.name) && self.database.name != ”)",message="spec.snapshot.inspection requires spec.database.name"
+// +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || (has(self.database.name) && size(self.database.name) > 0)",message="spec.snapshot.inspection requires spec.database.name"
 type DatabaseSensorSpec struct {
 	// database is the connection to the database to monitor.
 	// +kubebuilder:validation:Required
