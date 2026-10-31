@@ -1,6 +1,6 @@
 # Lactifluus: resumen técnico para stakeholders
 
-Fecha: 2026-10-31 · Estado: rama `feat/snapshot-policy-phase-b` (CI en verde, sin mergear) · [English version](stakeholder-brief.md)
+Fecha: 2026-10-31 · Estado: integrado en `main`; la inspección viene apagada por defecto y su prueba de punta a punta en kind está pendiente · [English version](stakeholder-brief.md)
 Autor: Alejandro Mercado Peña
 
 <picture>
@@ -223,7 +223,7 @@ La pregunta es dónde vive la inteligencia: ¿Lactifluus es el sistema que despl
 
 ## 9. Próximos pasos
 
-1. Prueba de punta a punta del operador real en kind (bloquea el merge).
+1. Prueba de punta a punta del operador real en kind (pendiente; mientras tanto el flujo de inspección solo está probado con simulaciones).
 2. Cerrar el hallazgo de la caché de Secrets.
 3. Verificar PostgreSQL 12 y 17, y MySQL, antes de prometerlos.
 4. Decidir el comportamiento de la tabla ociosa y reescribir la tesis del benchmark (el DDL ya no diferencia a CDC).

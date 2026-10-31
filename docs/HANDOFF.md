@@ -1,6 +1,6 @@
 # Handoff: snapshot policy, phase B3 (inspection)
 
-Branch: `feat/snapshot-policy-phase-b` (pushed, NOT merged). Do not merge until item 1 below is done.
+Merged to `main` from `feat/snapshot-policy-phase-b` with item 1 below (kind end-to-end) still pending, by decision of the owner. The inspection is off by default, so nothing changes for anyone who does not enable it. Until item 1 is done, treat the inspection flow as built and tested with simulations only (envtest with a fabricated Pod), not as verified.
 
 ## State
 

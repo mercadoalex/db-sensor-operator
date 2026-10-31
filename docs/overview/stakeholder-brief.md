@@ -1,6 +1,6 @@
 # Lactifluus: technical brief for stakeholders
 
-Date: 2026-10-31 · Status: branch `feat/snapshot-policy-phase-b` (CI green, not merged) · [Versión en español](stakeholder-brief_spanish.md)
+Date: 2026-10-31 · Status: merged to `main`; inspection is off by default and its end-to-end test in kind is pending · [Versión en español](stakeholder-brief_spanish.md)
 Author: Alejandro Mercado Peña
 
 <picture>
@@ -223,7 +223,7 @@ The question is where the intelligence lives: is Lactifluus the system that depl
 
 ## 9. Next steps
 
-1. End-to-end test of the real operator in kind (blocks the merge).
+1. End-to-end test of the real operator in kind (pending; until then the inspection flow is tested only with simulations).
 2. Close the Secret-cache finding.
 3. Verify PostgreSQL 12 and 17, and MySQL, before promising them.
 4. Decide the idle-table behaviour and rewrite the benchmark thesis (DDL no longer differentiates CDC).
