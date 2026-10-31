@@ -16,17 +16,19 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Original scope: start a `DebeziumServer` against the benchmark PostgreSQL with each candidate `snapshot.mode` and record what is emitted and what happens on a pod restart with the in-memory offset store
   - _Requirements: 1.1, 1.2, 10.1_
 
-- [ ] A1. Classify snapshot events
+- [x] A1. Classify snapshot events
   - Add `Snapshot bool` to `events.CDCEvent`; set it in `Parse` from `source.snapshot` and `op=r`
   - Unit-test `Parse` for `r`, `first`, `last`, `incremental`, `false`, absent, and the wrapped and un-wrapped envelopes
   - _Requirements: 2.5_
 
-- [ ] A2. Keep snapshot events out of lag, counters and history
+- [x] A2. Keep snapshot events out of lag, counters and history
   - `Pipeline.Handle` returns early on `Snapshot`; live events are unchanged
   - Unit-test: a snapshot event updates neither the `LagTracker` nor the exporter nor the ring buffer; a live event still updates all three
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] A3. Non-blocking default start in the deployer
+- [x] A3. Non-blocking default start in the deployer
+  - Done for PostgreSQL only (`snapshot.mode: no_data`); other engines are untouched because their mode names are not verified. Verified on the benchmark cluster: the generated `DebeziumServer` carries `no_data`, no `op=r` series appears, and counts match the workload exactly (252/205/43)
+  - Observed, not changed: with an idle table the sensor stays `Pending`, and after 35 s without events it goes `Degraded` because the status lag is `now - last event`. A6 should decide whether a quiet table should read as `Degraded`
   - Using the mode confirmed in A0, set `snapshot.mode` in `BuildDebeziumServer` when the spec has no `spec.snapshot`
   - Unit-test the mapping; update the envtest expectations that read the generated source config
   - _Requirements: 1.1, 1.2, 12.1_

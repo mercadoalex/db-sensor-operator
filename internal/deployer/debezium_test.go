@@ -155,6 +155,17 @@ func TestBuildDebeziumServer_HTTPSinkAndSecretInjection(t *testing.T) {
 	assert.Equal(t, "db-creds", entry["secretRef"].(map[string]any)["name"])
 }
 
+func TestBuildDebeziumServer_PostgresStartsWithoutBlockingSnapshot(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
+	require.NoError(t, err)
+	assert.Equal(t, "no_data", sourceConfig(t, obj)["snapshot.mode"])
+
+	// Other engines are untouched: their mode names are not verified.
+	mysql, err := BuildDebeziumServer(newSensor("mysql", "app.orders"))
+	require.NoError(t, err)
+	assert.NotContains(t, sourceConfig(t, mysql), "snapshot.mode")
+}
+
 func TestBuildDebeziumServer_NoURLKeepsPlaceholderSink(t *testing.T) {
 	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
 	require.NoError(t, err)

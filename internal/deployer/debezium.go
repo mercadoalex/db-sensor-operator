@@ -139,6 +139,11 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 	switch sensor.Spec.Database.Type {
 	case "postgresql":
 		config["slot.name"] = slotName(sensor)
+		// Do not read existing rows: the sensor derives everything from live
+		// changes, so a blocking snapshot is a pure cost that leaves it blind
+		// until it ends. "no_data" is the non-blocking mode accepted by Debezium
+		// 3.6.3 (verified; "never" is rejected there). ADR-014.
+		config["snapshot.mode"] = "no_data"
 		// Debezium defaults to the decoderbufs output plugin, which stock
 		// PostgreSQL does not ship. pgoutput is built in since PG 10 and is what
 		// managed services support, so it is the only portable choice.
