@@ -314,6 +314,39 @@ type SnapshotConfig struct {
 	// +kubebuilder:validation:Enum=memory;persistent
 	// +kubebuilder:default=memory
 	OffsetStore string `json:"offsetStore,omitempty"`
+
+	// inspection configures the read-only inspection of the database that feeds the
+	// diagnostics in status.snapshot.inspection. It is off unless enabled.
+	// +optional
+	Inspection *InspectionConfig `json:"inspection,omitempty"`
+}
+
+// InspectionConfig is the user's intent for database inspection. It holds wishes only;
+// whatever the inspector measures is reported in status, never here.
+type InspectionConfig struct {
+	// enabled turns the inspection on. When off (the default) the operator opens no
+	// connection to the database and creates no inspection Job.
+	// +optional
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
+
+	// intervalSeconds is how often the database is inspected again. 0 inspects once per
+	// change of the spec. A positive value must be at least 60 so a typo cannot turn the
+	// inspection into a load on the database.
+	// +optional
+	// +kubebuilder:default=600
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=86400
+	// +kubebuilder:validation:XValidation:rule="self == 0 || self >= 60",message="intervalSeconds must be 0 or at least 60"
+	IntervalSeconds *int32 `json:"intervalSeconds,omitempty"`
+
+	// timeoutSeconds is the deadline of one inspection Job. It bounds the Job, not the
+	// reconcile, which never waits for it.
+	// +optional
+	// +kubebuilder:default=30
+	// +kubebuilder:validation:Minimum=5
+	// +kubebuilder:validation:Maximum=300
+	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 }
 
 // DatabaseSensorStatus defines the observed state of DatabaseSensor.
@@ -378,6 +411,147 @@ type SnapshotStatus struct {
 
 	// reason is a one-line explanation of the strategy and its consequences.
 	// It never contains secret values or row data.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// inspection holds the facts the last inspection observed. It is facts only: what the
+	// user asked for lives in spec.snapshot.inspection.
+	// +optional
+	Inspection *InspectionStatus `json:"inspection,omitempty"`
+
+	// plan is what the backfill policy would do per table. It is information, not
+	// execution: nothing consumes backfilled rows yet, so applied is always false.
+	// +optional
+	Plan *SnapshotPlan `json:"plan,omitempty"`
+}
+
+// InspectionStatus is the observed result of one inspection.
+type InspectionStatus struct {
+	// factsVersion is the version of this facts layout. A status written by an older or newer
+	// operator with a different layout must not be trusted field by field.
+	FactsVersion int32 `json:"factsVersion"`
+
+	// observedGeneration is the generation of the spec that was inspected. The facts are
+	// stale once metadata.generation moves past it.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// observedAt is when the inspection finished, taken from the inspection Job, not from
+	// the reconcile that read it.
+	// +optional
+	ObservedAt *metav1.Time `json:"observedAt,omitempty"`
+
+	// error is why the last inspection produced no facts, empty when it succeeded.
+	// It never contains credentials.
+	// +optional
+	Error string `json:"error,omitempty"`
+
+	// truncated is true when the result did not fit the inspection Job's termination message
+	// and some tables are missing from tables.
+	// +optional
+	Truncated bool `json:"truncated,omitempty"`
+
+	// tables are the facts of each monitored table, common to every engine.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	Tables []TableInspection `json:"tables,omitempty"`
+
+	// postgres holds the PostgreSQL-only facts. It is absent for other engines, and absent
+	// also when the facts could not be read; status.conditions says which.
+	// +optional
+	Postgres *PostgresInspection `json:"postgres,omitempty"`
+}
+
+// TableInspection are the facts of one monitored table.
+type TableInspection struct {
+	// name is the table as named in spec.tables.
+	Name string `json:"name"`
+
+	// found is false when the table does not exist.
+	Found bool `json:"found"`
+
+	// estimatedRows is the row estimate, absent when unknown.
+	// +optional
+	EstimatedRows *int64 `json:"estimatedRows,omitempty"`
+
+	// estimateReliable is false when the statistics behind estimatedRows are stale or missing.
+	EstimateReliable bool `json:"estimateReliable"`
+
+	// canWrite is whether the connection may create a signaling table in the table's schema.
+	CanWrite bool `json:"canWrite"`
+}
+
+// PostgresInspection are the facts that exist only on PostgreSQL.
+type PostgresInspection struct {
+	// serverVersion is server_version_num, for example 160015.
+	// +optional
+	ServerVersion int32 `json:"serverVersion,omitempty"`
+
+	// walLevel is the server's wal_level; logical decoding needs "logical".
+	// +optional
+	WALLevel string `json:"walLevel,omitempty"`
+
+	// inRecovery is true when the server is a standby.
+	InRecovery bool `json:"inRecovery"`
+
+	// maxSlotWalKeepSize is the cap, in bytes, on WAL a replication slot may retain. -1 means
+	// unlimited, so the free space of pg_wal is the only bound. Absent means it could not be
+	// read, for example before PostgreSQL 13.
+	// +optional
+	MaxSlotWALKeepSize *int64 `json:"maxSlotWalKeepSize,omitempty"`
+
+	// replicationSlot describes the connector's slot. Absent when it does not exist yet or
+	// could not be read; it is never a zeroed object standing for "no slot".
+	// +optional
+	ReplicationSlot *SlotInspection `json:"replicationSlot,omitempty"`
+}
+
+// SlotInspection describes the connector's replication slot.
+type SlotInspection struct {
+	// name is the slot's name.
+	Name string `json:"name"`
+
+	// active is true while a connector is attached to the slot.
+	Active bool `json:"active"`
+
+	// walStatus is PostgreSQL's own judgment: reserved, extended, unreserved or lost.
+	// +optional
+	WALStatus string `json:"walStatus,omitempty"`
+
+	// retainedBytes is the WAL kept for the slot, absent when unknown. It is cluster-wide WAL,
+	// not only the captured tables.
+	// +optional
+	RetainedBytes *int64 `json:"retainedBytes,omitempty"`
+
+	// confirmedLagBytes is how far the connector's last confirmed position trails the current
+	// WAL position, absent when unknown. A single reading does not show a stalled connector.
+	// +optional
+	ConfirmedLagBytes *int64 `json:"confirmedLagBytes,omitempty"`
+}
+
+// SnapshotPlan is what the backfill policy would do. It is not executed.
+type SnapshotPlan struct {
+	// applied is false until something consumes backfilled rows; the plan is information only.
+	Applied bool `json:"applied"`
+
+	// tables is the decision per table.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	Tables []TablePlan `json:"tables,omitempty"`
+}
+
+// TablePlan is the policy's decision for one table.
+type TablePlan struct {
+	// name is the table as named in spec.tables.
+	Name string `json:"name"`
+
+	// backfill is how existing rows would be delivered.
+	// +kubebuilder:validation:Enum=stream-only;signal-table;read-only-incremental;none
+	Backfill string `json:"backfill"`
+
+	// reason is one line explaining the decision. It carries no credentials or row data.
 	// +optional
 	Reason string `json:"reason,omitempty"`
 }

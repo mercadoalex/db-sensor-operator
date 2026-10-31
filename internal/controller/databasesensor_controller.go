@@ -293,9 +293,17 @@ func (r *DatabaseSensorReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		// ADR-014: explain how the connector starts. Derived from the spec, so it
-		// is written on every path, including mapped failures.
+		// is written on every path, including mapped failures. Only these three fields
+		// are refreshed here: status.snapshot also carries the inspection facts and the
+		// plan, which another step writes and which this block must not erase.
 		snap := deployer.SnapshotStatusFor(&fresh)
-		fresh.Status.Snapshot = &snap
+		if fresh.Status.Snapshot == nil {
+			fresh.Status.Snapshot = &snap
+		} else {
+			fresh.Status.Snapshot.Strategy = snap.Strategy
+			fresh.Status.Snapshot.OffsetStore = snap.OffsetStore
+			fresh.Status.Snapshot.Reason = snap.Reason
+		}
 
 		fresh.Status.Phase = derivePhase(fresh.Status.Conditions)
 		return r.Status().Update(ctx, &fresh)

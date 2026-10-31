@@ -196,6 +196,41 @@ var _ = Describe("DatabaseSensor Controller", func() {
 			Expect(list.Items).To(HaveLen(1))
 		})
 
+		It("should keep the inspection facts and plan when it refreshes status.snapshot", func() {
+			By("Creating the referenced password Secret")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: resourceNamespace},
+				StringData: map[string]string{secretPasswordKey: secretPasswordVal},
+			})).To(Succeed())
+			controllerReconciler := &DatabaseSensorReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Recording inspection facts and a plan, as the inspection step will")
+			sensor := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, sensor)).To(Succeed())
+			Expect(sensor.Status.Snapshot).NotTo(BeNil())
+			sensor.Status.Snapshot.Inspection = &sensoriov1.InspectionStatus{
+				FactsVersion: 1,
+				Tables:       []sensoriov1.TableInspection{{Name: tableOrders, Found: true, EstimateReliable: true}},
+			}
+			sensor.Status.Snapshot.Plan = &sensoriov1.SnapshotPlan{
+				Tables: []sensoriov1.TablePlan{{Name: tableOrders, Backfill: "stream-only", Reason: "small"}},
+			}
+			Expect(k8sClient.Status().Update(ctx, sensor)).To(Succeed())
+
+			By("Reconciling again, which rewrites the start strategy")
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: typeNamespacedName})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Finding the facts and the plan untouched and the strategy still reported")
+			fetched := &sensoriov1.DatabaseSensor{}
+			Expect(k8sClient.Get(ctx, typeNamespacedName, fetched)).To(Succeed())
+			Expect(fetched.Status.Snapshot.Strategy).To(Equal("no-data"))
+			Expect(fetched.Status.Snapshot.Inspection).NotTo(BeNil(), "the reconcile must not drop the inspection facts")
+			Expect(fetched.Status.Snapshot.Inspection.Tables).To(HaveLen(1))
+			Expect(fetched.Status.Snapshot.Plan).NotTo(BeNil(), "the reconcile must not drop the plan")
+		})
 		It("should derive Running when the child pod is running and events are recent (US-5.2)", func() {
 			By("Creating the referenced password Secret")
 			Expect(k8sClient.Create(ctx, &corev1.Secret{
