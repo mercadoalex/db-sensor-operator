@@ -218,8 +218,9 @@ Things to know:
 - **Slot facts want a periodic interval.** With `intervalSeconds: 0` the first run can happen before Debezium creates its slot, and `status` keeps showing `SlotMissing`. The default (600 s) corrects it.
 - **Install with the Helm chart.** It sets `OPERATOR_IMAGE`, which the Job needs. A plain kustomize deploy has none, and the condition says `InspectorImageNotConfigured`.
 - **An error message can include the server address and the database user.** It never includes the password.
+- **Secrets are read one at a time.** The operator does not cache Secrets and its role has `get` only on them (no `list` or `watch`). It can still read a Secret by name in any namespace; the chart's `rbac.namespaced` option narrows that, but it was not tested.
 
-Verified in kind (PostgreSQL 16, one local cluster, 12 checks, including a wrong password and a namespace enforcing Pod Security `restricted`): see [`bench/experiments/inspection-e2e/RESULTS.md`](bench/experiments/inspection-e2e/RESULTS.md). Not verified: a NetworkPolicy that blocks the Job, PostgreSQL 12 and 17, MySQL. In that Pod Security test the Debezium Server pods created by the Debezium Operator were rejected; the inspector Job was not.
+Verified in kind (PostgreSQL 16, one local cluster, 15 checks, including a wrong password, a namespace enforcing Pod Security `restricted`, and the Secrets permission): see [`bench/experiments/inspection-e2e/RESULTS.md`](bench/experiments/inspection-e2e/RESULTS.md). Not verified: a NetworkPolicy that blocks the Job, PostgreSQL 12 and 17, MySQL. In that Pod Security test the Debezium Server pods created by the Debezium Operator were rejected; the inspector Job was not.
 
 ## Status (`kubectl get`)
 
