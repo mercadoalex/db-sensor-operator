@@ -45,7 +45,10 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Add `status.snapshot` (`strategy`, `reason`, `offsetStore`); with the in-memory store, set the reason described in Requirement 3.3
   - _Requirements: 3.1, 3.3, 4.1, 4.3_
 
-- [ ] A6. Verify Phase A on the real cluster
+- [x] A6. Verify Phase A on the real cluster
+  - Done (`bench/experiments/blind-window/RESULTS.md`): on a 100k-row table `initial` was blind for 57 s while it delivered all 100,089 rows, and `no_data` saw the first live change in 6 s. Through the operator the sensor started `Pending`, not `Degraded`, and `status.snapshot` showed the strategy and offset store. Persistent-offset restart was verified in A4
+  - Not covered: tables above 100k rows, hard-kill replay, engines other than PostgreSQL
+  - **Decision still open:** a quiet table reads `Degraded` after 30 s because status lag is `now - last event`. Options are in the results note; changing it alters health semantics
   - On the benchmark cluster: load a table with a large number of rows, deploy the sensor, and confirm it reports from the first live change with accurate lag and no `Degraded` caused by the start; restart the Debezium pod with a persistent offset store and confirm no new snapshot
   - Record real-cluster versus unit-level verification in the results note
   - _Requirements: 1.1, 1.3, 2.1, 12.2, 12.3_
