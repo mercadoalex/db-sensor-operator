@@ -141,6 +141,33 @@ smooth checkpoint bursts. None of this was tested.
 a consumer exists, so a status never reads as if a backfill were happening. `captureStrategy:
 auto` is not exposed in the spec until it acts.
 
+## Pending, by dialect and by precondition
+
+Recorded so they are not lost. None is implemented and none was tested; the verified server is
+PostgreSQL 16.
+
+- **PostgreSQL 17 and later.** `pg_replication_slots.invalidation_reason` (for example
+  `wal_removed`, `wal_level_insufficient`) would say why a slot died without reading logs, and
+  `inactive_since` would say for how long a slot has been inactive, which the current
+  "inactive" warning cannot (it fires the moment a connector is attached no more, including
+  during a normal restart).
+- **Standbys.** The inspector reports a standby as "cannot be inspected". Reading a slot there
+  would need `pg_last_wal_replay_lsn()` in place of `pg_current_wal_lsn()`, which fails during
+  recovery. It is not implemented because no standby was available to test it on.
+- **Stall detection.** The signal is the distance between the current WAL position and
+  `confirmed_flush_lsn` growing across two inspections, not `restart_lsn` advancing. It only
+  becomes a negative condition when a heartbeat is configured: with quiet captured tables and a
+  busy cluster, a healthy connector has nothing to confirm and the distance grows anyway. The
+  deployer sets no heartbeat today. Enabling one has a consequence in this codebase: a heartbeat
+  arrives at `/cdc` as an event that is not a snapshot, `Pipeline.Handle` passes it to the lag
+  tracker, and it would refresh "last event" and hide the no-events detection. Heartbeats would
+  have to be classified apart first. Without a heartbeat the lag is reported as a fact and never
+  as a condition.
+- **What a lost slot costs here.** The connector starts with `no_data`, so a recreated slot
+  begins at the current position: the cost is a gap of events that cannot be recovered, not a
+  full copy of the tables (that is how native logical-replication subscriptions behave). How
+  Debezium recovers from a lost slot was not tested.
+
 ## Known limitations
 
 These are accepted trade-offs of the table inspector, not bugs.
