@@ -111,15 +111,12 @@ spec:
                   type:
                     description: |-
                       type is the database engine to monitor. The value selects the Debezium
-                      connector class and any engine-specific configuration.
+                      connector class and any engine-specific configuration. Only PostgreSQL
+                      (verified against a real cluster) and MySQL (connector mapped, not yet
+                      verified) are supported; other engines are rejected.
                     enum:
                     - postgresql
                     - mysql
-                    - mongodb
-                    - sqlserver
-                    - oracle
-                    - db2
-                    - cassandra
                     type: string
                   user:
                     description: user is the database user Debezium connects as.

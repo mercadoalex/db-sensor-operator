@@ -47,7 +47,7 @@ Kubernetes API, so they need nothing installed.
 - **Phase derivation** (`derivePhase` / health checker): a truth table of
   `(podRunning, lag, sinceLastEvent)` → `Pending|Running|Degraded|Failed`.
 - **Deployer mapping** (`internal/deployer`): spec→DebeziumServer object for
-  postgresql/mysql/mongodb (connector class + per-type extras + table filters +
+  postgresql/mysql (connector class + per-type extras + table filters +
   owner ref), plus the unsupported-type path.
 
 Run just these:

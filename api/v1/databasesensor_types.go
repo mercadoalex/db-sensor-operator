@@ -27,9 +27,11 @@ import (
 // DatabaseConfig describes the database that Debezium captures changes from.
 type DatabaseConfig struct {
 	// type is the database engine to monitor. The value selects the Debezium
-	// connector class and any engine-specific configuration.
+	// connector class and any engine-specific configuration. Only PostgreSQL
+	// (verified against a real cluster) and MySQL (connector mapped, not yet
+	// verified) are supported; other engines are rejected.
 	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=postgresql;mysql;mongodb;sqlserver;oracle;db2;cassandra
+	// +kubebuilder:validation:Enum=postgresql;mysql
 	Type string `json:"type"`
 
 	// host is the database hostname or service address.

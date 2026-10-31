@@ -43,7 +43,7 @@ The CDC-as-observability idea is not ours. The Debezium maintainers' blog post [
 - Fan out alerts to multiple backends: Prometheus, Datadog, Webhook/Slack.
 - Embedded dashboard with live charts.
 - Enriched status visible with `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
-- Multi-DB support: PostgreSQL, MySQL/MariaDB, MongoDB, SQL Server, Oracle, Db2, Cassandra.
+- Databases: PostgreSQL (verified against a real cluster) and MySQL (connector mapped, not yet verified). See [Supported databases](#supported-databases).
 
 ## Architecture
 
@@ -89,7 +89,7 @@ metadata:
   namespace: prod
 spec:
   database:
-    type: postgresql        # postgresql | mysql | mongodb | ...
+    type: postgresql        # postgresql | mysql
     host: postgres-svc.prod
     port: 5432
     user: debezium
@@ -192,15 +192,12 @@ The CR exposes an enriched status via the status subresource:
 
 ## Supported databases
 
-| DB | Mechanism |
-|---|---|
-| PostgreSQL | Logical decoding (pgoutput, wal2json) |
-| MySQL / MariaDB | Binary log (binlog) |
-| MongoDB | Change Streams / Oplog |
-| SQL Server | CDC Tables / LSN |
-| Oracle | LogMiner / XStream |
-| Db2 | ASN Capture |
-| Cassandra | CommitLog (cdc_raw) |
+| DB | Mechanism | Status |
+|---|---|---|
+| PostgreSQL | Logical decoding (`pgoutput`) | Verified against a real cluster (Debezium 3.6.3, PostgreSQL 16) |
+| MySQL | Binary log (binlog) | Connector and `database.server.id` mapped; **not yet verified** against a real MySQL |
+
+For now the operator supports only these two. The API rejects any other `spec.database.type`. Debezium itself supports more engines (MongoDB, SQL Server, Oracle, Db2, Cassandra); they are not wired here and nothing about them has been tested. The non-blocking start, offset persistence and table inspector described above are implemented for PostgreSQL only.
 
 ## Tech stack
 
