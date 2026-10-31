@@ -10,9 +10,10 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
 
 ## Tasks
 
-- [ ] A0. Verify snapshot modes and the Debezium floor on the real cluster
-  - On the benchmark cluster (Debezium Operator 3.6.3), start a `DebeziumServer` against the benchmark PostgreSQL with each candidate `snapshot.mode` (`initial`, `no_data`, `never`) and record: whether schema is captured, whether rows are emitted, and what happens on a pod restart with the in-memory offset store
-  - Record the exact mode names and observed behavior in `design.md` (replacing the "candidate" wording) and note the Debezium version they were observed on
+- [x] A0. Verify snapshot modes and the Debezium floor on the real cluster
+  - Done on Debezium 3.6.3: `bench/experiments/snapshot-modes/` (run.sh, RESULTS.md). `no_data` is the non-blocking mode, `never` is rejected, and a restart with the in-memory offset re-snapshots under `initial`/`when_needed` and replayed one live event under `no_data`
+  - The version floor is still open: only 3.6.3 was run, so this gives no minimum version
+  - Original scope: start a `DebeziumServer` against the benchmark PostgreSQL with each candidate `snapshot.mode` and record what is emitted and what happens on a pod restart with the in-memory offset store
   - _Requirements: 1.1, 1.2, 10.1_
 
 - [ ] A1. Classify snapshot events
@@ -79,4 +80,5 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
 
 - [ ] D1. Documentation
   - Update `ROADMAP.md` status, the README, and `docs/articles/to-watermark-or-not.md` where it states Debezium versions for PostgreSQL read-only snapshots; add the benchmark variant note
+  - Fix the article's example `snapshot.mode=never` (line ~109): it is rejected on Debezium 3.6.3; `no_data` is the working non-blocking mode (A0)
   - _Requirements: 1.4, 10.1_

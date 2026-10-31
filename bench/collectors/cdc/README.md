@@ -49,8 +49,12 @@ here.
 - A replication slot that retains WAL until consumed. `cdc-down` drops it.
 - An initial snapshot of every monitored table on first start. Snapshot rows
   arrive as `op=r` and are deliberately not counted as inserts.
-- Delivery is at-most-once over HTTP: a restart can lose in-flight events
-  (ADR-012). A durable Kafka transport would add broker cost not measured here.
+- The default offset store is in-memory, so a Debezium restart loses its offset.
+  The snapshot-mode experiment (`bench/experiments/snapshot-modes/RESULTS.md`)
+  saw a restart re-read the table under `initial` and re-deliver a live event
+  under `no_data`, so counts can be inflated after a restart. ADR-012 assumed
+  events could only be lost; they can also be duplicated. A durable Kafka
+  transport would add broker cost not measured here.
 
 ## Wiring notes
 

@@ -39,13 +39,15 @@ The exporter already ignores `r`; the explicit early return makes the rule indep
 
 ### A2. Non-blocking default start (Requirement 1)
 
-Set the connector's snapshot mode so it captures schema but reads no data. The candidate values for the PostgreSQL connector are `no_data` and `never`. They differ (`never` skips the snapshot entirely; `no_data` captures the schema and no rows) and the exact names and behavior must be **confirmed on the pinned version** in task A0 before the deployer is changed. This is the one fact the design does not assume.
+Set `snapshot.mode: no_data`. Verified in task A0 on Debezium 3.6.3 against a real PostgreSQL (`bench/experiments/snapshot-modes/RESULTS.md`): it emits no snapshot reads, and live changes arrive with full row data from the first one. `never` is **not valid** on 3.6.3 (the connector refuses to start; the accepted values are `always`, `initial_only`, `configuration_based`, `when_needed`, `initial`, `custom`, `no_data`). The value is version-specific, so a different pinned Debezium must repeat the experiment before the mapping is trusted.
 
 `deployer.BuildDebeziumServer` sets `snapshot.mode` from a small function of the sensor spec; with no `spec.snapshot`, it returns the non-blocking value.
 
 ### A3. Offset persistence (Requirement 3)
 
 `spec.snapshot.offsetStore` (`memory` default, `persistent`). `persistent` maps to the Debezium Operator's `runtime.storage.data` (persistent, with a claim) and the `source.offset` store (file or ConfigMap). The exact CR shape was read from the operator's documentation (`Offset`, `DataStorage`) and its CRD; the chosen combination is verified on the benchmark cluster by restarting the Debezium pod and checking that no new snapshot occurs. Existing sensors are not changed on upgrade (Requirement 3.4).
+
+Task A0 showed that persistence matters for more than the snapshot. With the in-memory store, a restart re-snapshots under `initial` and `when_needed`, and under `no_data` it re-delivered a live event that had already been sent (inferred, not proven: see `RESULTS.md`). Replayed events would be counted twice, so an in-memory offset can inflate counters after every restart. Task A6 checks whether a persistent store removes the replay as well as the re-snapshot.
 
 ### A4. Status (Requirement 4)
 

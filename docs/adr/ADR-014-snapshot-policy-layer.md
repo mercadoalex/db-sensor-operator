@@ -116,8 +116,12 @@ undone by the first restart unless offset persistence is decided as well.
 1. Is the backfill ladder worth building, given the metrics do not need rows?
    Phase A ships first and the answer should come from a real user wanting
    existing rows delivered.
-2. What are the exact Debezium floors and the exact snapshot-mode names per
-   connector and version (`never`, `no_data`, and others)? Verify against the
-   pinned version on the benchmark cluster before the design hardens.
-3. Which signal channel can a Debezium Server use for the read-only MySQL path
+2. What are the exact Debezium floors per connector? The snapshot-mode names
+   are answered for 3.6.3 only: `no_data` is the non-blocking mode and `never`
+   is rejected (`bench/experiments/snapshot-modes/RESULTS.md`). A different
+   pinned version must repeat the experiment.
+3. Does an in-memory offset store make the operator's counters over-count
+   after a Debezium restart? Task A0 saw one live event re-delivered; whether a
+   persistent store removes it is checked in task A6.
+4. Which signal channel can a Debezium Server use for the read-only MySQL path
    without a Kafka broker?

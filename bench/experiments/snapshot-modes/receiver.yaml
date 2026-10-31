@@ -1,0 +1,70 @@
+# Throwaway HTTP receiver for the snapshot-mode experiment. It accepts the POSTs
+# the Debezium Server HTTP sink sends and logs one line per event:
+#   EVENT <source.name> op=<op> snapshot=<source.snapshot> table=<table> hasAfter=<bool>
+# so the experiment can tell snapshot reads from live changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snap-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import json, sys
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                d = json.loads(body)
+                p = d.get("payload") or d
+                s = p.get("source") or {}
+                print("EVENT %s op=%s snapshot=%s table=%s hasAfter=%s" % (
+                    s.get("name"), p.get("op"), s.get("snapshot"), s.get("table"),
+                    bool(p.get("after"))), flush=True)
+            except Exception as e:
+                print("EVENT-PARSE-ERROR", e, flush=True)
+            self.send_response(204)
+            self.end_headers()
+        def log_message(self, *a):
+            pass
+
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: snap-receiver
+  namespace: bench
+  labels:
+    app: snap-receiver
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "-u", "/code/receiver.py"]
+      ports:
+        - containerPort: 8080
+      readinessProbe:
+        tcpSocket:
+          port: 8080
+        periodSeconds: 2
+      volumeMounts:
+        - name: code
+          mountPath: /code
+  volumes:
+    - name: code
+      configMap:
+        name: snap-receiver-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snap-receiver
+  namespace: bench
+spec:
+  selector:
+    app: snap-receiver
+  ports:
+    - port: 8080
+      targetPort: 8080
