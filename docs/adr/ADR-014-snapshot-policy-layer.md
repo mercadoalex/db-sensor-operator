@@ -121,7 +121,10 @@ undone by the first restart unless offset persistence is decided as well.
    is rejected (`bench/experiments/snapshot-modes/RESULTS.md`). A different
    pinned version must repeat the experiment.
 3. Does an in-memory offset store make the operator's counters over-count
-   after a Debezium restart? Task A0 saw one live event re-delivered; whether a
-   persistent store removes it is checked in task A6.
+   after a Debezium restart? Yes on a graceful restart: one live event was
+   re-delivered, twice in a row (`snapshot-modes` and `offset-persistence`
+   experiments). A persistent file offset store removed it
+   (`offset-persistence/RESULTS.md`). A hard kill can still replay up to one
+   flush interval and was not tested.
 4. Which signal channel can a Debezium Server use for the read-only MySQL path
    without a Kafka broker?

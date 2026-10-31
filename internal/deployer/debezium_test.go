@@ -175,3 +175,38 @@ func TestBuildDebeziumServer_NoURLKeepsPlaceholderSink(t *testing.T) {
 	_, found, _ := unstructured.NestedMap(obj.Object, "spec", "sink", "config")
 	assert.False(t, found, "no sink config without a URL")
 }
+
+func TestBuildDebeziumServer_PersistentOffsets(t *testing.T) {
+	sensor := newSensor("postgresql", "public.orders")
+	sensor.Spec.Snapshot = &sensoriov1.SnapshotConfig{OffsetStore: "persistent"}
+
+	obj, err := BuildDebeziumServer(sensor)
+	require.NoError(t, err)
+
+	typ, _, _ := unstructured.NestedString(obj.Object, "spec", "runtime", "storage", "data", "type")
+	assert.Equal(t, "persistent", typ)
+	// The Debezium Operator rejects persistent storage without a PVC template.
+	size, found, _ := unstructured.NestedString(obj.Object, "spec", "runtime", "templates", "volumeClaim", "resources", "requests", "storage")
+	require.True(t, found, "volumeClaim template is required")
+	assert.Equal(t, "100Mi", size)
+	// The offset path must be absolute: a relative one resolves to an unwritable cwd.
+	file, _, _ := unstructured.NestedString(obj.Object, "spec", "source", "offset", "file", "fileName")
+	assert.Equal(t, "/debezium/data/offsets.dat", file)
+	// The Secret environment from the HTTP sink change is still present.
+	_, found, _ = unstructured.NestedSlice(obj.Object, "spec", "runtime", "environment", "from")
+	assert.True(t, found)
+}
+
+func TestBuildDebeziumServer_MemoryOffsetsByDefault(t *testing.T) {
+	for _, snap := range []*sensoriov1.SnapshotConfig{nil, {}, {OffsetStore: "memory"}} {
+		sensor := newSensor("postgresql", "public.orders")
+		sensor.Spec.Snapshot = snap
+		obj, err := BuildDebeziumServer(sensor)
+		require.NoError(t, err)
+
+		_, found, _ := unstructured.NestedMap(obj.Object, "spec", "runtime", "storage")
+		assert.False(t, found, "no storage block for the memory store")
+		_, found, _ = unstructured.NestedMap(obj.Object, "spec", "source", "offset")
+		assert.False(t, found, "no offset block for the memory store")
+	}
+}

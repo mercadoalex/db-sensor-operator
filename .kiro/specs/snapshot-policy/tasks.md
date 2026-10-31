@@ -33,9 +33,10 @@ Verification uses the benchmark cluster (`bench/`): `make -C bench setup`, then 
   - Unit-test the mapping; update the envtest expectations that read the generated source config
   - _Requirements: 1.1, 1.2, 12.1_
 
-- [ ] A4. Offset persistence
-  - Add `spec.snapshot.offsetStore` (`memory` default, `persistent`) to the API; map `persistent` to the Debezium Operator's runtime storage and offset store; do not change existing sensors on upgrade
-  - Run `make generate manifests` and resync the chart CRD copy
+- [x] A4. Offset persistence
+  - Done: `spec.snapshot.offsetStore` (`memory` default, `persistent`); `persistent` sets the runtime storage, the PVC template and a file offset store with an absolute path. Existing sensors are unchanged. CRDs regenerated and the chart copy resynced
+  - Verified on the benchmark cluster through the operator: after a Debezium pod restart the counters stayed at 252/205/43 and no `op="r"` series appeared (`bench/experiments/offset-persistence/RESULTS.md`). A hard kill was not tested
+  - Original scope: add the field, map it to the Debezium Operator's runtime storage and offset store, do not change existing sensors on upgrade
   - _Requirements: 3.1, 3.2, 3.4_
 
 - [ ] A5. Status block and reasons

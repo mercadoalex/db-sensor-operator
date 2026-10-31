@@ -232,6 +232,25 @@ spec:
                         type: string
                     type: object
                 type: object
+              snapshot:
+                description: |-
+                  snapshot configures how the Debezium connector starts and how it keeps its
+                  position across restarts (ADR-014). An omitted block keeps today's behaviour.
+                properties:
+                  offsetStore:
+                    default: memory
+                    description: |-
+                      offsetStore selects where Debezium keeps its position in the change log.
+                      "memory" (default) is lost when the Debezium pod restarts, so a restart
+                      can re-deliver events the operator already counted. "persistent" stores the
+                      offset on a PersistentVolumeClaim created by the Debezium Operator, so a
+                      restart resumes where it stopped. Switching to "persistent" on a running
+                      sensor recreates the Debezium pod with a new volume.
+                    enum:
+                    - memory
+                    - persistent
+                    type: string
+                type: object
               tables:
                 description: tables are the tables to capture changes from.
                 items:

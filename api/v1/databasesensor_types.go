@@ -293,6 +293,25 @@ type DatabaseSensorSpec struct {
 	// operator default when unset, so an omitted block keeps today's behaviour.
 	// +optional
 	Thresholds *ThresholdConfig `json:"thresholds,omitempty"`
+
+	// snapshot configures how the Debezium connector starts and how it keeps its
+	// position across restarts (ADR-014). An omitted block keeps today's behaviour.
+	// +optional
+	Snapshot *SnapshotConfig `json:"snapshot,omitempty"`
+}
+
+// SnapshotConfig configures Debezium's start behaviour and offset persistence.
+type SnapshotConfig struct {
+	// offsetStore selects where Debezium keeps its position in the change log.
+	// "memory" (default) is lost when the Debezium pod restarts, so a restart
+	// can re-deliver events the operator already counted. "persistent" stores the
+	// offset on a PersistentVolumeClaim created by the Debezium Operator, so a
+	// restart resumes where it stopped. Switching to "persistent" on a running
+	// sensor recreates the Debezium pod with a new volume.
+	// +optional
+	// +kubebuilder:validation:Enum=memory;persistent
+	// +kubebuilder:default=memory
+	OffsetStore string `json:"offsetStore,omitempty"`
 }
 
 // DatabaseSensorStatus defines the observed state of DatabaseSensor.

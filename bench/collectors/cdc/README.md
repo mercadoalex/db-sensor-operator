@@ -50,11 +50,14 @@ here.
 - An initial snapshot of every monitored table on first start. Snapshot rows
   arrive as `op=r` and are deliberately not counted as inserts.
 - The default offset store is in-memory, so a Debezium restart loses its offset.
-  The snapshot-mode experiment (`bench/experiments/snapshot-modes/RESULTS.md`)
-  saw a restart re-read the table under `initial` and re-deliver a live event
-  under `no_data`, so counts can be inflated after a restart. ADR-012 assumed
-  events could only be lost; they can also be duplicated. A durable Kafka
-  transport would add broker cost not measured here.
+  The experiments in `bench/experiments/` saw a restart re-read the table under
+  `initial` and re-deliver a live event under `no_data`, so counts can be
+  inflated after a restart. ADR-012 assumed events could only be lost; they can
+  also be duplicated. Setting `spec.snapshot.offsetStore: persistent` removed the
+  re-delivery on a graceful restart, at the cost of a PersistentVolumeClaim; a
+  hard kill can still replay up to one flush interval. `sensor.yaml` keeps the
+  in-memory default, and the benchmark must state which store a run used. A
+  durable Kafka transport would add broker cost not measured here.
 
 ## Wiring notes
 

@@ -167,6 +167,12 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 	if err := unstructured.SetNestedField(obj.Object, class, "spec", "source", "class"); err != nil {
 		return nil, fmt.Errorf("setting source class: %w", err)
 	}
+	if persistentOffsets(sensor) {
+		if err := applyPersistentOffsets(obj); err != nil {
+			return nil, err
+		}
+	}
+
 	// Expose the referenced Secret to the Debezium Server pod so the
 	// ${DATABASE_password} expression in the source config resolves at runtime.
 	// Only the Secret's name is recorded here, never its data (NFR-4).
@@ -191,6 +197,40 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 	}
 
 	return obj, nil
+}
+
+// Persistent offset store (ADR-014). All three values were verified against
+// Debezium Operator 3.6.3 (bench/experiments/offset-persistence):
+//   - the Operator rejects storage type "persistent" without a PVC template
+//     ("Missing PVC template"), so the volumeClaim template is required;
+//   - a relative offset fileName resolves against the process working directory,
+//     which is not writable (AccessDeniedException), not the data volume, so the
+//     path must be absolute.
+const (
+	offsetFilePath    = "/debezium/data/offsets.dat"
+	offsetVolumeSize  = "100Mi" // an offset file is a few hundred bytes
+	offsetStorePersis = "persistent"
+)
+
+func persistentOffsets(sensor *sensoriov1.DatabaseSensor) bool {
+	return sensor.Spec.Snapshot != nil && sensor.Spec.Snapshot.OffsetStore == offsetStorePersis
+}
+
+func applyPersistentOffsets(obj *unstructured.Unstructured) error {
+	if err := unstructured.SetNestedField(obj.Object, "persistent", "spec", "runtime", "storage", "data", "type"); err != nil {
+		return fmt.Errorf("setting runtime storage: %w", err)
+	}
+	claim := map[string]any{
+		"accessModes": []any{"ReadWriteOnce"},
+		"resources":   map[string]any{"requests": map[string]any{"storage": offsetVolumeSize}},
+	}
+	if err := unstructured.SetNestedMap(obj.Object, claim, "spec", "runtime", "templates", "volumeClaim"); err != nil {
+		return fmt.Errorf("setting volume claim template: %w", err)
+	}
+	if err := unstructured.SetNestedField(obj.Object, offsetFilePath, "spec", "source", "offset", "file", "fileName"); err != nil {
+		return fmt.Errorf("setting offset file: %w", err)
+	}
+	return nil
 }
 
 // sinkFor chooses the Debezium Server sink (ADR-012). With the HTTP transport
