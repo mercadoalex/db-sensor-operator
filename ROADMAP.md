@@ -170,6 +170,13 @@ Tracked so they aren't lost, but not prioritized:
   constants remain the defaults); per-table thresholds are still future (see Tier 1).
 - Full real-database demo (Postgres + official Debezium Operator) — the synthetic
   demo kit (`demo/`, `DEMO.md`) covers the pipeline today.
+- **AI-assisted features — ON HOLD (exploration only, not committed).** Candidate uses:
+  statistical-then-ML anomaly detection, natural-language explanation of a diagnosis,
+  suggested configuration changes. Constraints decided: **no external/third-party LLM**
+  (schemas, table names and data must not leave the cluster); a local or self-hosted model
+  would have to be evaluated first and its viability is unknown; rules decide and AI at most
+  suggests, with a human approving; start with metrics only, never rows. Until then the
+  "start statistical, not ML" note above stands.
 - ML-based detection, multi-DB-type breadth beyond what can be tested, and
   horizontal sharding — all premature until real-user demand exists.
 
