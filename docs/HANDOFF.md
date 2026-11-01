@@ -6,7 +6,7 @@ Merged to `main`. The kind end-to-end passed on 2026-10-31 (15 checks, `bench/ex
 
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
-- **kind cluster is still up** (`db-sensor-bench`, running the build with the Secrets fix): `make -C bench teardown` when done.
+- **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.
 - **Two untracked PNGs in `assets/`** (`horizontal_fondo_blanco.png` 3 MB, `logo_navy.png` 2.5 MB): decide to optimize and version them, or leave them out. The diagrams embed their own small copies.
 
 Product and messaging:
@@ -68,7 +68,7 @@ Not verified:
 
 - `captureStrategy: auto` in the spec: recommendation is not to add it until something acts on it
   (alternative: a `CaptureStrategyHonored=False` condition).
-- Quiet table reads Degraded (no events is not always a fault).
+- Quiet table (no events for the configured timeout): stays `Degraded`. Decided: conservative is correct; without a heartbeat there is no honest way to distinguish a quiet table from a stalled Debezium. Revisit when heartbeat is implemented.
 - Rewrite thesis section 13.4 with the verified facts (`no_data` works, `never` is rejected).
 - PRs for the inspection are merged (#2, #3).
 
