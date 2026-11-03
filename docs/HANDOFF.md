@@ -4,6 +4,8 @@ Merged to `main`. The kind end-to-end passed on 2026-10-31 (15 checks, `bench/ex
 
 ## Pending when the session ended (2026-10-31)
 
+Next experiment (told to Mario Fiore Vitale on 2026-10-31): simulate a scheduler catching up after downtime, and compare what the database's own counters, Kubernetes, and CDC each see, to find where CDC adds something the others don't. Full definition, hypothesis and pass/fail criterion: R11 below.
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.
