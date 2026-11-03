@@ -22,6 +22,14 @@ Inspector gaps (asked of Mario Fiore Vitale, Debezium maintainer, on 2026-10-31:
 - It does NOT check: the `REPLICATION` privilege of the database user; the publication (exists, includes the listed tables); each table's replica identity (a table without a primary key can reject updates and deletes once logical replication publishes them); `max_replication_slots` and `max_wal_senders`; `SELECT` privilege on the tables.
 - Each new check needs: a query in `internal/snapshot/inspector.go`, a field in the wire contract (`factsVersion` stays 1 only if the field is optional), a condition in `internal/inspection/evaluate.go`, and a test against a real PostgreSQL.
 
+Strategic open question (Mario Fiore Vitale, 2026-10-31):
+- His objection, still unanswered: "why start a full CDC just to get metrics?" It was the reason he did not pursue the idea. His reply to the pivot was polite ("I think it is ok") but did not say which pre-flight checks matter most.
+- The pivot assumes the user wants CDC; it does not answer why someone who only wants metrics should run it.
+- Two audiences to separate: Kubernetes teams that ALREADY run Debezium, and teams that do NOT. The product needs a reason for each.
+- Product gap to check: today the operator creates its own `DebeziumServer`. It is NOT verified whether it can attach to a Debezium that already exists (same for pointing the inspector at an existing slot). Check this before pitching to teams that already run Debezium.
+- Do not word it as "Lactifluus makes Debezium safe": that implies Debezium is unsafe. Find a framing about what the operator adds, not what Debezium lacks.
+- To do: write down what Debezium already gives for operations and monitoring (JMX metrics, heartbeat, signals, the official operator), so the claims about our added value are checked against it.
+
 Engineering follow-ups:
 - Secrets: the operator can still `get` a Secret by name in any namespace. Try the chart's `rbac.namespaced` and check what breaks. The Datadog sink's Secret read is unit-tested only.
 - e2e not covered: NetworkPolicy blocking the Job, operator restart or Job kill between Job end and status write.
