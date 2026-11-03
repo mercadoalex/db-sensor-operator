@@ -17,6 +17,11 @@ Product and messaging:
 - AI features are "under constant evaluation" (ROADMAP): no external LLM; rules decide, AI at most suggests.
 - OpenTelemetry export is roadmap only.
 
+Inspector gaps (asked of Mario Fiore Vitale, Debezium maintainer, on 2026-10-31: which of these do people trip on most? Wait for his answer to order them):
+- Today the inspector reads: `wal_level`, server version, recovery state, `max_slot_wal_keep_size`; per table: exists, estimated rows (and whether reliable), can create in the schema; the replication slot: active, `wal_status`, retained WAL, lag, safe margin.
+- It does NOT check: the `REPLICATION` privilege of the database user; the publication (exists, includes the listed tables); each table's replica identity (a table without a primary key can reject updates and deletes once logical replication publishes them); `max_replication_slots` and `max_wal_senders`; `SELECT` privilege on the tables.
+- Each new check needs: a query in `internal/snapshot/inspector.go`, a field in the wire contract (`factsVersion` stays 1 only if the field is optional), a condition in `internal/inspection/evaluate.go`, and a test against a real PostgreSQL.
+
 Engineering follow-ups:
 - Secrets: the operator can still `get` a Secret by name in any namespace. Try the chart's `rbac.namespaced` and check what breaks. The Datadog sink's Secret read is unit-tested only.
 - e2e not covered: NetworkPolicy blocking the Job, operator restart or Job kill between Job end and status write.
