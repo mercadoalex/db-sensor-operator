@@ -44,6 +44,8 @@ Why CDC and not the database itself (claims to verify in R1 and by the benchmark
 
 Example used with Mario Fiore Vitale on 2026-10-31 (illustrative, not built): a Job deletes rows it should never touch, say settled payments. CDC sees what was deleted as it commits, a policy flags it, and the cluster stops the Job and alerts. Purpose: ask where it would break in practice.
 
+Viability condition (owner's conclusion, 2026-10-31): the last example sounds realistic to the owner: a Job starts rewriting far more rows than it normally does; the database cannot tell that this is unusual and cannot stop a Kubernetes Job; CDC sees the change stream as it commits, a policy compares it with the Job's usual behavior, and the cluster pauses the Job and alerts. But one example is not enough. The direction only holds if more REAL, recurring use cases exist, and finding them is the main cost and the main risk of this research. Notes on the examples so far: a plain mass delete is detectable with the database's own counters; a rule such as "never delete settled payments" can be prevented inside the database (permissions or a trigger), which beats detecting it afterwards; the pattern example needs a baseline of normal behavior that does not exist today.
+
 Rule: no demos and no code for this until R1 to R4 are written and some conversations (R8) have happened. A demo of an idea that is not concrete proves nothing.
 
 Research tasks, in order:
@@ -55,7 +57,7 @@ Research tasks, in order:
 - **R6. Existing Debezium.** Check in the code whether the operator can attach to a Debezium that already exists, and whether the inspector can read an existing slot (also asked in the strategic section).
 - **R7. Competitors.** Read what "alerting" in Debezium Platform 3.7 is (blog: 3.7.0.Beta2), and compare Debezium's own WAL guidance (docs and Gunnar Morling's post on replication slots) with what Lactifluus does and does not do (we set no heartbeat today).
 - **R8. Conversations (5 to 10).** Questions that do not name CDC: Has a job, migration or deploy ever mass-deleted or corrupted data? How did you find out and how long did it take? What did you do, and what would you have wanted to happen automatically? Would you accept the cluster acting on its own, or only being told?
-- **R9. Kill criteria.** Before investing, write down what findings would make us drop this direction (for example: nobody has had the problem, or attribution cannot be done honestly).
+- **R9. Kill criteria.** Before investing, write down what findings would make us drop this direction (for example: nobody has had the problem, or attribution cannot be done honestly). Explicit criterion: if after the conversations (R8) we cannot name more than this one real case where CDC plus a Kubernetes reaction beats database-side prevention and counter-based alerts, the product does not hold and the direction must be reconsidered.
 - **R10. ADR-016 draft.** Only after R1 to R4: sense/decide/act, the action ladder, the first narrow case, what is verified and what is not.
 
 First narrow case to test with R8 (hypothesis): Jobs, CronJobs and migrations, because they run alone and have a clear start and end, so the changes in that window can be attributed to them, if they are the only writer. Example: "this migration deleted 2 million rows and the policy allows 100 thousand: fail the Job and alert".
