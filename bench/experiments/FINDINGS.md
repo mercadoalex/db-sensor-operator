@@ -30,6 +30,7 @@ of the data. For that to be worth building, CDC has to show something the cheape
 | [row-content](row-content/RESULTS.md) | Can a policy on a value transition (`settled`->`pending`) be evaluated? | **PASS, CDC only.** And only with `REPLICA IDENTITY FULL`; default identity gives `before=null`. |
 | [attribution](attribution/RESULTS.md) | Can a change be tied to the Job that made it, without a time guess? | **FAIL for session identity.** CDC carries no client identity; `pg_stat_activity` is racy. Lead: the event carries `txId`. |
 | [sequence-gap](sequence-gap/RESULTS.md) | Can a stream consumer detect a skipped/duplicate sequence number? | **PASS, CDC only.** No counter or GROUP BY can; it needs order/history. Limit: in-memory state is lost on restart. |
+| [sequence-gap (redelivery)](sequence-gap/RESULTS-redelivery.md) | Where is the restart risk, and does it cause false findings? | **Confirmed:** the offset frontier lives in Debezium; a memory offset re-delivered 1010 and the consumer raised a false duplicate. Caveat: the baseline was not in-order (setup flaw), so order cannot be assumed either. |
 
 ## What we learned, in one paragraph
 

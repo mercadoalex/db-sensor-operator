@@ -16,6 +16,8 @@ eBPF attribution tested (2026-11-05, bench/experiments/attribution-ebpf): eBPF r
 
 C2 experiment done (2026-11-05, bench/experiments/sequence-gap): a stateful stream consumer detected a gap (1005->1009) and a duplicate (1009) from the ordered CDC stream. PASS, and CDC-only: no counter or GROUP BY can, because it needs order/history not totals. This is the cleanest "why CDC" so far (cleaner than rate C1, which a periodic GROUP BY could approximate). Measured limit: in-memory state is lost on restart, so a gap straddling a restart is missed; persisting per-sequence state would fix it (more work), and the consumer is not idempotent on redelivery. Still gated on R8 (does anyone need sequence checking).
 
+C2 v1 (2026-11-05, bench/experiments/sequence-gap/run-redelivery.sh): tested the owner-proposed frontier, adapted — in our architecture the consumer does not confirm the slot, Debezium owns the offset, so the kill targets Debezium. Confirmed the hypothesis: with the default memory offset, killing Debezium re-delivered 1010 and the consumer raised a false duplicate. CAVEAT: the clean baseline was already out-of-order (fast inserts / Debezium startup), a setup flaw, so the run also showed C2 cannot assume in-order delivery. Conclusion for any sequence rule: needs a persistent offset AND an idempotent consumer keyed on LSN/txId; memory + order-trusting is not enough. Redo with an asserted in-order baseline before pursuing.
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.
