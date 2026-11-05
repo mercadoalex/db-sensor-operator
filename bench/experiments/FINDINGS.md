@@ -29,6 +29,7 @@ of the data. For that to be worth building, CDC has to show something the cheape
 | [scheduler-catchup (duplicates)](scheduler-catchup/RESULTS.md) | Can any source tell reruns wrote duplicate rows? | **FAIL for CDC.** The Kubernetes API (repeated job names) was the better signal, not CDC. |
 | [row-content](row-content/RESULTS.md) | Can a policy on a value transition (`settled`->`pending`) be evaluated? | **PASS, CDC only.** And only with `REPLICA IDENTITY FULL`; default identity gives `before=null`. |
 | [attribution](attribution/RESULTS.md) | Can a change be tied to the Job that made it, without a time guess? | **FAIL for session identity.** CDC carries no client identity; `pg_stat_activity` is racy. Lead: the event carries `txId`. |
+| [sequence-gap](sequence-gap/RESULTS.md) | Can a stream consumer detect a skipped/duplicate sequence number? | **PASS, CDC only.** No counter or GROUP BY can; it needs order/history. Limit: in-memory state is lost on restart. |
 
 ## What we learned, in one paragraph
 
