@@ -20,6 +20,13 @@ C2 v1 (2026-11-05, bench/experiments/sequence-gap/run-redelivery.sh): tested the
 
 Engineering requirements from the group-C experiments are written up in docs/adr/ADR-016 (draft, not a decision to build): persistent offset mandatory, idempotent consumer keyed on event LSN, do not trust arrival order, persist per-key state. This is the honest cost of any sequence/rate/revert rule.
 
+Robustness experiments to consider (owner's list, 2026-11-05), classified so we do not redo what is covered:
+- **1. Backpressure (slow consumer) — NEW, highest priority, building now.** A consumer slower than the DB lets the slot retain WAL; the disk fills and PostgreSQL goes read-only. Measures time to X GB retained and the effect on the DB. Matters whether or not content policies are built (it is the slot-fills-disk risk we keep citing), and connects to the inspector's slot diagnosis (the operator could detect its own lag).
+- **2. Delivery order (ghost event) — PARTIALLY ANSWERED.** The redelivery run already showed delivery was not in commit order (ADR-016 "do not trust arrival order"). A dedicated run would only quantify it. Refine only if needed.
+- **3. Delete semantics — PARTIAL, one new angle worth it.** row-content already showed DELETE carries only the key by default, the full row with REPLICA IDENTITY FULL. NEW and useful: does the consumer clean its per-entity state (e.g. a C1 rate counter) when the entity is deleted? Otherwise memory leaks and alerts fire on a gone entity. Small, do after #1.
+- **4. Orphan state (referential integrity) — already in R8 as group D.** Needs a cross-table lookup with a race, and a DB foreign key prevents it better. Result anticipated; keep as an idea, not a priority experiment.
+- **5. Traumatic reconnect (recovery) — COVERED in essence.** A network drop is another Debezium connection restart; offset-persistence and the redelivery run already show memory offset re-delivers. No new experiment unless we test a specific network-partition case.
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.
