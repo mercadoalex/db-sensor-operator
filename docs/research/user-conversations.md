@@ -48,25 +48,40 @@ Listen for: do they want **reporting**, or **action**? This is the open product 
 Do NOT read this list at people. Ask them for their own rule first ("Is there a value or a state
 in your database that, if it changed the wrong way, would be a serious incident?"). A rule they
 name is worth far more than one we suggest. Use these only to unstick a conversation or to check
-feasibility. The types differ in cost, which matters later.
+feasibility.
 
-1. **Forbidden value transition** — a column must not go from X to Y.
-   - A payment must not go `settled -> pending`; an order must not go `shipped -> pending`.
-   - Needs the old and new value → `REPLICA IDENTITY FULL`. This is the type we proved (`row-content`).
-2. **Immutable field** — a column must never change once set.
-   - `created_at`, `account_id`, `invoice_number` must not be reassigned.
-   - Needs old vs new → `REPLICA IDENTITY FULL`.
-3. **Value out of range** — the new value is impossible.
-   - A `balance` goes negative; a `price` jumps 100x; a `discount` exceeds 100%.
-   - Needs only the new value, which CDC always carries → **no `REPLICA IDENTITY FULL`, cheapest**. Start here if we build one.
-4. **Deletion of something that must not be deleted.**
-   - A settled payment, an audit record.
-   - Default identity gives only the key (often enough to flag); seeing its values needs `REPLICA IDENTITY FULL`.
-5. **Volume with content** — the bridge to the count angle.
-   - "More than 1000 payments went to `refunded` in an hour." Plain volume is covered by counters; CDC only adds value when the rule is about *which* values, not just how many.
+Grouped by what each rule needs, because that is what sets the cost and whether it is even
+possible. Raw brainstorm; depure later. Nothing here is built.
 
-Honest framing when you discuss these: types 1, 2, 4 are "only CDC sees this" but cost `REPLICA
-IDENTITY FULL` (more WAL). Type 3 is the cheap one. Do not promise any of it is built.
+**A. Only the new value (cheapest; no `REPLICA IDENTITY FULL`):**
+- *Out of range* — a `balance` goes negative, a `price` jumps 100x, a `discount` exceeds 100%.
+- *Outside a time window* — a payment inserted with `paid_at` in the future or >90 days back.
+- If we build one, start here: CDC always carries the new value, no extra setup.
+
+**B. Old value vs new value (needs `REPLICA IDENTITY FULL` → more WAL):**
+- *Forbidden transition* — a payment `settled -> pending`, an order `shipped -> pending`. This is the type we proved (`row-content`).
+- *Immutable field* — `created_at`, `account_id`, `invoice_number` must never change once set.
+- *Forbidden deletion* — a settled payment or an audit record is deleted (default identity gives only the key; its values need FULL).
+
+**C. Accumulated state in the consumer (the strongest "why CDC, not counters" cases):**
+- *Per-entity rate* — one `user_id` makes >50 invoices in 10 min; one card authorizes 10 payments in a minute. Counters aggregate per table; CDC can count per key. Best fraud angle.
+- *Skipped or duplicate sequence* — `invoice_number` jumps 1003 -> 1007, or two rows share a number.
+- *Revert pattern* — a value goes A -> B -> A within N seconds (someone probing limits). Needs a short per-key history; compares consecutive new values, so no FULL.
+- These need the operator to keep state over time, which a trigger or a constraint does poorly and a stream consumer does well. Most defensible that it belongs on CDC.
+
+**D. A lookup into another table (needs a read per event; has a race):**
+- *Cross-reference* — a transaction with `account_id=42` while account 42 is `closed`; an order for a `banned` customer.
+- *Orphan state* — an order marked `shipped` with no row in `shipments`; a settled payment with no ledger entry.
+- Cost: one query to the DB per event, and the other table may change between the event and the check. A foreign-key constraint in the DB prevents part of this better than detecting it after.
+
+**E. Metadata CDC does not carry (flag — measured limitation):**
+- *Unexpected context* — a role change to admin from an unknown IP or out of hours; a mass DELETE by the app user when normally only admin does it.
+- **Blocker:** the CDC event has no connection user, `application_name`, IP or client identity (measured: `attribution` experiment failed on exactly this). Getting it would mean DB-side triggers that record who did what — which breaks the product's promise of not touching the database. Same unsolved problem as attribution. Keep as a "nice if attribution were solved", not a near-term rule.
+
+Honest framing when you discuss these: A is cheap and real; B is "only CDC sees it" but costs
+`REPLICA IDENTITY FULL`; C is the strongest CDC-specific value; D needs lookups and overlaps with
+DB constraints; E is blocked by the attribution gap we already measured. Do not promise any of it
+is built.
 
 ## Part 3 — attribution (the hard, unsolved part)
 
