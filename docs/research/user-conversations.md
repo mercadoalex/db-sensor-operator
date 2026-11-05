@@ -43,6 +43,31 @@ Use their own example if they gave one; otherwise a concrete one:
 Listen for: do they want **reporting**, or **action**? This is the open product decision (the
 "brake"). Do not assume; let them draw the line.
 
+### Content-policy examples (support, not a script)
+
+Do NOT read this list at people. Ask them for their own rule first ("Is there a value or a state
+in your database that, if it changed the wrong way, would be a serious incident?"). A rule they
+name is worth far more than one we suggest. Use these only to unstick a conversation or to check
+feasibility. The types differ in cost, which matters later.
+
+1. **Forbidden value transition** — a column must not go from X to Y.
+   - A payment must not go `settled -> pending`; an order must not go `shipped -> pending`.
+   - Needs the old and new value → `REPLICA IDENTITY FULL`. This is the type we proved (`row-content`).
+2. **Immutable field** — a column must never change once set.
+   - `created_at`, `account_id`, `invoice_number` must not be reassigned.
+   - Needs old vs new → `REPLICA IDENTITY FULL`.
+3. **Value out of range** — the new value is impossible.
+   - A `balance` goes negative; a `price` jumps 100x; a `discount` exceeds 100%.
+   - Needs only the new value, which CDC always carries → **no `REPLICA IDENTITY FULL`, cheapest**. Start here if we build one.
+4. **Deletion of something that must not be deleted.**
+   - A settled payment, an audit record.
+   - Default identity gives only the key (often enough to flag); seeing its values needs `REPLICA IDENTITY FULL`.
+5. **Volume with content** — the bridge to the count angle.
+   - "More than 1000 payments went to `refunded` in an hour." Plain volume is covered by counters; CDC only adds value when the rule is about *which* values, not just how many.
+
+Honest framing when you discuss these: types 1, 2, 4 are "only CDC sees this" but cost `REPLICA
+IDENTITY FULL` (more WAL). Type 3 is the cheap one. Do not promise any of it is built.
+
 ## Part 3 — attribution (the hard, unsolved part)
 
 9. Is your PostgreSQL self-operated (you control the node) or managed (RDS, Cloud SQL, Azure)? (This decides whether node-level attribution is even possible.)
