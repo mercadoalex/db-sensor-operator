@@ -36,8 +36,21 @@ Numbers from the run: counters went `1001|1|0|1001` → `1251|1|300|951` (ins|up
 - The only defensible edge is **per-row content and per-Job attribution**, and both are unbuilt and non-trivial (attribution needs the Job to be the sole writer, or a correlation signal we do not have).
 - Next, before any product code (still under the research rule): decide whether exposing row content + attribution is worth it, and confirm with user conversations (R8) that anyone needs it. If attribution cannot be done honestly, this is a kill-criterion hit (R9).
 
+## Variant: duplicate rows (`variant-duplicates.sh`, run 2026-11-05)
+
+Scenario: the scheduler reran the same daily-summary job 5 times, each inserting the identical row `(customer=999, amount=42.00)`. Question: can any source tell these are duplicates, not 5 legitimate new rows?
+
+| Source | Could it tell they are duplicates? |
+|---|---|
+| `pg_stat` counters | No. `n_tup_ins` went up by 5; it cannot say they are the same logical row. |
+| Kubernetes API | **Partly, and better than CDC here.** Five Jobs with the same base name (`daily-summary-rerun-*`) is a strong hint of a rerun storm — from job metadata alone, no data needed. |
+| CDC (as exported) | No. `op=c` went up by 5; the exported counts carry no row content, so no dedup signal. |
+| CDC (raw stream, not exposed) | Yes in principle. Each INSERT carried the full row, so the raw stream contains the repeat `(999, 42.00)`. Our pipeline keeps only counts, so this is unrealised. |
+| Ground truth (SQL) | 5 identical rows confirmed. |
+
+**Verdict:** FAIL again for the exported pipeline. And a sharper point: for *detecting* a rerun storm, the Kubernetes API (repeated job names) is the better signal, not CDC. CDC's only possible edge stays the same — row content — and it is still not exposed. Deduplication would also need a business key (what makes two rows "the same"), which is not generic.
+
 ## Not covered
 
 - Real schedulers with a catch-up mode (this models the burst with plain Jobs; the native CronJob runs only the latest missed schedule).
 - A NetworkPolicy, other CNIs, load under contention, one run only (no variance).
-- The duplicate-rows data variant (same Job run several times) — not run yet.
