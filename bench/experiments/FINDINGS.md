@@ -31,6 +31,7 @@ of the data. For that to be worth building, CDC has to show something the cheape
 | [attribution](attribution/RESULTS.md) | Can a change be tied to the Job that made it, without a time guess? | **FAIL for session identity.** CDC carries no client identity; `pg_stat_activity` is racy. Lead: the event carries `txId`. |
 | [sequence-gap](sequence-gap/RESULTS.md) | Can a stream consumer detect a skipped/duplicate sequence number? | **PASS, CDC only.** No counter or GROUP BY can; it needs order/history. Limit: in-memory state is lost on restart. |
 | [sequence-gap (redelivery)](sequence-gap/RESULTS-redelivery.md) | Where is the restart risk, and does it cause false findings? | **Confirmed:** the offset frontier lives in Debezium; a memory offset re-delivered 1010 and the consumer raised a false duplicate. Caveat: the baseline was not in-order (setup flaw), so order cannot be assumed either. |
+| [backpressure](backpressure/RESULTS.md) | Does a slow consumer retain WAL, and does the operator see it? | **Confirmed growth** (64 kB -> 1953 kB), inspector sees `retainedBytes`. **Gap found:** on an unbounded slot the diagnosis still says `SlotHealthy` while WAL piles up. |
 
 ## What we learned, in one paragraph
 

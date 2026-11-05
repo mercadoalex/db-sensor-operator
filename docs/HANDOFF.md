@@ -27,6 +27,8 @@ Robustness experiments to consider (owner's list, 2026-11-05), classified so we 
 - **4. Orphan state (referential integrity) — already in R8 as group D.** Needs a cross-table lookup with a race, and a DB foreign key prevents it better. Result anticipated; keep as an idea, not a priority experiment.
 - **5. Traumatic reconnect (recovery) — COVERED in essence.** A network drop is another Debezium connection restart; offset-persistence and the redelivery run already show memory offset re-delivers. No new experiment unless we test a specific network-partition case.
 
+Backpressure experiment done (2026-11-05, bench/experiments/backpressure): a slow consumer made retained WAL grow monotonically (64 kB -> 1953 kB over 6 ticks); the inspector sees retainedBytes/confirmedLagBytes. REAL PRODUCT GAP FOUND: SlotRetentionHealthy stayed True/SlotHealthy the whole time, because with max_slot_wal_keep_size=-1 the slot never hits a size-based risk state, so DiagnoseSlot never flags steady growth. The operator sees the number but does not warn. Fix direction (unbuilt): diagnose on the TREND of retainedBytes across inspections and/or free pg_wal space, not only wal_status (ties to ADR-014 WAL-headroom note). Also: relief after restoring a fast sink was not observed in a 40s window (redo longer to confirm recovery). This gap matters independently of content policies.
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.

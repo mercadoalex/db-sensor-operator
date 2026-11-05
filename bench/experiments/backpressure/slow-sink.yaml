@@ -1,0 +1,53 @@
+# A deliberately slow sink: it sleeps on every POST, so it consumes far slower than the DB
+# produces. Stands in for a consumer that cannot keep up (month-end spike, GC pause, etc.).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slow-sink-code
+  namespace: bench
+data:
+  sink.py: |
+    import time
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    DELAY = 2.0  # seconds per event: brutally slow on purpose
+    count = 0
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200); self.end_headers(); self.wfile.write(str(count).encode())
+        def do_POST(self):
+            global count
+            _ = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            time.sleep(DELAY)          # the backpressure
+            count += 1
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slow-sink
+  namespace: bench
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: slow-sink } }
+  template:
+    metadata: { labels: { app: slow-sink } }
+    spec:
+      containers:
+        - name: sink
+          image: python:3.12-alpine
+          command: ["python","/code/sink.py"]
+          volumeMounts: [{ name: code, mountPath: /code }]
+      volumes:
+        - name: code
+          configMap: { name: slow-sink-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slow-sink
+  namespace: bench
+spec:
+  selector: { app: slow-sink }
+  ports: [{ port: 8080, targetPort: 8080 }]
