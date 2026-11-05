@@ -45,8 +45,9 @@ Listen for: do they want **reporting**, or **action**? This is the open product 
 
 ## Part 3 — attribution (the hard, unsolved part)
 
-9. When data changes unexpectedly, do you need to know which service or job did it? Or is knowing what changed enough?
-10. (If they need the "who") How do you figure that out today?
+9. Is your PostgreSQL self-operated (you control the node) or managed (RDS, Cloud SQL, Azure)? (This decides whether node-level attribution is even possible.)
+10. When data changes unexpectedly, do you need to know which service or job did it? Or is knowing what changed enough?
+11. (If they need the "who") How do you figure that out today?
 
 Listen for: whether attribution is a must-have or a nice-to-have. The experiments showed it is
 the hard part; if few people need it, we can ship content policies without it.
