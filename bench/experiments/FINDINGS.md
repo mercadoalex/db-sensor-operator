@@ -29,6 +29,9 @@ of the data. For that to be worth building, CDC has to show something the cheape
 | [scheduler-catchup (duplicates)](scheduler-catchup/RESULTS.md) | Can any source tell reruns wrote duplicate rows? | **FAIL for CDC.** The Kubernetes API (repeated job names) was the better signal, not CDC. |
 | [row-content](row-content/RESULTS.md) | Can a policy on a value transition (`settled`->`pending`) be evaluated? | **PASS, CDC only.** And only with `REPLICA IDENTITY FULL`; default identity gives `before=null`. |
 | [attribution](attribution/RESULTS.md) | Can a change be tied to the Job that made it, without a time guess? | **FAIL for session identity.** CDC carries no client identity; `pg_stat_activity` is racy. Lead: the event carries `txId`. |
+| [sequence-gap](sequence-gap/RESULTS.md) | Can a stream consumer detect a skipped/duplicate sequence number? | **PASS, CDC only.** No counter or GROUP BY can; it needs order/history. Limit: in-memory state is lost on restart. |
+| [sequence-gap (redelivery)](sequence-gap/RESULTS-redelivery.md) | Where is the restart risk, and does it cause false findings? | **Confirmed:** the offset frontier lives in Debezium; a memory offset re-delivered 1010 and the consumer raised a false duplicate. Caveat: the baseline was not in-order (setup flaw), so order cannot be assumed either. |
+| [backpressure](backpressure/RESULTS.md) | Does a slow consumer retain WAL, and does the operator see it? | **Confirmed growth** (64 kB -> 1953 kB), inspector sees `retainedBytes`. **Gap found:** on an unbounded slot the diagnosis still says `SlotHealthy` while WAL piles up. |
 
 ## What we learned, in one paragraph
 
@@ -50,6 +53,14 @@ writer in its window (Kubernetes side).
 3. **Attribution via eBPF — tested, same class of answer as Cilium.** Feasibility probe ran: eBPF loads on the linuxkit kernel and sees the TCP connection to PostgreSQL, but NOT the `txId` (it is assigned inside the server, not on the wire). So eBPF gives "which pod connected", not "which workload owns this txId". The only client-side route to `txId` is a fragile uprobe inside PostgreSQL (not attempted). See `attribution-ebpf/RESULTS.md`.
 4. **Attribution via Cilium/Hubble.** Connection-level "which pod talked to the DB"; needs a CNI the bench does not run. Same class as eBPF: the connection, still not the change.
 5. **If it goes ahead:** expose `before`/`after` in the operator pipeline (today it keeps only counts), and have the inspector flag tables that need `REPLICA IDENTITY FULL`.
+
+## Engineering requirements if group C is built
+
+The group-C experiments turned up delivery-guarantee requirements that are more work than the
+detection logic: a persistent offset, an idempotent consumer keyed on the event LSN, no reliance
+on arrival order, and persisted per-key state. Written up in
+[ADR-016](../../docs/adr/ADR-016-stateful-stream-consumer-requirements.md) as a draft (not a
+decision to build). This is the honest cost of a sequence/rate/revert rule.
 
 ## Kill criteria (unchanged, R9)
 

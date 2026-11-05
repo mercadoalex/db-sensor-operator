@@ -1,0 +1,76 @@
+# C2 consumer: a stateful stream consumer that detects skipped or duplicate invoice_number.
+# It receives the Debezium HTTP sink POSTs, keeps the last number seen per sequence key in
+# memory, and flags a gap (n != last+1) or a duplicate (n already seen). GET /state returns
+# what it has so a restart's effect on state can be observed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seqgap-consumer-code
+  namespace: bench
+data:
+  consumer.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    # State kept in memory only, on purpose: the experiment is partly about what a restart loses.
+    last = {}          # sequence key -> highest invoice_number seen in order
+    seen = set()       # invoice_numbers seen (duplicate detection)
+    findings = []      # list of {"kind","number","prev"} for the run
+    def handle(num):
+        key = "invoices"
+        if num in seen:
+            findings.append({"kind": "duplicate", "number": num})
+            print("FINDING duplicate invoice_number=%d" % num, flush=True); return
+        seen.add(num)
+        prev = last.get(key)
+        if prev is not None and num != prev + 1:
+            kind = "gap" if num > prev + 1 else "out-of-order"
+            findings.append({"kind": kind, "number": num, "prev": prev})
+            print("FINDING %s invoice_number=%d prev=%d" % (kind, num, prev), flush=True)
+        if prev is None or num > prev:
+            last[key] = num
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"last": last, "count_seen": len(seen), "findings": findings}).encode()
+            self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers()
+            self.wfile.write(body)
+        def do_POST(self):
+            raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                d = json.loads(raw); p = d.get("payload") or d; s = p.get("source") or {}
+                after = p.get("after") or {}
+                if s.get("table") == "invoices" and p.get("op") == "c" and "invoice_number" in after:
+                    handle(int(after["invoice_number"]))
+            except Exception as e:
+                print("PARSE-ERROR", e, flush=True)
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seqgap-consumer
+  namespace: bench
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: seqgap-consumer } }
+  template:
+    metadata: { labels: { app: seqgap-consumer } }
+    spec:
+      containers:
+        - name: consumer
+          image: python:3.12-alpine
+          command: ["python","/code/consumer.py"]
+          volumeMounts: [{ name: code, mountPath: /code }]
+      volumes:
+        - name: code
+          configMap: { name: seqgap-consumer-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seqgap-consumer
+  namespace: bench
+spec:
+  selector: { app: seqgap-consumer }
+  ports: [{ port: 8080, targetPort: 8080 }]
