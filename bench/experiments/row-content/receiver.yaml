@@ -1,0 +1,55 @@
+# Throwaway HTTP receiver for the row-content experiment. It logs the full before/after
+# of each change event the Debezium HTTP sink posts, so we can see what CDC actually carries
+# (and what REPLICA IDENTITY changes). One line per event:
+#   EVENT op=<op> table=<t> before=<json-or-null> after=<json-or-null>
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rowcontent-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                d = json.loads(body)
+                p = d.get("payload") or d
+                s = p.get("source") or {}
+                if s.get("table") == "payments":
+                    print("EVENT op=%s table=%s before=%s after=%s" % (
+                        p.get("op"), s.get("table"),
+                        json.dumps(p.get("before")), json.dumps(p.get("after"))), flush=True)
+            except Exception as e:
+                print("EVENT-PARSE-ERROR", e, flush=True)
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rowcontent-receiver
+  namespace: bench
+  labels: { app: rowcontent-receiver }
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "/code/receiver.py"]
+      volumeMounts:
+        - { name: code, mountPath: /code }
+  volumes:
+    - name: code
+      configMap: { name: rowcontent-receiver-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rowcontent-receiver
+  namespace: bench
+spec:
+  selector: { app: rowcontent-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]

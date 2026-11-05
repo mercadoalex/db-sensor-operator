@@ -1,0 +1,52 @@
+# Throwaway receiver for the attribution experiment. Logs the full event JSON (payload only)
+# for the orders table, so we can inspect every field Debezium carries and see whether any of
+# them identifies the session or workload that made the change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attr-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                d = json.loads(body)
+                p = d.get("payload") or d
+                s = p.get("source") or {}
+                if s.get("table") == "orders" and p.get("op") in ("c", "u", "d"):
+                    # Print the whole source block and the op, so every available field shows.
+                    print("EVENT op=%s source=%s" % (p.get("op"), json.dumps(s)), flush=True)
+            except Exception as e:
+                print("EVENT-PARSE-ERROR", e, flush=True)
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attr-receiver
+  namespace: bench
+  labels: { app: attr-receiver }
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "/code/receiver.py"]
+      volumeMounts: [{ name: code, mountPath: /code }]
+  volumes:
+    - name: code
+      configMap: { name: attr-receiver-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: attr-receiver
+  namespace: bench
+spec:
+  selector: { app: attr-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]

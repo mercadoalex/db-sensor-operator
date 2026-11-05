@@ -1,0 +1,14 @@
+// Feasibility probe for attribution via eBPF (see RESULTS.md).
+// Shows that a socket/TCP-level probe sees the CONNECTION to PostgreSQL, not the txId.
+// Run (privileged, against the Docker/linuxkit kernel):
+//   docker run --rm --privileged --pid=host -v /sys:/sys -v /lib/modules:/lib/modules \
+//     -v "$PWD/probe.bt:/probe.bt" quay.io/iovisor/bpftrace:latest bpftrace /probe.bt
+BEGIN { printf("probe up: tcp state changes to :5432\n"); }
+tracepoint:sock:inet_sock_set_state
+{
+  if (args->dport == 5432 || args->sport == 5432) {
+    printf("state newstate=%d dport=%d sport=%d\n", args->newstate, args->dport, args->sport);
+    @conns = count();
+  }
+}
+interval:s:16 { exit(); }

@@ -68,8 +68,16 @@ bench/
 ├── Makefile      setup, run, collect, report, teardown
 ├── cluster/      kind config, PostgreSQL manifest, schema
 ├── workload/     deterministic i/u/d generator
+├── experiments/  self-contained experiments, each with its RESULTS.md
 └── results/      run artifacts (raw output is git-ignored)
 ```
+
+## Experiments
+
+Each folder under `experiments/` is a self-contained experiment with a hypothesis, a
+pass/fail criterion, a `run.sh`, and a `RESULTS.md`. Read
+[`experiments/FINDINGS.md`](experiments/FINDINGS.md) first: it consolidates what the
+experiments found about where CDC does and does not add value for Kubernetes.
 
 ## Fairness notes
 
