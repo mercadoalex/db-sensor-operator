@@ -18,6 +18,8 @@ C2 experiment done (2026-11-05, bench/experiments/sequence-gap): a stateful stre
 
 C2 v1 (2026-11-05, bench/experiments/sequence-gap/run-redelivery.sh): tested the owner-proposed frontier, adapted — in our architecture the consumer does not confirm the slot, Debezium owns the offset, so the kill targets Debezium. Confirmed the hypothesis: with the default memory offset, killing Debezium re-delivered 1010 and the consumer raised a false duplicate. CAVEAT: the clean baseline was already out-of-order (fast inserts / Debezium startup), a setup flaw, so the run also showed C2 cannot assume in-order delivery. Conclusion for any sequence rule: needs a persistent offset AND an idempotent consumer keyed on LSN/txId; memory + order-trusting is not enough. Redo with an asserted in-order baseline before pursuing.
 
+Engineering requirements from the group-C experiments are written up in docs/adr/ADR-016 (draft, not a decision to build): persistent offset mandatory, idempotent consumer keyed on event LSN, do not trust arrival order, persist per-key state. This is the honest cost of any sequence/rate/revert rule.
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.

@@ -53,6 +53,14 @@ writer in its window (Kubernetes side).
 4. **Attribution via Cilium/Hubble.** Connection-level "which pod talked to the DB"; needs a CNI the bench does not run. Same class as eBPF: the connection, still not the change.
 5. **If it goes ahead:** expose `before`/`after` in the operator pipeline (today it keeps only counts), and have the inspector flag tables that need `REPLICA IDENTITY FULL`.
 
+## Engineering requirements if group C is built
+
+The group-C experiments turned up delivery-guarantee requirements that are more work than the
+detection logic: a persistent offset, an idempotent consumer keyed on the event LSN, no reliance
+on arrival order, and persisted per-key state. Written up in
+[ADR-016](../../docs/adr/ADR-016-stateful-stream-consumer-requirements.md) as a draft (not a
+decision to build). This is the honest cost of a sequence/rate/revert rule.
+
 ## Kill criteria (unchanged, R9)
 
 If the conversations find no one who needs content policies, or attribution cannot be done
