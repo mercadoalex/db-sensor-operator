@@ -8,6 +8,12 @@ Next experiment (told to Mario Fiore Vitale on 2026-10-31): simulate a scheduler
 
 R11 done (2026-11-05): the catch-up PoC ran in kind. Result: FAIL against its criterion as the pipeline stands. For burst detection, CDC added nothing over `pg_stat` counters plus the Kubernetes API (both saw the 300 deletes and the 6 Jobs). The only edge CDC *could* give is per-row content and per-Job attribution, and neither is built. This matches Mario's objection. See `bench/experiments/scheduler-catchup/RESULTS.md`. Next decision (still under the research rule, no product code): is row content + attribution worth building, and does anyone need it (R8)? If attribution cannot be done honestly, that is a kill-criterion hit (R9). Duplicate-rows variant also run (2026-11-05): FAIL too, and sharper — for detecting a rerun storm the Kubernetes API (repeated job names) is the better signal, not CDC. CDC's only possible edge stays per-row content, still not exposed, and dedup would need a business key (not generic).
 
+R11 explored further (2026-11-05), three more experiments under bench/experiments/:
+- **row-content** (PASS): a policy on a value transition (payments.status settled->pending) is evaluable only from CDC, and only with REPLICA IDENTITY FULL (default identity gives before=null). This is the one place CDC is the unique source. Cost: FULL writes the whole old row to WAL on every change (ties to the inspector's replica-identity gap).
+- **attribution / session** (FAIL as standalone): the CDC event has no application_name or user; pg_stat_activity shows it only while the session is open (racy). Useful lead: the event carries txId, so a mechanism that records "txId -> workload" at commit time would attribute exactly. Cilium/Hubble and eBPF unexplored; the solid path today is a Job that is the sole writer in its window (Kubernetes side).
+- Net: CDC's unique value is row content, not counts. Attribution is the hard open problem; session identity is not enough.
+Next candidates (ask before building): txId->workload recorder (eBPF or DB hook), Cilium/Hubble connection attribution, or decide attribution leans on Kubernetes (sole-writer Jobs). And R8 conversations: does anyone want a content policy or per-change attribution?
+
 Do first:
 - **PR #5** (Secrets fix + READMEs): wait for CI, merge, then delete the branch (local and remote).
 - **kind cluster:** gone (no cluster, container or kubectl context). To run the e2e again: `make -C bench setup && bench/collectors/cdc/up.sh && bench/experiments/inspection-e2e/run.sh`.
