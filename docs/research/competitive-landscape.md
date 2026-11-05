@@ -122,6 +122,116 @@ precisely to avoid operating the database. If the market is mostly managed, our 
 differentiator (attribution) serves few, and the value narrows to content policies + reaction,
 which do work on managed. This is a real bet to validate, not a fact.
 
+### What the industry surveys say (and what they do not)
+
+No source gives the exact split we want (self-hosted StatefulSet vs managed, in production). It
+does not seem to be published; hyperscalers cannot see what runs inside your cluster, and
+Postgres.org does not survey this. The closest signals, all pointing the same way:
+
+- **Data on Kubernetes Community Report 2024** (cited by [Percona](https://experience.percona.com/reports/state-of-open-source-db-management-2025/cloud-native-computing-continues-to-reshape-the-space),
+  [CNCF](https://www.cncf.io/blog/2026/03/05/the-great-migration-why-every-ai-platform-is-converging-on-kubernetes/)):
+  databases are the #1 workload on Kubernetes for the third year running; nearly half of
+  organizations run 50%+ of their database workloads in production on Kubernetes, the most
+  advanced over 75%.
+- **Voice of Kubernetes Experts 2025** (Portworx/Dimensional Research, 500+ practitioners):
+  ~98% run data-intensive workloads on cloud-native platforms; databases at ~69%.
+- **OperatorHub** grew from 7 database operators to ~50 ([Percona](https://www.percona.com/blog/the-evolution-of-stateful-applications-in-kubernetes/)),
+  which only makes sense if people run databases inside the cluster.
+
+Two cautions before leaning on these:
+1. **"Database on Kubernetes" is not the same as "self-hosted StatefulSet".** A survey may count
+   a workload managed by an operator, or data workloads in general. The exact in-cluster vs
+   managed cut is not in these numbers.
+2. **The sources are cloud-native vendors** (Percona, Portworx, AppsCode) with an interest in
+   "yes, run your DB on K8s". Counter-voices exist (e.g. ["Why I haven't run my databases on
+   Kubernetes"](https://substack.com/redirect/8f8ee623-2601-4e68-a003-082c342891ec)). Treat the
+   numbers as a directional signal, not neutral truth.
+
+### "Database on Kubernetes" hides three different cases
+
+The survey phrase "runs its database on Kubernetes" blends three situations, and only two are
+our full-value case:
+
+1. **Managed DB, outside the cluster.** The app runs on K8s, the database is an RDS / Cloud SQL
+   outside it. Some surveys still count this as "uses K8s with a database". Here Lactifluus loses
+   kernel-level attribution and deep slot/disk diagnosis.
+2. **In-cluster DB via an operator** (CloudNativePG, Percona, Crunchy, Zalando). Self-hosted, but
+   an operator handles backups, failover, upgrades. **Lactifluus has its full value here.**
+3. **In-cluster DB as a bare StatefulSet** (no operator, like our bench). Also full value, but
+   rare for a critical database.
+
+A single survey number merges all three, so it cannot tell us the managed (1) vs in-cluster (2+3)
+split. That is why the earlier numbers do not answer the question directly. For us, case 2 is the
+realistic full-value target: almost nobody runs a critical database as a bare StatefulSet.
+
+### The two trends, both true at once
+
+- **Toward managed / cloud.** Red Gate's State of the Database Landscape 2024: hosting databases
+  mostly or fully in the cloud rose 18% (2020) to 36% (2023), on-premises fell 53% to 31%
+  ([Red Gate](https://www.red-gate.com/solutions/state-of-database-landscape/2024/cloud/)).
+  Startup Database Trends 2025: most teams run databases on managed cloud platforms
+  ([Springtail](https://www.springtail.io/research/startup-database-trends-2025)). AWS RDS leads
+  the managed market.
+- **Toward in-cluster self-hosted.** Databases are the #1 K8s workload (DoK 2024), OperatorHub
+  DB operators grew 7 to ~50, and **CloudNativePG** is now the de facto standard PostgreSQL
+  operator: a CNCF project (from EDB), 5,000+ GitHub stars and ~58M downloads
+  ([dev.to](https://dev.to/x4nent/complete-guide-to-cloudnativepg-129-postgresql-18-production-kubernetes-database-operator-setup-4kle),
+  [EDB](https://www.enterprisedb.com/blog/4300-github-stars-and-counting-cloudnativepg-now-worlds-1-postgresql-operator-kubernetes)).
+
+These do not contradict: "cloud" includes running the DB inside a K8s cluster, which is also
+self-hosted. Cloud grows overall, and within it, in-cluster PostgreSQL grows too.
+
+### The tooling of the self-hosted-on-K8s crowd (who our full value serves)
+
+People who run PostgreSQL self-hosted on Kubernetes mostly use an operator, not a bare
+StatefulSet. The field, by adoption:
+- **CloudNativePG** — the de facto standard, CNCF, the default for new deployments.
+- **Percona Operator for PostgreSQL**, **Crunchy Data**, **Zalando** — all built on Patroni,
+  pgBackRest, PgBouncer ([Percona comparison](https://www.percona.com/blog/run-postgresql-in-kubernetes-solutions-pros-and-cons/)).
+
+Strategic implication: our full-value audience is not "whoever hand-rolls a StatefulSet", it is
+**whoever runs CloudNativePG** (and peers). A concrete next question: should Lactifluus be tested
+and positioned alongside CloudNativePG? That is where the users who can use our entire value
+actually are. Unverified whether our `DatabaseSensor` cleanly targets a CloudNativePG-managed
+instance; worth a focused check.
+
+### What CloudNativePG (CNPG) is, and why it is our closest neighbor
+
+CNPG is a Kubernetes operator that runs PostgreSQL **inside** the cluster: you declare a Postgres
+cluster in YAML and it handles deployment, replication, failover, backups and upgrades, the work
+a DBA would do by hand ([docs](https://cloudnative-pg.io/documentation/1.24/),
+[architecture](https://cloudnative-pg.io/documentation/1.20/architecture/)).
+
+- **Open source, yes.** Apache 2.0, a CNCF project (originated at EDB), vendor-neutral. The de
+  facto standard PostgreSQL operator.
+- **What it is based on.** Unlike Percona/Crunchy/Zalando, it does **not** use Patroni, repmgr or
+  Stolon. It integrates directly with the Kubernetes API and uses PostgreSQL's **native physical
+  replication** (WAL shipping / streaming), with its own **instance manager** beside each Postgres
+  ([README](https://github.com/cloudnative-pg/cloudnative-pg/blob/main/README.md),
+  [instance manager](https://cloudnative-pg.io/docs/1.26/instance_manager)).
+
+Why it matters to us:
+- **Not a competitor, a complement.** CNPG manages the database's *lifecycle* (bring it up,
+  replicate, heal). It does not observe change content or react to it; it does not do CDC.
+  Lactifluus observes data *changes* and would react to them; it does not manage the database. Two
+  different layers on the same database.
+- **Same philosophy.** Both are genuinely Kubernetes-native (reconciliation, declarative), so they
+  speak the same language. The ideal full-value Lactifluus user is someone already running CNPG:
+  Postgres in the cluster, operated declaratively, missing exactly the layer we propose.
+- **A pitch-grade coincidence:** CNPG uses PostgreSQL's WAL to replicate; Debezium/Lactifluus use
+  the same WAL to capture changes. Same underlying mechanism, two purposes. "Lactifluus on top of
+  CNPG" is a technically coherent story, not a forced one.
+
+Honest limits: "complementary" is our technical reading, not something the CNPG community has
+said. And it is unverified that our `DatabaseSensor` targets a CNPG-managed instance cleanly (it
+should, since it is a Postgres with logical WAL, but it needs a test).
+
+Reading for us: the trend favors managed overall, but in-cluster self-hosted (mostly via
+CloudNativePG) is a large and growing slice, and it is our full-value home. The precise managed
+vs in-cluster split is not published, so R8 (asking each team directly, plus "which operator?")
+remains the way to size it for our audience.
+Content was rephrased for compliance with licensing restrictions.
+
 Connects to R8: the conversation guide already asks "is your Postgres self-operated or managed?"
 (`docs/research/user-conversations.md`, Part 3). That answer, across conversations, tells us
 whether the in-cluster full-value case is common enough to lead with, or whether we should pitch
