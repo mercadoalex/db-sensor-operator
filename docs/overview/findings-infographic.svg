@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" role="img" aria-labelledby="t d">
+<title id="t">Lactifluus experiments: where CDC adds value for Kubernetes</title>
+<desc id="d">We tested whether CDC beats cheaper sources. CDC wins on the content and order of a change, not on counting or attribution. We also found a real gap: the operator sees the replication slot grow but does not warn. Next: ask the community whether a content policy is wanted.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="1000" fill="#ffffff"/>
+<text x="64" y="92" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="42" font-weight="700" fill="#09090b" text-anchor="start">Does CDC earn its place?</text>
+<text x="64" y="128" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#52525b" text-anchor="start">We tested where Change Data Capture beats a plain Postgres counter and the Kubernetes API. 6 experiments, one kind cluster.</text>
+<text x="64" y="182" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="1.5">THE QUESTION</text>
+<rect x="64" y="198" width="720" height="92" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88" y="232" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#09090b" text-anchor="start">“Metrics are not the product. The product is Kubernetes</text>
+<text x="88" y="258" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#09090b" text-anchor="start">reacting to the behavior of the data.”</text>
+<text x="88" y="280" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">For that, CDC must show what cheaper sources cannot.</text>
+<text x="820" y="182" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="1.5">LEGEND</text>
+<rect x="820" y="198" width="716" height="92" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<rect x="844" y="225" width="20" height="16" rx="2" fill="#16a34a"/>
+<text x="872" y="238" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#09090b" text-anchor="start">CDC wins — only source</text>
+<rect x="844" y="255" width="20" height="16" rx="2" fill="#dc2626"/>
+<text x="872" y="268" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#09090b" text-anchor="start">CDC loses — a counter or K8s already does it</text>
+<rect x="1180" y="225" width="20" height="16" rx="2" fill="#d97706"/>
+<text x="1208" y="238" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#09090b" text-anchor="start">Gap found in the product today</text>
+<rect x="1180" y="255" width="20" height="16" rx="2" fill="#ea580c"/>
+<text x="1208" y="268" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#09090b" text-anchor="start">Open question — needs the community</text>
+<text x="64" y="340" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="1.5">WHAT EACH SOURCE CAN SEE</text>
+<rect x="64" y="356" width="1472" height="150" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88.0" y="392" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">A change happened</text>
+<text x="88.0" y="414" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">how many</text>
+<rect x="88.0" y="432" width="10" height="10" fill="#dc2626"/>
+<text x="106.0" y="441" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#dc2626" text-anchor="start">pg_stat counters</text>
+<text x="88.0" y="474" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#52525b" text-anchor="start">the best source today</text>
+<line x1="432.0" y1="368" x2="432.0" y2="494" stroke="#d4d4d8" stroke-width="1"/>
+<text x="456.0" y="392" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Who &amp; when (workload)</text>
+<text x="456.0" y="414" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">which Job, when</text>
+<rect x="456.0" y="432" width="10" height="10" fill="#dc2626"/>
+<text x="474.0" y="441" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#dc2626" text-anchor="start">Kubernetes API</text>
+<text x="456.0" y="474" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#52525b" text-anchor="start">the best source today</text>
+<line x1="800.0" y1="368" x2="800.0" y2="494" stroke="#d4d4d8" stroke-width="1"/>
+<text x="824.0" y="392" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">WHAT the change was</text>
+<text x="824.0" y="414" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">old → new value</text>
+<rect x="824.0" y="432" width="10" height="10" fill="#16a34a"/>
+<text x="842.0" y="441" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#16a34a" text-anchor="start">CDC only</text>
+<text x="824.0" y="474" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#52525b" text-anchor="start">the best source today</text>
+<line x1="1168.0" y1="368" x2="1168.0" y2="494" stroke="#d4d4d8" stroke-width="1"/>
+<text x="1192.0" y="392" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">ORDER of changes</text>
+<text x="1192.0" y="414" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">gap, duplicate, revert</text>
+<rect x="1192.0" y="432" width="10" height="10" fill="#16a34a"/>
+<text x="1210.0" y="441" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#16a34a" text-anchor="start">CDC only</text>
+<text x="1192.0" y="474" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#52525b" text-anchor="start">the best source today</text>
+<text x="64" y="548" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="1.5">WHAT WE FOUND</text>
+<rect x="64" y="564" width="466" height="300" rx="2" fill="#ffffff" stroke="#16a34a" stroke-width="1"/>
+<text x="88" y="598" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#16a34a" text-anchor="start">CDC WINS</text>
+<rect x="88" y="624" width="8" height="8" fill="#16a34a"/>
+<text x="104" y="632" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">Forbidden value transition</text>
+<text x="104" y="654" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">settled → pending: only CDC sees it</text>
+<text x="104" y="674" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#d97706" text-anchor="start">needs REPLICA IDENTITY FULL</text>
+<rect x="88" y="710" width="8" height="8" fill="#16a34a"/>
+<text x="104" y="718" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">Skipped / duplicate sequence</text>
+<text x="104" y="740" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">1003 → 1007, or a repeat</text>
+<text x="104" y="760" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#d97706" text-anchor="start">no counter or GROUP BY can</text>
+<text x="88" y="846" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#09090b" text-anchor="start">→ the real product: policies on the content of a change</text>
+<rect x="546" y="564" width="466" height="300" rx="2" fill="#ffffff" stroke="#dc2626" stroke-width="1"/>
+<text x="570" y="598" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#dc2626" text-anchor="start">CDC LOSES</text>
+<rect x="570" y="624" width="8" height="8" fill="#dc2626"/>
+<text x="586" y="632" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">Counting a burst</text>
+<text x="586" y="654" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">a Postgres counter sees the same, as fast</text>
+<rect x="570" y="692" width="8" height="8" fill="#dc2626"/>
+<text x="586" y="700" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">Duplicate rows from reruns</text>
+<text x="586" y="722" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">repeated Job names (K8s) is the better signal</text>
+<rect x="570" y="760" width="8" height="8" fill="#dc2626"/>
+<text x="586" y="768" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">Attribution: who did it</text>
+<text x="586" y="790" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">not on the wire; eBPF &amp; Cilium see only the connection</text>
+<text x="570" y="846" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#09090b" text-anchor="start">→ counting does not justify CDC. Attribution is not cheap.</text>
+<rect x="1028" y="564" width="508" height="300" rx="2" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="1052" y="598" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">GAP FOUND IN THE PRODUCT TODAY</text>
+<text x="1052" y="636" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#09090b" text-anchor="start">A slow consumer makes the replication</text>
+<text x="1052" y="660" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#09090b" text-anchor="start">slot retain WAL — the disk can fill.</text>
+<text x="1052" y="696" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">retained WAL grew, 6 ticks:</text>
+<rect x="1052" y="749" width="54" height="9" fill="#d97706"/>
+<rect x="1130" y="742" width="54" height="16" fill="#d97706"/>
+<rect x="1208" y="734" width="54" height="24" fill="#d97706"/>
+<rect x="1286" y="727" width="54" height="31" fill="#d97706"/>
+<rect x="1364" y="720" width="54" height="38" fill="#d97706"/>
+<rect x="1442" y="712" width="54" height="46" fill="#d97706"/>
+<text x="1052" y="782" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">64 kB → 1953 kB</text>
+<text x="1052" y="818" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#dc2626" text-anchor="start">The operator SEES retainedBytes rise,</text>
+<text x="1052" y="838" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#dc2626" text-anchor="start">but still reports SlotHealthy. It does not warn.</text>
+<text x="1052" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">Fixable now, independent of everything else.</text>
+<text x="64" y="908" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#ea580c" text-anchor="start" letter-spacing="1.5">WHAT WE NEED FROM YOU</text>
+<rect x="64" y="924" width="1472" height="60" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="1"/>
+<text x="88" y="962" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#09090b" text-anchor="start">Would a rule like “a settled payment must never go back to pending — stop the job and alert” be useful on your database?</text>
+<text x="1512" y="962" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="end">we don't know yet</text>
+</svg>

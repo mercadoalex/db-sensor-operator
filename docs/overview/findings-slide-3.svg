@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">What is next, and what we need from the community</title><desc id="d">Next steps: fix the slot-growth warning, and ask whether a content policy is wanted. The open question for the room: would a rule that stops a job on a forbidden data change be useful on your database?</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">WHAT IS NEXT</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">What is next</text>
+<rect x="64" y="196" width="720" height="230" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1"/>
+<text x="92" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#09090b" text-anchor="start">1.  Fix what we already found</text>
+<text x="92" y="276" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#09090b" text-anchor="start">Make the operator warn when the slot keeps</text>
+<text x="92" y="302" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#09090b" text-anchor="start">growing, not only when it hits a size cap.</text>
+<text x="92" y="346" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">Real, in the product today, independent of</text>
+<text x="92" y="370" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">everything below. This one we just do.</text>
+<rect x="816" y="196" width="720" height="230" rx="2" fill="#ffffff" stroke="#ea580c" stroke-width="1"/>
+<text x="844" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ea580c" text-anchor="start">2.  Validate the direction</text>
+<text x="844" y="276" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#09090b" text-anchor="start">Content policies are the real product, but</text>
+<text x="844" y="302" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#09090b" text-anchor="start">we do NOT yet know if anyone wants them.</text>
+<text x="844" y="346" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">Attribution (the “who”) is expensive, so a</text>
+<text x="844" y="370" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">policy must be useful on the “what” alone.</text>
+<text x="64" y="500" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ea580c" text-anchor="start" letter-spacing="2">WHAT WE NEED FROM YOU</text>
+<rect x="64" y="526" width="1472" height="200" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+<text x="96" y="584" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#09090b" text-anchor="start">Would this be useful on your database?</text>
+<text x="96" y="640" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#09090b" text-anchor="start">“A settled payment must never go back to pending.</text>
+<text x="96" y="674" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#09090b" text-anchor="start">If it does, stop the job and alert.”</text>
+<text x="1504" y="700" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="16" font-weight="400" fill="#52525b" text-anchor="end">honest answer: we don't know yet</text>
+<text x="64" y="786" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#52525b" text-anchor="start">And: is your Postgres self-operated or managed? Do you need to know WHICH workload did it, or is WHAT changed enough?</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">3 / 4</text>
+</svg>
