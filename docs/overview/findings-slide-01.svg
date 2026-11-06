@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
-<title id="t">Appendix A3: how database monitoring tools get their data</title><desc id="d">Five tools read in their public docs: they run SQL on statistics views at an interval and carry aggregates or normalized query shapes. CDC reads the write-ahead log and carries the change itself. This is a reading of documentation, not a test; CDC cost versus polling is not measured.</desc>
+<title id="t">Background: how database monitoring in Kubernetes gets its data</title><desc id="d">Five tools read in their public docs: they run SQL on statistics views at an interval and carry aggregates or normalized query shapes. CDC reads the write-ahead log and carries the change itself. This is a reading of documentation, not a test; CDC cost versus polling is not measured.</desc>
 <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
 <rect width="1600" height="900" fill="#ffffff"/>
-<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">APPENDIX A3  ·  FOR QUESTIONS, NOT PRESENTED</text>
-<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">How database monitoring gets its data</text>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">BACKGROUND  ·  THE CURRENT LANDSCAPE</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">How database monitoring in Kubernetes gets its data</text>
 <rect x="64" y="542" width="1472" height="58" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
 <rect x="64" y="196" width="1472" height="404" rx="2" fill="none" stroke="#d4d4d8" stroke-width="1"/>
 <line x1="394" y1="196" x2="394" y2="600" stroke="#d4d4d8" stroke-width="1"/>
@@ -43,5 +43,5 @@
 <text x="88" y="762" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">Five tools read, none installed or tested. Not exhaustive. Source notes: docs/research/competitive-landscape.md</text>
 <text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
 <text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
-<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A3</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">1 / 5</text>
 </svg>

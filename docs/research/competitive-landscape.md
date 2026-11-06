@@ -243,7 +243,7 @@ whether the in-cluster full-value case is common enough to lead with, or whether
 only the managed-safe subset (content policy + reaction). Decide the positioning from that, not
 from taste.
 
-## How database monitoring tools get their data (read 2026-11-05, docs only)
+## How database monitoring in Kubernetes gets its data (read 2026-11-05, docs only)
 
 Question: when a PostgreSQL runs in Kubernetes, how do the common monitoring tools obtain data
 from it, and what do they carry? Read in each tool's public docs. None was installed or tested,
@@ -279,7 +279,58 @@ What this does NOT support:
 row. That is "Kubernetes reacts to data" by **polling**, which is close to our hypothesis. From
 the repository description only; nothing else read yet. See the follow-ups below.
 
+## Ingestion by deployment scenario (first pass, 2026-11-05, docs only)
+
+Owner's hypothesis: on premise, embedded in Kubernetes and managed change how data is ingested.
+This is a reading of public docs and blogs; nothing here was run. Every claim says where it comes
+from, and what was not found is listed at the end.
+
+**What is the same in all three.** The Debezium PostgreSQL connector reads the WAL through logical
+decoding with the native `pgoutput` plug-in. It needs a replication slot and a user with enough
+privileges to replicate ([Red Hat build of Debezium](https://docs.redhat.com/ko/documentation/red_hat_build_of_debezium/3.2.7/html/debezium_user_guide/setting-up-postgresql-to-run-a-debezium-connector)).
+A slot makes PostgreSQL keep WAL until the consumer confirms it
+([Morling](https://www.morling.dev/blog/mastering-postgres-replication-slots/)). So the capture
+path is one thing. What differs is who can switch it on, what happens to the slot on failover, and
+whose disk fills.
+
+| Question | On premise (database outside the cluster) | Embedded in Kubernetes (operator or StatefulSet) | Managed (RDS, Cloud SQL, Azure) |
+|---|---|---|---|
+| Who turns on logical decoding? | You. `wal_level` must be `logical` and changes only at server start, so it needs a restart window ([Orchestra](https://www.getorchestra.io/knowledge-hub/data-tools/change-data-capture-postgresql), secondary source). A role with at least `REPLICATION` and `LOGIN`. | The same PostgreSQL settings. How the operator exposes them (and the Debezium user) was **not checked**. | RDS: set `rds.logical_replication` to 1 in a custom parameter group; it is static, so a reboot is needed ([AWS](https://aws.amazon.com/premiumsupport/knowledge-center/rds-postgresql-use-logical-replication/)); logical replication needs `rds_superuser` ([AWS Aurora](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.Replication.Logical.Configure.html)). Cloud SQL and Azure document logical decoding ([Cloud SQL](https://cloud.google.com/sql/docs/postgres/replication/configure-logical-replication), [Azure](https://learn.microsoft.com/bs-latn-ba/Azure/postgresql/flexible-server/concepts-logical)); exact flag names and restart behaviour **not checked**. |
+| What happens to the slot on failover? | PostgreSQL 16 and earlier: logical slots live only where they were created and do not follow a promotion ([Decodable](https://www.decodable.co/blog/logical-replication-from-postgres-16-stand-by-servers-part-2-of-2)). Recreating the slot starts at the current position, so changes in between are never decoded ([blog](https://pipelinewhiteboard.hashnode.dev/silent-cdc-bug-data-loss-with-no-errors)). | The same PostgreSQL rule. A CloudNativePG discussion states a replication slot exists only on the instance that created it ([cnpg #3144](https://github.com/cloudnative-pg/cloudnative-pg/discussions/3144)); that discussion is about streaming replication. Whether CloudNativePG carries a Debezium logical slot across a switchover was **not found**. | PostgreSQL 17 added failover slots, synchronised to a standby ([Morling](https://www.morling.dev/blog/failover-replication-slots-with-postgres-17/)). RDS supports it from RDS for PostgreSQL 17 with several parameters set ([AWS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.PostgreSQL.CommonDBATasks.pglogical.slot.synchronization.html)). The AWS example is built around a subscription created with `failover = true`; whether a Debezium slot can use it was **not verified**. |
+| Where does retained WAL land? | Your disk. A stuck slot keeps WAL; with `max_slot_wal_keep_size = -1` the retention is unlimited, and a finite limit protects the disk but can make a lagging slot lost ([Estuary](https://estuary.dev/blog/postgresql-replication-slots/)). If the disk fills, PostgreSQL cannot checkpoint and rejects writes for every application ([Netdata](https://www.netdata.cloud/guides/postgres/postgres-replication-slot-bloat/)). | Your volume, through the operator. Same risk. | The provider's storage. How each provider alarms, bills or caps this was **not found**. |
+| Where does the connector run, and how does it reach the database? | In the cluster, outbound to a database outside it. Firewall, routing and TLS are on you. **Not researched.** | In the cluster, next to the database. **Not researched.** | In the cluster, outbound to a provider endpoint. Network path (security groups, private link) **not researched.** |
+
+What this suggests (a reading, not a measurement):
+- The capture is the same everywhere. The scenarios differ in **operational risk**: who must
+  reboot or restart to enable it, whether the slot survives a failover, and whose disk fills.
+- The failover case matches a pattern we already found: a CDC pipeline can stop with no crash and
+  no alert while a lag counter climbs ([dbi services](https://www.dbi-services.com/blog/surviving-a-patroni-failover-with-logical-replication/?lang=de)).
+  We have **not tested** what Lactifluus reports after a failover. It is a candidate experiment.
+- PostgreSQL version matters: 17 and later changes the failover story. Ask users which version and
+  which HA setup they run (R8).
+- Dynatrace-style polling does not need any of this: it queries over a normal connection. The
+  price of CDC is that setup and slot risk, in exchange for the change itself.
+
+Not verified or not found:
+- Cloud SQL flag name and restart behaviour; Azure parameter and restart behaviour.
+- How CloudNativePG declares the Debezium user and `pg_hba`, and whether it syncs logical slots.
+- Whether Debezium can create its slot as a failover slot on PostgreSQL 17.
+- How managed providers alarm, bill or cap retained WAL.
+- Network paths from the cluster to an on premise or managed database.
+- MySQL and MongoDB: only PostgreSQL was read.
+
 ## Open follow-ups
+
+- **Three deployment scenarios change how data is ingested (owner's hypothesis, 2026-11-05).**
+  First pass is the section above; the gaps are listed there.
+  Compare **on premise** (database outside the cluster, on a VM or bare metal), **embedded in
+  Kubernetes** (CloudNativePG or another operator, or a bare StatefulSet) and **managed** (RDS,
+  Cloud SQL, Azure). Note this is not the same split as the three cases above, which separate
+  managed / in-cluster with an operator / bare StatefulSet and have no on-premise-outside-cluster
+  case. The sections above compare *capabilities*; this follow-up compares the *ingestion path*:
+  how Debezium reaches the database, who can enable logical replication and with which
+  permissions, what happens to a replication slot on failover, where retained WAL lands (disk you
+  control or the provider's), and where the connector runs. None of this is researched yet.
 
 - **Review db-query-operator** (and other database monitoring tools) properly: what triggers it,
   what it can react to, how it scales, whether it sees order or only current state. This closes

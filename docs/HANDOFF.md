@@ -57,7 +57,7 @@ Strategic open question (Mario Fiore Vitale, 2026-10-31):
 
 ## Pending, added 2026-11-05 (community slides review)
 
-1. **Pending experiment (decides slide 0).** Does a `DatabaseSensor` that never receives an event
+1. **Pending experiment (decides slide 02).** Does a `DatabaseSensor` that never receives an event
    ever alert? Reading `internal/health/checker.go` suggests not: a running pod with zero events
    ever returns `Pending` ("startup, NOT Degraded"), and a grep found no timeout or grace period
    on `Pending`. This is a code reading, not a test. Run it in kind: a sensor with no events,
@@ -70,7 +70,12 @@ Strategic open question (Mario Fiore Vitale, 2026-10-31):
    monitored that database.
 3. **Review db-query-operator and other database monitoring tools** (see "Open follow-ups" in
    `docs/research/competitive-landscape.md`). Closes the gap in Appendix A1.
-4. Fill the live GitHub stars and Helm installs placeholder on slide 1.
+3b. **Ingestion by deployment scenario** (on premise, embedded in Kubernetes, managed). The owner
+   thinks the three change how data is ingested. First pass done from docs (2026-11-05), section
+   "Ingestion by deployment scenario" in `docs/research/competitive-landscape.md`, with the gaps
+   listed there. Candidate experiment: what does Lactifluus report after a primary failover when the
+   logical slot is gone? Not tested.
+4. Fill the live GitHub stars and Helm installs placeholder on slide 03.
 5. Optional: soften "no counter or GROUP BY can" in `bench/experiments/FINDINGS.md` and
    `competitive-landscape.md` to match slide 2.
 6. The slide generator lives only in `/tmp/gen_slides.py`; decide whether to keep it in the repo.
