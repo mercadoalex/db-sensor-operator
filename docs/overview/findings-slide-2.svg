@@ -13,7 +13,7 @@
 <rect x="92" y="376" width="10" height="10" fill="#16a34a"/>
 <text x="112" y="386" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#09090b" text-anchor="start">Skipped / duplicate sequence</text>
 <text x="112" y="412" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">invoice 1003 then 1007, or a repeat</text>
-<text x="112" y="436" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#d97706" text-anchor="start">no counter or GROUP BY can do this</text>
+<text x="112" y="436" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#d97706" text-anchor="start">a counter cannot see order; CDC sees it live</text>
 <text x="92" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ the real product: policies on the CONTENT of a change</text>
 <rect x="800" y="196" width="736" height="300" rx="2" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
 <text x="828" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#dc2626" text-anchor="start">CDC LOSES — a counter or K8s already wins</text>

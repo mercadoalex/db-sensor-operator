@@ -2,7 +2,7 @@
 
 - **Status:** Draft. An exploration, NOT a decision. Nothing here is built, and several claims
   are unverified (listed at the end). Attribution is the extra, not the core of the product.
-- **Date:** 2026-10-30
+- **Date:** 2026-11-05
 - **Context:** `bench/experiments/FINDINGS.md`, `attribution/RESULTS.md`,
   `attribution-ebpf/RESULTS.md`, `attribution-ebpf/UPROBE-NOTES.md`,
   `docs/research/competitive-landscape.md`. Relates to ADR-015 (adoption ladder) and ADR-016
