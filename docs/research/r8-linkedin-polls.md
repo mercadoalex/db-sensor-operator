@@ -21,6 +21,21 @@ None of the polls names CDC, Debezium or Lactifluus, as the R8 guide asks
 
 ## Poll 1 — the pain (publish first)
 
+**Published 2026-11-06 (English, 1 week)** with the shorter question below. The first attempt
+said the text was too long; the likely cause was the post text pasted into the question field (the
+post text is 240 characters, the question 73). Hashtags used: #PostgreSQL #SRE #DevOps
+#PlatformEngineering #Kubernetes (no #CDC or #Debezium, to avoid priming).
+
+| Published (EN) | |
+|---|---|
+| Question | Has a job or deploy ever changed data unexpectedly? How did you find out? |
+| 1 | An alert caught it |
+| 2 | A customer told us |
+| 3 | By chance, later |
+| 4 | Never happened to us |
+
+The longer versions below were the drafts.
+
 **Post (ES)**
 > Pregunta rápida para quienes operan bases de datos: ¿alguna vez un job, una migración o un deploy cambió datos de una forma que no esperaban? Si les pasó, me encantaría leer la historia en los comentarios: qué pasó y cuánto tardaron en darse cuenta.
 
