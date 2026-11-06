@@ -54,7 +54,8 @@ the capture.
 Separate from the Strimzi/Connect path, there is an official **Debezium Operator** that manages
 **Debezium Server** instances on Kubernetes (Helm `debezium/debezium-operator`, on OperatorHub).
 This is the one Lactifluus creates `DebeziumServer` CRs for. It handles the lifecycle of the
-Server process. It does **not**: derive observability signals, evaluate policies on change
+Server process. The Server it runs does expose native connector metrics (JMX counters; see
+ADR-013 for how our derived counts relate to them). It does **not**: evaluate policies on change
 content, diagnose replication-slot risk, or react in the cluster. That gap is the whole reason
 Lactifluus exists.
 
@@ -65,7 +66,7 @@ Lactifluus exists.
 | Run Kafka / Connect on K8s | yes | via Strimzi | no | no (by design) |
 | Run Debezium Server on K8s | no | no | **yes** | orchestrates it |
 | Emit change events | no | yes (to Kafka) | yes (to a sink) | consumes them |
-| Derive metrics from the stream | no | JMX counters exist | no | yes |
+| Metrics about the stream | no | JMX counters exist | JMX counters exist (Debezium Server's connectors expose them too) | yes, derived from the events (ADR-013) |
 | Diagnose replication-slot / WAL risk | no | no | no | yes (with a known gap, see backpressure) |
 | Evaluate a policy on change *content* | no | no | no | prototyped in experiments, unbuilt |
 | React in Kubernetes to the data | no | no | no | the proposed direction, unbuilt |
@@ -94,14 +95,15 @@ many factors. The question: is there a scenario where Lactifluus is clearly bett
 
 Hypothesis (grounded in the experiments, not market-validated): **Lactifluus delivers its full
 value when the database is in the cluster; with a managed database it still gives the reaction
-layer and content policies, but loses the deep slot diagnosis and kernel-level attribution.** So
+layer and content policies, but loses the deep slot diagnosis and server-side probes.** So
 it is "full vs partial", not "works vs does not".
 
 | Capability | DB in cluster (StatefulSet) | Managed DB (RDS, Cloud SQL) |
 |---|---|---|
 | Observe the slot, diagnose WAL | Yes | Partial: the slot is visible over SQL, but free disk and some server settings are not |
 | `REPLICA IDENTITY FULL` for content policies | You control the DB, you set it | Depends on provider permissions; often possible |
-| Attribution via eBPF / `txId` (node access) | Possible | **Impossible** — no access to the DB node (measured, `attribution-ebpf/UPROBE-NOTES.md`) |
+| Server-side attribution (a uprobe for the `txId`; needs access to the DB node) | Possible | **Impossible** — the server runs on the provider's machine (`attribution-ebpf/UPROBE-NOTES.md`) |
+| Client-side attribution (which pod opened the connection) | Possible | **Possible** — the client pod runs on a node we control (see ADR-017) |
 | Content policy (value transition, sequence) | Yes | Yes — only needs Debezium to connect and the right replica identity |
 | React in Kubernetes (stop a Job, alert) | Yes | **Yes** — the reaction is on the K8s side, independent of the DB |
 | "Same cluster, one YAML" story | Fits naturally | The DB lives outside; the story splits |
@@ -112,15 +114,18 @@ What does NOT change with a managed DB (do not overstate the in-cluster advantag
 - **Content policies** work against any database Debezium can reach, with the right replica
   identity. They do not need node access.
 
-What is lost with a managed DB: the deep slot/disk diagnosis, and attribution by kernel/node
-(eBPF, uprobe) — which `attribution-ebpf/UPROBE-NOTES.md` already found is impossible on managed
-databases. So our single most distinctive capability (per-change attribution) serves only
-in-cluster databases.
+What is lost with a managed DB: the deep slot/disk diagnosis, and every server-side probe (a
+uprobe on the PostgreSQL process is impossible there, per `attribution-ebpf/UPROBE-NOTES.md`).
+Client-side attribution (which pod connected) is not lost: it works for any database.
+
+The capability we have actually demonstrated is the content policy (`row-content`,
+`sequence-gap`), and it works on managed databases. Per-change attribution is not demonstrated
+(see `attribution/RESULTS.md`, ADR-017); it is the add-on, not the core.
 
 Honest caveat: this is technical analysis, not market evidence. Many teams run managed Postgres
-precisely to avoid operating the database. If the market is mostly managed, our strongest
-differentiator (attribution) serves few, and the value narrows to content policies + reaction,
-which do work on managed. This is a real bet to validate, not a fact.
+precisely to avoid operating the database. If the market is mostly managed, the full-value
+in-cluster scenario serves fewer teams, and the value rests on content policies + reaction, which
+do work on managed. This is a real bet to validate, not a fact.
 
 ### What the industry surveys say (and what they do not)
 
@@ -154,7 +159,7 @@ our full-value case:
 
 1. **Managed DB, outside the cluster.** The app runs on K8s, the database is an RDS / Cloud SQL
    outside it. Some surveys still count this as "uses K8s with a database". Here Lactifluus loses
-   kernel-level attribution and deep slot/disk diagnosis.
+   server-side probes and deep slot/disk diagnosis.
 2. **In-cluster DB via an operator** (CloudNativePG, Percona, Crunchy, Zalando). Self-hosted, but
    an operator handles backups, failover, upgrades. **Lactifluus has its full value here.**
 3. **In-cluster DB as a bare StatefulSet** (no operator, like our bench). Also full value, but

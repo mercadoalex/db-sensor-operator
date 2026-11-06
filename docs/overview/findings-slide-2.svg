@@ -25,8 +25,8 @@
 <text x="848" y="380" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">repeated Job names in Kubernetes is the better signal</text>
 <rect x="828" y="412" width="10" height="10" fill="#dc2626"/>
 <text x="848" y="422" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#09090b" text-anchor="start">Attribution: which workload did it</text>
-<text x="848" y="448" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">not on the wire; eBPF and Cilium see only the connection</text>
-<text x="828" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ counting does not justify CDC. Attribution is not cheap.</text>
+<text x="848" y="448" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">not on the wire; eBPF sees only the connection (exploring Hubble)</text>
+<text x="828" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ counting does not justify CDC. The “who” is unresolved.</text>
 <rect x="64" y="528" width="1472" height="258" rx="2" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
 <text x="92" y="568" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">A GAP WE FOUND IN THE PRODUCT TODAY</text>
 <text x="92" y="612" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="600" fill="#09090b" text-anchor="start">A slow consumer makes the replication slot retain WAL. The disk can fill,</text>

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">Appendix A1: where Lactifluus sits next to Strimzi and the Debezium operators</title><desc id="d">Strimzi runs Kafka on Kubernetes. Debezium can run on Kafka Connect or as a standalone Server, each with its own operator. Lactifluus sits on top of a running Debezium Server and adds metrics, slot diagnosis and a proposed policy and reaction layer. From public docs read on 2026-11-05; not an exhaustive audit.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">APPENDIX A1  ·  FOR QUESTIONS, NOT PRESENTED</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">Where Lactifluus sits</text>
+<rect x="1288" y="196" width="248" height="420" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+<rect x="64" y="196" width="1472" height="420" rx="2" fill="none" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="544" y1="196" x2="544" y2="616" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="792" y1="196" x2="792" y2="616" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="1040" y1="196" x2="1040" y2="616" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="1288" y1="196" x2="1288" y2="616" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="252" x2="1536" y2="252" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="304" x2="1536" y2="304" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="356" x2="1536" y2="356" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="408" x2="1536" y2="408" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="460" x2="1536" y2="460" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="512" x2="1536" y2="512" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="564" x2="1536" y2="564" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="616" x2="1536" y2="616" stroke="#d4d4d8" stroke-width="1"/>
+<text x="78" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start"></text>
+<text x="558" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Strimzi</text>
+<text x="806" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Debezium on Kafka Connect</text>
+<text x="1054" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Debezium Server operator</text>
+<text x="1302" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">Lactifluus</text>
+<text x="78" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Runs Kafka and Connect on Kubernetes</text>
+<text x="558" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">yes</text>
+<text x="806" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">via Strimzi</text>
+<text x="1054" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1302" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no, by design</text>
+<text x="78" y="336" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Runs Debezium Server on Kubernetes</text>
+<text x="558" y="336" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="336" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1054" y="336" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">yes</text>
+<text x="1302" y="336" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">orchestrates it</text>
+<text x="78" y="388" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Emits change events</text>
+<text x="558" y="388" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="388" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">yes, to Kafka</text>
+<text x="1054" y="388" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">yes, to a sink</text>
+<text x="1302" y="388" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">consumes them</text>
+<text x="78" y="440" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Metrics about the stream</text>
+<text x="558" y="440" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="440" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">JMX counters exist</text>
+<text x="1054" y="440" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">JMX counters exist</text>
+<text x="1302" y="440" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">derived from events</text>
+<text x="78" y="492" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Diagnoses replication-slot / WAL risk</text>
+<text x="558" y="492" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="492" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1054" y="492" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1302" y="492" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#09090b" text-anchor="start">yes, with a known gap</text>
+<text x="78" y="544" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Policy on the content of a change</text>
+<text x="558" y="544" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="544" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1054" y="544" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1302" y="544" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#d97706" text-anchor="start">prototyped, unbuilt</text>
+<text x="78" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="500" fill="#09090b" text-anchor="start">Reacts in Kubernetes to the data</text>
+<text x="558" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="806" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1054" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
+<text x="1302" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#d97706" text-anchor="start">proposed, unbuilt</text>
+<rect x="64" y="650" width="1472" height="112" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88" y="690" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#09090b" text-anchor="start">Capture is a commodity: three runtimes, two operators, an official guide.</text>
+<text x="88" y="722" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">Our only defensible ground is the reaction layer on top of a running Debezium Server, which none of them do.</text>
+<text x="88" y="748" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">From public docs read on 2026-11-05  ·  not an exhaustive audit  ·  docs/research/competitive-landscape.md</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A1</text>
+</svg>

@@ -20,7 +20,7 @@ per-change attribution, not a time-window guess.
 
 ## Cons (why it is parked)
 
-- **Managed databases: impossible.** RDS, Cloud SQL, Azure DB do not let you run probes on the server. A large share of users are on managed Postgres, so it serves none of them.
+- **Managed databases: impossible for this approach.** RDS, Cloud SQL, Azure DB do not let you run probes on the server, and a uprobe lives on the server. A large share of users are on managed Postgres, so this approach serves none of them. (Client-side observation, meaning which pod connected, still works there; this note is only about the server-side uprobe.)
 - **Needs privileged access on the database node.** Many teams will not grant eBPF on their DB host in production.
 - **Version-coupled and fragile.** It hooks an internal function; a different Postgres version, build, or stripped binary breaks it. Every upgrade is a revalidation.
 - **Symbols.** Without debug symbols, it means hand-resolved offsets, more fragile still.

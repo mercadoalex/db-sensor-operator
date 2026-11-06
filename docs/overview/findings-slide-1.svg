@@ -7,7 +7,7 @@
 <text x="64" y="214" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#ea580c" text-anchor="start">But can it have a place inside Kubernetes?</text>
 <rect x="64" y="258" width="1472" height="104" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
 <text x="88" y="296" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#09090b" text-anchor="start">There is already an official Debezium Operator for Kubernetes.</text>
-<text x="88" y="324" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Installed via Helm (debezium/debezium-operator), listed on OperatorHub. So the base is solved.</text>
+<text x="88" y="324" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Helm install (debezium/debezium-operator), on OperatorHub. Capture is solved: 3 Debezium runtimes, this operator, and Strimzi for Kafka.</text>
 <text x="88" y="348" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">github.com/debezium/debezium-operator   ·   operatorhub.io/operator/debezium-operator</text>
 <rect x="1180" y="276" width="332" height="68" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1" stroke-dasharray="5 4"/>
 <text x="1346" y="304" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">[ add live numbers before the talk:</text>

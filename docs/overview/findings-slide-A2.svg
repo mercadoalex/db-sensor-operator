@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">Appendix A2: attribution is an exploration, not a decision</title><desc id="d">Identity is declared, not discovered. Hubble could supply the who (which pod connected), CDC supplies the what (which change), and joining them is the open piece. Options are kept open and several claims are not verified.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#d97706" text-anchor="start" letter-spacing="2">APPENDIX A2  ·  EXPLORATION, NOT A DECISION</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">Attribution: who made the change?</text>
+<rect x="64" y="196" width="700" height="250" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1"/>
+<text x="92" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">THE PRINCIPLE</text>
+<text x="92" y="282" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#09090b" text-anchor="start">Identity is declared, not discovered.</text>
+<text x="92" y="322" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">An IP address is not an identity. Resolving it</text>
+<text x="92" y="348" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">after the fact is a bet against IP reuse.</text>
+<text x="92" y="392" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#09090b" text-anchor="start">Resolve it atomically, where the connection is made.</text>
+<text x="92" y="420" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">Cilium Hubble already exposes pod identity per flow.</text>
+<rect x="800" y="196" width="736" height="250" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1"/>
+<text x="828" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">THE TWO HALVES</text>
+<text x="828" y="284" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#09090b" text-anchor="start">Who opened the connection?</text>
+<text x="828" y="310" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">Hubble (pod identity). Delegated, not built by us.</text>
+<text x="828" y="340" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#09090b" text-anchor="start">What changed in the data?</text>
+<text x="828" y="366" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">CDC (txId, row content). Ours, measured.</text>
+<text x="828" y="396" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#ea580c" text-anchor="start">How do the two join?</text>
+<text x="828" y="422" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">By time, as the txId is not on the wire. OPEN.</text>
+<text x="64" y="484" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">HONEST OUTCOMES  ·  NEVER A SILENT GUESS</text>
+<rect x="64" y="500" width="472" height="96" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<text x="84" y="538" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#09090b" text-anchor="start">exact</text>
+<text x="84" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">One candidate pod matches. We report it.</text>
+<rect x="564" y="500" width="472" height="96" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<text x="584" y="538" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#09090b" text-anchor="start">ambiguous</text>
+<text x="584" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">Several match. We list them, never pick one.</text>
+<rect x="1064" y="500" width="472" height="96" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<text x="1084" y="538" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#09090b" text-anchor="start">unknown_source</text>
+<text x="1084" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">No match. The change is still recorded.</text>
+<text x="64" y="622" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">A pooler is flagged, not blamed on the app. Not covered: DDL on PostgreSQL. Options stay open (Hubble, Cilium plugin, own sock_ops); porting Cilium's datapath is ruled out.</text>
+<rect x="64" y="646" width="1472" height="150" rx="2" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="92" y="680" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">NOT VERIFIED  ·  do not present as fact</text>
+<rect x="92" y="702" width="8" height="8" fill="#d97706"/>
+<text x="112" y="712" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">That Hubble flows let us ask which connections were open at time T, not only when one opened.</text>
+<rect x="92" y="724" width="8" height="8" fill="#d97706"/>
+<text x="112" y="734" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">How pooled connections (for example PgBouncer) appear: identity may land on the pooler.</text>
+<rect x="92" y="746" width="8" height="8" fill="#d97706"/>
+<text x="112" y="756" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">That a time-window join is accurate enough for short-lived Jobs.</text>
+<rect x="92" y="768" width="8" height="8" fill="#d97706"/>
+<text x="112" y="778" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">That anyone needs per-change attribution at all. That is what we ask the community.</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A2</text>
+</svg>
