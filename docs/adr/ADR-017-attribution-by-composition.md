@@ -87,8 +87,9 @@ Options kept open, none chosen:
 
 Leads from the landscape review (2026-11-06, docs only; see
 `docs/research/competitive-landscape.md`):
-- **Coroot** already uses eBPF on the client side of the database connection. A data point for
-  delegating the "who" rather than rebuilding it.
+- **Coroot** already uses eBPF on the client side of the database connection. Its code (read, not
+  run) puts the statement text and the client container in each Postgres span. A test on our kind
+  bench was inconclusive, probably because the node is nested (`attribution-coroot/RESULTS.md`).
 - **pganalyze query tags** let a workload declare who it is in a SQL comment (job name, user ID,
   trace ID). The comment shows in `pg_stat_activity` and statement logs; whether it reaches the CDC
   event is not verified. The log-plus-xid join was then tested (option D); the comment tag appears in
