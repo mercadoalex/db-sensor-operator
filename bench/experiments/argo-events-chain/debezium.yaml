@@ -1,0 +1,35 @@
+# A second DebeziumServer, separate from the sensor's, with a Kafka sink and its own slot.
+# Only public.payments. JSON without schemas, so the event body is the plain envelope
+# (before / after / source / op) and a data filter can address body.before.status.
+apiVersion: debezium.io/v1alpha1
+kind: DebeziumServer
+metadata: { name: argo-cdc, namespace: bench }
+spec:
+  runtime:
+    environment:
+      from:
+        - prefix: DATABASE_
+          secretRef: { name: bench-pg-creds }
+  sink:
+    type: kafka
+    config:
+      producer.bootstrap.servers: argo-kafka.bench.svc.cluster.local:9092
+      producer.key.serializer: org.apache.kafka.common.serialization.StringSerializer
+      producer.value.serializer: org.apache.kafka.common.serialization.StringSerializer
+  format:
+    key:   { type: json, config: { schemas.enable: "false" } }
+    value: { type: json, config: { schemas.enable: "false" } }
+  source:
+    class: io.debezium.connector.postgresql.PostgresConnector
+    config:
+      connector.class: io.debezium.connector.postgresql.PostgresConnector
+      database.dbname: bench
+      database.hostname: bench-postgres
+      database.password: ${DATABASE_password}
+      database.port: "5432"
+      database.user: bench
+      plugin.name: pgoutput
+      slot.name: argo_test_slot
+      snapshot.mode: no_data
+      table.include.list: public.payments
+      topic.prefix: argotest

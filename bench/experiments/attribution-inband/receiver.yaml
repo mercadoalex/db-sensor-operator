@@ -1,0 +1,53 @@
+# Throwaway receiver for the in-band attribution experiment. For the orders table it prints
+# the op, the transaction id, the LSN and the customer (the value we write per session), so a
+# CDC event can be tied to a PostgreSQL log line by transaction id.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inband-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            try:
+                d = json.loads(body)
+                p = d.get("payload") or d
+                s = p.get("source") or {}
+                a = p.get("after") or {}
+                if s.get("table") == "orders" and p.get("op") in ("c", "u", "d"):
+                    print("EVENT op=%s txId=%s lsn=%s customer=%s ts_ms=%s" % (
+                        p.get("op"), s.get("txId"), s.get("lsn"), a.get("customer"), s.get("ts_ms")), flush=True)
+            except Exception as e:
+                print("EVENT-PARSE-ERROR", e, flush=True)
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inband-receiver
+  namespace: bench
+  labels: { app: inband-receiver }
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "/code/receiver.py"]
+      volumeMounts: [{ name: code, mountPath: /code }]
+  volumes:
+    - name: code
+      configMap: { name: inband-receiver-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inband-receiver
+  namespace: bench
+spec:
+  selector: { app: inband-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]

@@ -37,6 +37,13 @@ trusting that an informer is already in sync. All are guesses about what a socke
 - Declaring identity **in-band does not apply to PostgreSQL as it does to HTTP**: the channel is
   the PostgreSQL protocol, which has no headers. The closest field is `application_name`, which
   the measurements above show does not reach the CDC event.
+- **But the server log can carry the link** (`attribution-inband/RESULTS.md`, 2026-11-06, one run,
+  PostgreSQL 16). With `%a` (application_name) and `%x` (transaction id) in `log_line_prefix`, and
+  statements logged **after** they run (`log_min_duration_statement = 0`), the xid in the log line of
+  a workload's first write equalled the `txId` of its CDC event, for two sessions that committed in
+  the same millisecond. With `log_statement = 'mod'` the id is `0` (the line is written before the
+  statement runs) and the join fails. The cost is logging every statement, with its literal values;
+  see the RESULTS for what is not verified.
 
 ## The two halves of the problem (the part the principle alone does not cover)
 
@@ -46,10 +53,10 @@ The principle above resolves **who opened the connection**. Our problem has a se
 |---|---|---|
 | Who opened the connection? | Hubble / eBPF (pod identity, atomic) | Delegated, not built by us |
 | What changed in the data? | CDC (`txId`, row content) | Ours, measured (`row-content`) |
-| How do the two join? | Time window on the connection, since the txId is not on the wire | **The open piece** (see "Correlation strategy") |
+| How do the two join? | Time window on the connection (the txId is not on the wire), or the `txId` through the server log when the workload declares `application_name` (costly, measured once) | **The open piece** (see "Correlation strategy") |
 
-So even with perfect identity, the join "this connection <-> this transaction" is by time, not
-atomic. We inherit a smaller race: not in the "who", but in pairing who with what.
+So even with perfect identity at the network layer, the join "this connection <-> this transaction"
+is by time, not atomic. The server-log route above is the one measured way around it. We inherit a smaller race: not in the "who", but in pairing who with what.
 
 ## The decision space (exploration, no choice made)
 
@@ -73,6 +80,19 @@ Options kept open, none chosen:
 - **B. A Cilium plugin/extension** instead of a separate consumer.
 - **C. A minimal `sock_ops` program of our own**, only if there is real demand outside Cilium.
   It would reuse the idea (cgroup ID attached to the socket at accept), not Cilium's code.
+
+- **D. Declare in-band and read the server log** (measured once, conditional; see above and
+  `attribution-inband/RESULTS.md`). Exact on the `txId`, but needs the workload to set
+  `application_name` and the server to log every statement.
+
+Leads from the landscape review (2026-11-06, docs only; see
+`docs/research/competitive-landscape.md`):
+- **Coroot** already uses eBPF on the client side of the database connection. A data point for
+  delegating the "who" rather than rebuilding it.
+- **pganalyze query tags** let a workload declare who it is in a SQL comment (job name, user ID,
+  trace ID). The comment shows in `pg_stat_activity` and statement logs; whether it reaches the CDC
+  event is not verified. The log-plus-xid join was then tested (option D); the comment tag appears in
+  the logged statement text. How pganalyze itself uses the tags was not tested.
 
 Ruled out: porting a large part of Cilium's datapath. It is a subsystem, not a function, and
 maintaining it (eBPF maps, BTF, kernel-version compatibility) is exactly the work Cilium already
@@ -216,6 +236,9 @@ data layer). Which one users need first is a question for the conversations (R8)
 - That Hubble does **not** parse the PostgreSQL protocol at L7. Inferred from the L7 protocols
   seen in the docs (HTTP, DNS, Kafka, gRPC); not confirmed.
 - That a join by connection time window is accurate enough in practice for short-lived Jobs.
+- Option D at scale: the volume and overhead of logging every statement, poolers passing
+  `application_name`, 64-bit transaction ids and wraparound, and managed databases allowing the
+  settings. Only a single local run exists.
 - The cgroup-ID-at-accept mechanism (`sock_ops` / `sk_msg`) and Hubble's use of it come from
   the author's study notes, not from a test of ours.
 - Whether a Cilium plugin is a viable extension point for this.
@@ -238,7 +261,8 @@ data layer). Which one users need first is a question for the conversations (R8)
 - **Two halves:** the "who" (connection, pod identity) comes from the network layer; the "what"
   (row content, order) comes from CDC. We measured the CDC half. The "who" is delegated.
 - **Measured:** the CDC event has no client identity, and a socket probe sees the connection but
-  not the transaction. The join between the two can only be by time.
+  not the transaction. The join between the two is by time, unless the workload declares
+  `application_name` and the server log is used (costly, measured once).
 - **Honest outcomes:** exact, ambiguous, or `unknown_source`. Never a silent guess. A pooler is
   flagged, not blamed on the application.
 - **Not covered:** DDL on PostgreSQL (CDC does not carry it).

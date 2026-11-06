@@ -18,7 +18,7 @@
 <text x="828" y="340" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#09090b" text-anchor="start">What changed in the data?</text>
 <text x="828" y="366" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">CDC (txId, row content). Ours, measured.</text>
 <text x="828" y="396" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#ea580c" text-anchor="start">How do the two join?</text>
-<text x="828" y="422" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">By time, as the txId is not on the wire. OPEN.</text>
+<text x="828" y="422" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">By time, or by txId via the server log (costly, one run). OPEN.</text>
 <text x="64" y="484" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">HONEST OUTCOMES  ·  NEVER A SILENT GUESS</text>
 <rect x="64" y="500" width="472" height="96" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
 <text x="84" y="538" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#09090b" text-anchor="start">exact</text>
