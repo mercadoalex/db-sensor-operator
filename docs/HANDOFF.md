@@ -68,7 +68,7 @@ Strategic open question (Mario Fiore Vitale, 2026-10-31):
    as a fact on stage. Facts only the owner has, still open: environment (test, staging or
    production), how it was noticed, how long to fix, whether anything alerted, what else
    monitored that database.
-3. **Review db-query-operator and other database monitoring tools** (see "Open follow-ups" in
+3. **db-query-operator reviewed (2026-11-05, see its section); still open: other database monitoring and database-driven Kubernetes tools** (see "Open follow-ups" in
    `docs/research/competitive-landscape.md`). Closes the gap in Appendix A1.
 3b. **Ingestion by deployment scenario** (on premise, embedded in Kubernetes, managed). The owner
    thinks the three change how data is ingested. First pass done from docs (2026-11-05), section

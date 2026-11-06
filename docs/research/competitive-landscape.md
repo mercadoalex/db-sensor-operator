@@ -272,12 +272,53 @@ What this does NOT support:
 - That no monitoring tool uses the WAL or CDC. Only five were read.
 - That any of these cannot react inside Kubernetes. Not checked.
 
-### A closer neighbour to check: db-query-operator
+### Review: db-query-operator (read 2026-11-05)
 
-[konnektr-io/db-query-operator](https://github.com/konnektr-io/db-query-operator) polls a database
-(PostgreSQL), runs a user-defined SQL query and renders Kubernetes manifests from each returned
-row. That is "Kubernetes reacts to data" by **polling**, which is close to our hypothesis. From
-the repository description only; nothing else read yet. See the follow-ups below.
+[konnektr-io/db-query-operator](https://github.com/konnektr-io/db-query-operator). Read from the
+repository: README, the `docs/` pages (core concepts, advanced), `.github/PLATFORM_SCOPE.md` and
+repository metadata. The code was not run and the controller source was not read line by line.
+
+**What it is.** A Kubernetes operator where a `DatabaseQueryResource` holds a SQL query and a Go
+template. On an interval it runs the query against PostgreSQL and renders one Kubernetes resource
+per returned row, then creates, updates and (optionally) prunes resources so the cluster matches
+the query result. It can write a status back to the database. Apache-2.0, written in Go.
+
+**Maturity (from GitHub, 2026-11-05).** Created March 2025, last push 2026-10-01, release v0.11.2,
+21 stars, 0 forks, 2 open issues. A small project. It is a component of the author's own platform:
+`PLATFORM_SCOPE.md` calls it part of the "control plane" that reconciles desired and actual state.
+
+**How it gets the data.** SQL polling. With `changeDetection` on, it runs a light
+`SELECT 1 ... WHERE <timestamp column> > <last seen> LIMIT 1` every 10 s by default and runs the
+full query only when something changed; a full reconcile still happens every `pollInterval`. This
+relies on a timestamp column the user must maintain (the docs suggest a trigger). The last seen
+timestamp is kept in memory. Per its docs it detects inserts and updates, not deletes; deletes are
+handled by pruning when a row disappears from the query result.
+
+**What it carries.** The current result of a query at poll time. No history, no order of
+changes, no before-image.
+
+**What it reacts with.** It creates, updates and deletes Kubernetes resources that mirror rows.
+That is "the database is the desired state", not "react to how the data behaves".
+
+**Why it is not the same as our hypothesis.**
+- Direction: it turns rows into cluster state (provisioning). We want to detect a change in the
+  data (a forbidden transition, a skipped sequence) and make Kubernetes act on it.
+- Source: polled current state versus the WAL. Our row-content and sequence-gap experiments
+  needed the before-image and the order, which a current-state query does not provide.
+  (This last step is my inference from its docs, not a test.)
+- It needs a timestamp column and a trigger on the user's tables; CDC needs logical replication.
+  Different intrusion, different risk.
+
+**Where it is relevant to us.**
+- It shows that "Kubernetes driven by database rows" already has users, and does it by polling.
+  Someone could approximate a rule on a *current state* with it (a query for rows in a bad state).
+  It cannot see that a row *went* from one value to another unless the schema stores that history.
+- It uses CloudNativePG secrets directly (`uriKey: fqdn-uri`). Worth copying as a pattern for how
+  we read connection details, which ties to the CloudNativePG question.
+- Its admission webhook rejects bad specs at `kubectl apply`. We already list that in the roadmap.
+
+**What was not checked.** Whether it can stop a Job or only manage resources it renders from
+templates; its behaviour at scale; the controller code; any users or production reports.
 
 ## Ingestion by deployment scenario (first pass, 2026-11-05, docs only)
 
@@ -332,9 +373,9 @@ Not verified or not found:
   permissions, what happens to a replication slot on failover, where retained WAL lands (disk you
   control or the provider's), and where the connector runs. None of this is researched yet.
 
-- **Review db-query-operator** (and other database monitoring tools) properly: what triggers it,
-  what it can react to, how it scales, whether it sees order or only current state. This closes
-  the gap left by Appendix A1, which only covers the Debezium and Strimzi ecosystem.
+- ~~Review db-query-operator~~ Done (see its section). Still open: **other database monitoring
+  and database-driven Kubernetes tools**, to close the gap left by Appendix A1, which only covers
+  the Debezium and Strimzi ecosystem.
 
 - Confirm the exact scope of Debezium 3.7 "alerting" (read the release notes in full; only the
   blog summary was seen).
