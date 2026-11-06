@@ -320,6 +320,63 @@ That is "the database is the desired state", not "react to how the data behaves"
 **What was not checked.** Whether it can stop a Job or only manage resources it renders from
 templates; its behaviour at scale; the controller code; any users or production reports.
 
+## More monitoring tools, and tools that act in Kubernetes (read 2026-11-06, docs only)
+
+Second pass to close the gap left by Appendix A1 (slide A3 in the deck). Same method as before:
+public docs, nothing installed or run, not exhaustive.
+
+### More database monitoring tools
+
+| Tool | How it gets the data | What it carries | Source |
+|---|---|---|---|
+| Coroot | eBPF to observe Postgres queries between applications and databases, plus the system views (`pg_stat_statements`, `pg_stat_activity`) through a `pg_monitor` role. A cluster agent connects to the databases and sends metrics by Prometheus remote write. | Query performance per database and role, normalized query text. Its docs say the eBPF view alone cannot explain what happens inside the database, which is why it adds the system views. | [Coroot Postgres docs](https://docs.coroot.com/databases/postgres), [cluster agent](https://docs.coroot.com/metrics/cluster-agent) |
+| pganalyze | A collector periodically queries the database and sends "snapshots"; it can also tail the Postgres logs (Log Insights). The collector is open source. For managed databases with no host (Neon, Supabase) it runs on your own infrastructure. A CloudNativePG install guide creates the monitoring role declaratively through the Cluster resource. | Query statistics and log events. "Query tags" are key-value pairs that an application adds to a SQL statement as a comment, for example the name of the background job, a user ID or a trace ID. Its PII page says it may collect personal data from logs, `pg_stat_activity` and `pg_stat_statements`. | [Collector](https://pganalyze.com/docs/collector), [Log Insights](https://pganalyze.com/docs/log-insights/setup/self-managed/01_determine_log_location), [Query tags](https://pganalyze.com/docs/query-performance/query-tags), [PII](https://pganalyze.com/docs/collector/pii-filtering), [CNPG](https://pganalyze.com/docs/install/cloudnative_pg/01_create_monitoring_role) |
+| Percona PMM | A PMM Client on each node collects metrics and sends them to the PMM Server. The Percona Operator for PostgreSQL can also run `postgres_exporter` as a sidecar, scraped on port 9187. | Metrics shown on dashboards. | [Percona operator docs](https://docs.percona.com/percona-operator-for-postgresql/3.1.0/postgres-exporter.html) |
+| Zabbix | The Zabbix agent 2 PostgreSQL template uses a loadable plugin that runs SQL queries; an older template runs `psql` through user parameters. | Metrics and triggers over those query results. A community template for CloudNativePG backups exists. | [Zabbix template](https://github.com/zabbix/zabbix/blob/master/templates/db/postgresql_agent2/README.md) |
+
+Result: the pattern from the first pass holds (SQL over statistics views at an interval), with two
+additions: **log tailing** (pganalyze) and **eBPF on the wire** (Coroot). Of the nine monitoring
+tools read in total, none described reading the write-ahead log. That is "in the docs I read", not
+a claim about the tools.
+
+### Tools that act in Kubernetes from database data
+
+| Tool | Trigger | What it does | Source |
+|---|---|---|---|
+| KEDA, PostgreSQL scaler | Polls one SQL query that must return a single number, every `pollingInterval` (default 30 s), against a threshold. | Scales a Deployment or Job (ScaledObject, ScaledJob). A ScaledJob can have its autoscaling paused with an annotation. | [KEDA PostgreSQL scaler](https://keda.sh/docs/2.22/scalers/postgresql/), [scaling jobs](https://keda.sh/docs/2.22/concepts/scaling-jobs/) |
+| db-query-operator | Polls a SQL query, with an optional timestamp-column check. | Creates, updates and prunes Kubernetes resources, one per row. See its review above. | repository |
+| Argo Events | An EventSource consumes events from external sources (webhooks, S3, AMQP, Kafka, SNS, SQS and others) and a Sensor can filter them (expression, data, script, context and time filters). | Triggers Argo Workflows or Kubernetes objects. | [Argo Events](https://argoproj.github.io/argo-events/concepts/event_source/), [filters](https://argoproj.github.io/argo-events/sensors/filters/intro/) |
+
+What this suggests (a reading, not a test):
+- The tools that act react to **a number from a query** (KEDA), **the current rows** (db-query-operator)
+  or **events from a queue** (Argo Events). We did not find one that applies a rule to the **content
+  of a change** and acts on a workload.
+- **A composition exists and works in a bench.** Debezium writes to Kafka, an Argo Events Kafka
+  EventSource reads it, a data filter selects an event, and a trigger suspends a Job. I tested it on
+  2026-11-06 (`bench/experiments/argo-events-chain/RESULTS.md`): it detected a forbidden value
+  transition and suspended the Job within 0.72 s (upper bound, one run). I did not find it described
+  anywhere as a use case. **It is the strongest counterargument to "nobody does this"**: we cannot
+  claim novelty for the reaction itself. What such a composition would not provide by itself is unverified:
+  a persistent, idempotent consumer for order checks ([ADR-016](../adr/ADR-016-stateful-stream-consumer-requirements.md)),
+  slot and WAL health, and the `REPLICA IDENTITY` check. Whether anyone would prefer to assemble it is
+  a question for the conversations (R8).
+- KEDA shows that "the cluster reacts to a database" already has users, by polling, and the reaction is
+  scaling, not stopping.
+
+Leads for attribution (ADR-017):
+- Coroot already does eBPF on the client side of the database connection. That is evidence for
+  delegating the "who" instead of rebuilding it.
+- pganalyze query tags are an in-band way for a workload to declare who it is, in the SQL comment.
+  A comment shows in `pg_stat_activity` and in statement logs, not in the CDC event (not verified for
+  the CDC event). Combined with logging the transaction id (`log_line_prefix`) it
+  could join a workload to a transaction exactly, without a time window. **Tested 2026-11-06**
+  (`bench/experiments/attribution-inband/RESULTS.md`): the join by `txId` works when statements are
+  logged after they run, at the cost of logging every statement; one local run.
+
+Not checked: what an Argo Events Kubernetes trigger can do to a running Job; Kyverno (R12);
+the Flink CDC Kubernetes operator; Grafana Cloud, New Relic and Elastic database monitoring;
+pgMonitor; Argo Rollouts analysis; how any of these behave at scale; MySQL and MongoDB versions.
+
 ## Ingestion by deployment scenario (first pass, 2026-11-05, docs only)
 
 Owner's hypothesis: on premise, embedded in Kubernetes and managed change how data is ingested.
@@ -363,19 +420,12 @@ Not verified or not found:
 ## Open follow-ups
 
 - **Three deployment scenarios change how data is ingested (owner's hypothesis, 2026-11-05).**
-  First pass is the section above; the gaps are listed there.
-  Compare **on premise** (database outside the cluster, on a VM or bare metal), **embedded in
-  Kubernetes** (CloudNativePG or another operator, or a bare StatefulSet) and **managed** (RDS,
-  Cloud SQL, Azure). Note this is not the same split as the three cases above, which separate
-  managed / in-cluster with an operator / bare StatefulSet and have no on-premise-outside-cluster
-  case. The sections above compare *capabilities*; this follow-up compares the *ingestion path*:
-  how Debezium reaches the database, who can enable logical replication and with which
-  permissions, what happens to a replication slot on failover, where retained WAL lands (disk you
-  control or the provider's), and where the connector runs. None of this is researched yet.
-
-- ~~Review db-query-operator~~ Done (see its section). Still open: **other database monitoring
-  and database-driven Kubernetes tools**, to close the gap left by Appendix A1, which only covers
-  the Debezium and Strimzi ecosystem.
+  First pass done from docs: see "Ingestion by deployment scenario" above, which lists what was not
+  found. Still open: the network path from the cluster to an on-premise or managed database, how
+  CloudNativePG declares the Debezium user, and a failover experiment.
+- ~~Review db-query-operator~~ Done. ~~Other monitoring and database-driven Kubernetes tools~~
+  First pass done (2026-11-06, section above). The Debezium to Kafka to Argo Events composition was tested (see above). Still open: review Kyverno (R12), the Flink CDC operator, and the hosted monitoring products not
+  read (Grafana Cloud, New Relic, Elastic).
 
 - Confirm the exact scope of Debezium 3.7 "alerting" (read the release notes in full; only the
   blog summary was seen).
