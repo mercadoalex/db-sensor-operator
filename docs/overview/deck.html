@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lactifluus — CDC observability on Kubernetes</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #111; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #frame { aspect-ratio: 16 / 9; width: min(100vw, 100vh * 16 / 9); background: #fff; position: relative; }
+  #frame img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px;
+         padding: 8px 14px; background: rgba(0,0,0,.72); color: #ddd; font-size: 13px;
+         opacity: 0; transition: opacity .2s; }
+  body:hover #bar, #bar:focus-within { opacity: 1; }
+  #bar button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  #bar button:hover { background: #3a3a3a; }
+  #bar button:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+  #title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #count { font-variant-numeric: tabular-nums; }
+  #grid { position: fixed; inset: 0; background: rgba(17,17,17,.97); display: none; overflow: auto; padding: 24px;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-content: start; }
+  #grid.on { display: grid; }
+  #grid button { background: none; border: 2px solid #333; padding: 0; cursor: pointer; text-align: left; color: #ccc; }
+  #grid button:hover, #grid button:focus-visible { border-color: #f97316; outline: none; }
+  #grid img { width: 100%; display: block; background: #fff; }
+  #grid span { display: block; padding: 6px 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame"><img id="slide" alt=""></div></div>
+<div id="bar" role="toolbar" aria-label="Deck controls">
+  <button id="prev" aria-label="Previous slide">&larr;</button>
+  <button id="next" aria-label="Next slide">&rarr;</button>
+  <span id="count" aria-live="polite"></span>
+  <span id="title"></span>
+  <button id="overview" aria-label="Show all slides">Grid (G)</button>
+  <button id="full" aria-label="Toggle fullscreen">Fullscreen (F)</button>
+</div>
+<div id="grid" role="dialog" aria-label="All slides"></div>
+<script>
+  // Order: 4 main slides, then the appendix (not presented, for questions).
+  const slides = [
+    { file: "findings-slide-0.svg",  title: "0 · Why we built this" },
+    { file: "findings-slide-1.svg",  title: "1 · The framing" },
+    { file: "findings-slide-2.svg",  title: "2 · What we found" },
+    { file: "findings-slide-3.svg",  title: "3 · What is next, and what we need from you" },
+    { file: "findings-slide-A1.svg", title: "Appendix A1 · Where Lactifluus sits" },
+    { file: "findings-slide-A2.svg", title: "Appendix A2 · Attribution (exploration)" },
+    { file: "findings-slide-A3.svg", title: "Appendix A3 · How database monitoring gets its data" },
+  ];
+  let i = 0;
+  const img = document.getElementById("slide");
+  const count = document.getElementById("count");
+  const title = document.getElementById("title");
+  const grid = document.getElementById("grid");
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    img.src = slides[i].file;
+    img.alt = slides[i].title;
+    count.textContent = (i + 1) + " / " + slides.length;
+    title.textContent = slides[i].title;
+    history.replaceState(null, "", "#" + (i + 1));
+    // preload neighbours
+    [i - 1, i + 1].forEach(k => { if (slides[k]) new Image().src = slides[k].file; });
+  }
+  function toggleGrid(on) {
+    grid.classList.toggle("on", on);
+    if (on) grid.querySelectorAll("button")[i].focus();
+  }
+  function toggleFull() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  }
+
+  slides.forEach((s, k) => {
+    const b = document.createElement("button");
+    b.innerHTML = '<img alt=""><span></span>';
+    b.querySelector("img").src = s.file;
+    b.querySelector("span").textContent = s.title;
+    b.addEventListener("click", () => { show(k); toggleGrid(false); });
+    grid.appendChild(b);
+  });
+
+  document.getElementById("prev").onclick = () => show(i - 1);
+  document.getElementById("next").onclick = () => show(i + 1);
+  document.getElementById("overview").onclick = () => toggleGrid(true);
+  document.getElementById("full").onclick = toggleFull;
+  document.getElementById("stage").addEventListener("click", e => {
+    show(e.clientX < innerWidth / 3 ? i - 1 : i + 1);
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case "ArrowRight": case "PageDown": case " ": case "Enter":
+        if (document.activeElement.tagName === "BUTTON") return;
+        e.preventDefault(); show(i + 1); break;
+      case "ArrowLeft": case "PageUp": show(i - 1); break;
+      case "Home": show(0); break;
+      case "End": show(slides.length - 1); break;
+      case "g": case "G": toggleGrid(!grid.classList.contains("on")); break;
+      case "f": case "F": toggleFull(); break;
+      case "Escape": toggleGrid(false); break;
+    }
+  });
+
+  const start = parseInt(location.hash.slice(1), 10);
+  show(Number.isNaN(start) ? 0 : start - 1);
+</script>
+</body>
+</html>

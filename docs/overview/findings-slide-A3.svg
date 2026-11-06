@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">Appendix A3: how database monitoring tools get their data</title><desc id="d">Five tools read in their public docs: they run SQL on statistics views at an interval and carry aggregates or normalized query shapes. CDC reads the write-ahead log and carries the change itself. This is a reading of documentation, not a test; CDC cost versus polling is not measured.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">APPENDIX A3  ·  FOR QUESTIONS, NOT PRESENTED</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">How database monitoring gets its data</text>
+<rect x="64" y="542" width="1472" height="58" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+<rect x="64" y="196" width="1472" height="404" rx="2" fill="none" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="394" y1="196" x2="394" y2="600" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="954" y1="196" x2="954" y2="600" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="252" x2="1536" y2="252" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="310" x2="1536" y2="310" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="368" x2="1536" y2="368" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="426" x2="1536" y2="426" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="484" x2="1536" y2="484" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="542" x2="1536" y2="542" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="600" x2="1536" y2="600" stroke="#d4d4d8" stroke-width="1"/>
+<text x="78" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Tool</text>
+<text x="408" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">How it gets the data</text>
+<text x="968" y="230" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">What it carries</text>
+<text x="78" y="287" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">CloudNativePG</text>
+<text x="408" y="287" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Built-in Prometheus exporter, plus SQL you define</text>
+<text x="968" y="287" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Aggregated metrics</text>
+<text x="78" y="345" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">postgres_exporter</text>
+<text x="408" y="345" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Runs SQL on PostgreSQL statistics views</text>
+<text x="968" y="345" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Aggregated metrics</text>
+<text x="78" y="403" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">OTel PostgreSQL receiver</text>
+<text x="408" y="403" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Queries statistics views periodically</text>
+<text x="968" y="403" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Aggregated metrics</text>
+<text x="78" y="461" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">Datadog Database Monitoring</text>
+<text x="408" y="461" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Agent runs SQL on an interval</text>
+<text x="968" y="461" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Query metrics, samples, plans, waits, blocking</text>
+<text x="78" y="519" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">Dynatrace</text>
+<text x="408" y="519" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Remote extension queries the database, sampled each minute</text>
+<text x="968" y="519" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">Top 200 queries, literals stripped (privacy)</text>
+<text x="78" y="577" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#ea580c" text-anchor="start">Lactifluus (CDC)</text>
+<text x="408" y="577" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Reads the write-ahead log through Debezium</text>
+<text x="968" y="577" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">The change itself: content and order</text>
+<rect x="64" y="636" width="1472" height="150" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88" y="672" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">A reading of the docs, not a measurement</text>
+<text x="88" y="704" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#09090b" text-anchor="start">The common path is SQL on an interval: totals, rates and query shapes. The content and order of a change are not on that path.</text>
+<text x="88" y="732" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#09090b" text-anchor="start">CDC is not free: a slow consumer makes the replication slot retain WAL (measured). Its cost against polling is not measured.</text>
+<text x="88" y="762" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">Five tools read, none installed or tested. Not exhaustive. Source notes: docs/research/competitive-landscape.md</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A3</text>
+</svg>

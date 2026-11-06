@@ -243,7 +243,47 @@ whether the in-cluster full-value case is common enough to lead with, or whether
 only the managed-safe subset (content policy + reaction). Decide the positioning from that, not
 from taste.
 
+## How database monitoring tools get their data (read 2026-11-05, docs only)
+
+Question: when a PostgreSQL runs in Kubernetes, how do the common monitoring tools obtain data
+from it, and what do they carry? Read in each tool's public docs. None was installed or tested,
+and the list is not exhaustive.
+
+| Tool | How it gets the data | What it carries | Source |
+|---|---|---|---|
+| CloudNativePG | Built-in Prometheus exporter on each instance (port 9187), with predefined metrics plus SQL you define in a ConfigMap or Secret | Aggregated metrics | [EDB docs](https://www.enterprisedb.com/docs/postgres_for_kubernetes/latest/monitoring/) |
+| postgres_exporter | Translates PostgreSQL statistics views into Prometheus metrics | Aggregated metrics | [JusDB guide](https://www.jusdb.com/blog/postgresql-monitoring-prometheus-postgres-exporter) |
+| OpenTelemetry PostgreSQL receiver | Periodically queries statistics views such as `pg_stat_database` | Aggregated metrics | [Uptrace guide](https://uptrace.dev/guides/opentelemetry-postgresql) |
+| Datadog Database Monitoring | The Agent runs SQL on an interval (15 s default for custom metrics) | Query metrics, query samples, explain plans, wait events, blocking | [Datadog docs](https://docs.datadoghq.com/database_monitoring/setup_postgres/aurora/) |
+| Dynatrace | A remote ActiveGate extension queries the database; sampled every minute | Top 200 queries by cost, normalized | [Dynatrace docs](https://docs.dynatrace.com/docs/observe/infrastructure-observability/databases/database-app/data-collected) |
+| Lactifluus | Reads the write-ahead log through Debezium (CDC) | The change itself: content and order | this repo |
+
+What this supports (a reading of documentation, not a measurement):
+- The common path is **SQL on an interval over statistics views**. That yields totals, rates and
+  query shapes. The content and the order of a change are not on that path. This agrees with our
+  own experiments, where counting did not need CDC (`bench/experiments/FINDINGS.md`).
+- Dynatrace replaces literal values with placeholders on purpose, to remove personal data. So it
+  is a design choice, not only a limit. It is also a warning for us: reading content raises a
+  privacy question. ADR-017 therefore records a reference to the change, not a copy of the row.
+- CDC is not free. Our backpressure experiment measured retained WAL growing when the consumer is
+  slow. Its cost against polling is **not measured**, so do not claim CDC is more efficient.
+
+What this does NOT support:
+- That no monitoring tool uses the WAL or CDC. Only five were read.
+- That any of these cannot react inside Kubernetes. Not checked.
+
+### A closer neighbour to check: db-query-operator
+
+[konnektr-io/db-query-operator](https://github.com/konnektr-io/db-query-operator) polls a database
+(PostgreSQL), runs a user-defined SQL query and renders Kubernetes manifests from each returned
+row. That is "Kubernetes reacts to data" by **polling**, which is close to our hypothesis. From
+the repository description only; nothing else read yet. See the follow-ups below.
+
 ## Open follow-ups
+
+- **Review db-query-operator** (and other database monitoring tools) properly: what triggers it,
+  what it can react to, how it scales, whether it sees order or only current state. This closes
+  the gap left by Appendix A1, which only covers the Debezium and Strimzi ecosystem.
 
 - Confirm the exact scope of Debezium 3.7 "alerting" (read the release notes in full; only the
   blog summary was seen).
