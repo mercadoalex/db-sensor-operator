@@ -1,0 +1,68 @@
+# coroot-node-agent (Apache-2.0; BPF code GPL-2.0) as a DaemonSet, with traces sent over OTLP/HTTP to a
+# throwaway collector that only prints the spans. No Coroot server is installed.
+# The agent is privileged and mounts the host cgroup and debugfs, as in the project's own manifest.
+apiVersion: v1
+kind: Namespace
+metadata: { name: coroot }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: otlp-sink-config, namespace: coroot }
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http: { endpoint: 0.0.0.0:4318 }
+    exporters:
+      debug: { verbosity: detailed }
+    service:
+      pipelines:
+        traces: { receivers: [otlp], exporters: [debug] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: otlp-sink, namespace: coroot, labels: { app: otlp-sink } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: otlp-sink } }
+  template:
+    metadata: { labels: { app: otlp-sink } }
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.116.1
+          args: ["--config=/etc/otel/config.yaml"]
+          ports: [{ containerPort: 4318 }]
+          volumeMounts: [{ name: cfg, mountPath: /etc/otel }]
+      volumes:
+        - { name: cfg, configMap: { name: otlp-sink-config } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: otlp-sink, namespace: coroot }
+spec:
+  selector: { app: otlp-sink }
+  ports: [{ port: 4318, targetPort: 4318 }]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: coroot-node-agent, namespace: coroot, labels: { app: coroot-node-agent } }
+spec:
+  selector: { matchLabels: { app: coroot-node-agent } }
+  template:
+    metadata: { labels: { app: coroot-node-agent } }
+    spec:
+      tolerations: [{ operator: Exists }]
+      hostPID: true
+      containers:
+        - name: coroot-node-agent
+          image: ghcr.io/coroot/coroot-node-agent:1.38.1
+          args: ["--cgroupfs-root", "/host/sys/fs/cgroup", "--disable-log-parsing", "--min-container-age", "0", "--traces-endpoint", "http://otlp-sink.coroot.svc:4318/v1/traces"]
+          securityContext: { privileged: true }
+          volumeMounts:
+            - { mountPath: /host/sys/fs/cgroup, name: cgroupfs, readOnly: true }
+            - { mountPath: /sys/kernel/debug, name: debugfs }
+      volumes:
+        - { name: cgroupfs, hostPath: { path: /sys/fs/cgroup } }
+        - { name: debugfs, hostPath: { path: /sys/kernel/debug } }

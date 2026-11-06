@@ -75,6 +75,7 @@ Strategic open question (Mario Fiore Vitale, 2026-10-31):
    "Ingestion by deployment scenario" in `docs/research/competitive-landscape.md`, with the gaps
    listed there. Candidate experiment: what does Lactifluus report after a primary failover when the
    logical slot is gone? Not tested.
+3c. **Coroot statement spans: inconclusive (2026-11-06, bench/experiments/attribution-coroot).** Zero spans in four runs. Probable cause: kind on Docker Desktop is a nested container, and eBPF events arrive with VM-level PIDs the agent cannot map (one logged event had pid 3269772; the kind node's highest PID was 515605). Needs a node that is not nested before anything can be said about Coroot.
 4. Fill the live GitHub stars and Helm installs placeholder on slide 03.
 5. Optional: soften "no counter or GROUP BY can" in `bench/experiments/FINDINGS.md` and
    `competitive-landscape.md` to match slide 2.
