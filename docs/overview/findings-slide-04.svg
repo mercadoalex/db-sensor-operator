@@ -13,7 +13,7 @@
 <rect x="92" y="376" width="10" height="10" fill="#16a34a"/>
 <text x="112" y="386" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#09090b" text-anchor="start">Skipped / duplicate sequence</text>
 <text x="112" y="412" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">invoice 1003 then 1007, or a repeat</text>
-<text x="112" y="436" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#d97706" text-anchor="start">no counter or GROUP BY can do this</text>
+<text x="112" y="436" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#d97706" text-anchor="start">a counter cannot see order; CDC sees it live</text>
 <text x="92" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ the real product: policies on the CONTENT of a change</text>
 <rect x="800" y="196" width="736" height="300" rx="2" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
 <text x="828" y="236" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#dc2626" text-anchor="start">CDC LOSES — a counter or K8s already wins</text>
@@ -25,8 +25,8 @@
 <text x="848" y="380" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">repeated Job names in Kubernetes is the better signal</text>
 <rect x="828" y="412" width="10" height="10" fill="#dc2626"/>
 <text x="848" y="422" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="600" fill="#09090b" text-anchor="start">Attribution: which workload did it</text>
-<text x="848" y="448" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">not on the wire; eBPF and Cilium see only the connection</text>
-<text x="828" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ counting does not justify CDC. Attribution is not cheap.</text>
+<text x="848" y="448" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">not on the wire; eBPF sees only the connection (exploring Hubble)</text>
+<text x="828" y="476" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#09090b" text-anchor="start">→ counting does not justify CDC. The “who” is unresolved.</text>
 <rect x="64" y="528" width="1472" height="258" rx="2" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
 <text x="92" y="568" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">A GAP WE FOUND IN THE PRODUCT TODAY</text>
 <text x="92" y="612" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="600" fill="#09090b" text-anchor="start">A slow consumer makes the replication slot retain WAL. The disk can fill,</text>
@@ -43,5 +43,5 @@
 <text x="820" y="760" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Fixable next, and independent of everything else.</text>
 <text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
 <text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
-<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">2 / 4</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">4 / 5</text>
 </svg>

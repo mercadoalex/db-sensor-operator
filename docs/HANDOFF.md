@@ -55,6 +55,31 @@ Strategic open question (Mario Fiore Vitale, 2026-10-31):
 - Do not word it as "Lactifluus makes Debezium safe": that implies Debezium is unsafe. Find a framing about what the operator adds, not what Debezium lacks.
 - To do: write down what Debezium already gives for operations and monitoring (JMX metrics, heartbeat, signals, the official operator), so the claims about our added value are checked against it.
 
+## Pending, added 2026-11-05 (community slides review)
+
+1. **Pending experiment (decides slide 02).** Does a `DatabaseSensor` that never receives an event
+   ever alert? Reading `internal/health/checker.go` suggests not: a running pod with zero events
+   ever returns `Pending` ("startup, NOT Degraded"), and a grep found no timeout or grace period
+   on `Pending`. This is a code reading, not a test. Run it in kind: a sensor with no events,
+   measure how long it stays `Pending` and whether any alert or condition fires. Until then the
+   slides must not say "never raised an alert".
+2. **The 8 hours: why was it blind?** The article and ADR-014 attribute it to the blocking
+   snapshot of a large table. The owner says the cause is not actually known. Do not tell the cause
+   as a fact on stage. Facts only the owner has, still open: environment (test, staging or
+   production), how it was noticed, how long to fix, whether anything alerted, what else
+   monitored that database.
+3. **db-query-operator reviewed (2026-11-05, see its section); still open: other database monitoring and database-driven Kubernetes tools** (see "Open follow-ups" in
+   `docs/research/competitive-landscape.md`). Closes the gap in Appendix A1.
+3b. **Ingestion by deployment scenario** (on premise, embedded in Kubernetes, managed). The owner
+   thinks the three change how data is ingested. First pass done from docs (2026-11-05), section
+   "Ingestion by deployment scenario" in `docs/research/competitive-landscape.md`, with the gaps
+   listed there. Candidate experiment: what does Lactifluus report after a primary failover when the
+   logical slot is gone? Not tested.
+4. Fill the live GitHub stars and Helm installs placeholder on slide 03.
+5. Optional: soften "no counter or GROUP BY can" in `bench/experiments/FINDINGS.md` and
+   `competitive-landscape.md` to match slide 2.
+6. The slide generator lives only in `/tmp/gen_slides.py`; decide whether to keep it in the repo.
+
 ## Research plan: Kubernetes reacting to data behavior (started 2026-10-31)
 
 Direction (an idea, not a product yet): metrics are not the product; the product is that Kubernetes reacts to the behavior of the data. Workflow:
