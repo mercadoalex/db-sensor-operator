@@ -170,6 +170,21 @@ Not verified:
 5. **PG17 / standby.** `invalidation_reason`, `inRecovery` behaviour: recorded in ADR-014 Pending, not built.
 6. **Staleness thresholds.** `estimate()` assumes autovacuum defaults and does not read server
    settings. Documented limitation.
+7. **Guard inventory in the inspector (idea; not before R8 says someone wants it).** Step 1 exists:
+   [docs/guards/](guards/README.md), a SQL script a person runs by hand (triggers with their
+   `tgenabled` mode, constraints, enums, `relreplident`). It has **not been run** against a database
+   yet (Docker was down); run it in kind first. Step 2: the inspector Job runs the same catalog
+   queries and reports them, uninterpreted, in `status.snapshot.inspection`. It needs a query in
+   `internal/snapshot/inspector.go`, an optional field in the wire contract (`factsVersion` stays 1),
+   a condition in `internal/inspection/evaluate.go` (for example a warning when a guard trigger is
+   in `origin` mode on a table that has no `ENABLE ALWAYS`), and a test against a real PostgreSQL. The
+   `relreplident` part overlaps the `REPLICA IDENTITY` gap listed under the inspector gaps above, so
+   do them together. Step 3, not planned: propose a rule from simple patterns only (a trigger with
+   `WHEN (OLD.col = 'a' AND NEW.col = 'b')`); arbitrary PL/pgSQL is never interpreted.
+   Why it is noted at all: a trigger declared `ENABLE ALWAYS` already fires under
+   `session_replication_role = replica`, so the database can close that bypass by itself; the
+   inventory shows where it has not been closed, and it helps without any policy engine. Whether
+   CDC rules on content have users is still open (R8, R9).
 
 ## Open decisions (need the owner)
 
