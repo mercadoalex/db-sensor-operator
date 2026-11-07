@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">Disclaimer</title><desc id="d">Four caveats before the talk: an independent project not affiliated with the tools it names; small experiments, mostly one run each on a local kind cluster; tool comparisons read from public documentation; and a hypothesis that has not been tested with users.</desc>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">DISCLAIMER</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">Before we start</text>
+<rect x="64" y="196" width="1472" height="576" rx="2" fill="none" stroke="#d4d4d8" stroke-width="1"/>
+<text x="104" y="270" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#ea580c" text-anchor="middle">1</text>
+<text x="160" y="246" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#09090b" text-anchor="start">An independent project</text>
+<text x="160" y="282" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">Not affiliated with, endorsed by or sponsored by Debezium or any other project, company or</text>
+<text x="160" y="308" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">product named in these slides. Names and logos belong to their owners.</text>
+<line x1="64" y1="340" x2="1536" y2="340" stroke="#d4d4d8" stroke-width="1"/>
+<text x="104" y="414" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#ea580c" text-anchor="middle">2</text>
+<text x="160" y="390" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#09090b" text-anchor="start">Small experiments</text>
+<text x="160" y="426" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">Mostly one run each, on a local kind cluster with PostgreSQL 16. They are observations,</text>
+<text x="160" y="452" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">not benchmarks, and they say nothing about production scale.</text>
+<line x1="64" y1="484" x2="1536" y2="484" stroke="#d4d4d8" stroke-width="1"/>
+<text x="104" y="558" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#ea580c" text-anchor="middle">3</text>
+<text x="160" y="534" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#09090b" text-anchor="start">A reading of documentation</text>
+<text x="160" y="570" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">Tool comparisons come from public docs, not from installing the tools. They can be out</text>
+<text x="160" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">of date or wrong. Corrections are welcome.</text>
+<line x1="64" y1="628" x2="1536" y2="628" stroke="#d4d4d8" stroke-width="1"/>
+<text x="104" y="702" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#ea580c" text-anchor="middle">4</text>
+<text x="160" y="678" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#09090b" text-anchor="start">A hypothesis, not a product</text>
+<text x="160" y="714" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">The idea of reacting to the content of a change has not been tested with users. Parts of</text>
+<text x="160" y="740" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#3f3f46" text-anchor="start">Lactifluus are prototyped or unbuilt. None of this is production advice.</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Disclaimer</text>
+</svg>
