@@ -56,3 +56,12 @@ docs/review-*.md
 
 # Article-review scratch artifacts
 docs/articles/.review*
+
+# Raw notes from community conversations (names of real people) — local only
+docs/real_user_conversations.md
+
+# Local screenshot of the LinkedIn poll
+/poll.png
+
+# Raw output of the heartbeat experiment (RESULTS.md keeps the numbers)
+bench/results/heartbeat-*/
