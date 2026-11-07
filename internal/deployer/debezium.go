@@ -89,6 +89,23 @@ var ErrUnsupportedDBType = errors.New("unsupported database type")
 // dbTypePostgres is the spec.database.type value for PostgreSQL.
 const dbTypePostgres = "postgresql"
 
+// DefaultHeartbeatSeconds is the heartbeat interval used on PostgreSQL when spec.heartbeat does
+// not set one (ADR-018). Debezium's own default is no heartbeat at all.
+const DefaultHeartbeatSeconds int32 = 30
+
+// HeartbeatSeconds returns the heartbeat interval in seconds for a sensor: the value in
+// spec.heartbeat.intervalSeconds when set (0 means off), otherwise DefaultHeartbeatSeconds on
+// PostgreSQL. It is 0 for engines that do not get a heartbeat.
+func HeartbeatSeconds(sensor *sensoriov1.DatabaseSensor) int32 {
+	if sensor.Spec.Database.Type != dbTypePostgres {
+		return 0
+	}
+	if hb := sensor.Spec.Heartbeat; hb != nil && hb.IntervalSeconds != nil {
+		return *hb.IntervalSeconds
+	}
+	return DefaultHeartbeatSeconds
+}
+
 // connectorClasses maps spec.database.type to the fully-qualified Debezium
 // connector Java class (US-8).
 var connectorClasses = map[string]string{
@@ -141,6 +158,13 @@ func BuildDebeziumServer(sensor *sensoriov1.DatabaseSensor) (*unstructured.Unstr
 		// PostgreSQL does not ship. pgoutput is built in since PG 10 and is what
 		// managed services support, so it is the only portable choice.
 		config["plugin.name"] = "pgoutput"
+		// Heartbeat (ADR-018). With every change filtered out, the connector has nothing to
+		// confirm, the slot stops advancing and PostgreSQL keeps WAL without limit. A heartbeat
+		// record carries the current position, so the slot keeps moving. Measured:
+		// bench/experiments/heartbeat/RESULTS.md.
+		if secs := HeartbeatSeconds(sensor); secs > 0 {
+			config["heartbeat.interval.ms"] = strconv.Itoa(int(secs) * 1000)
+		}
 		// The PostgreSQL connector requires the database to capture and cannot
 		// start without it.
 		if db.Name != "" {

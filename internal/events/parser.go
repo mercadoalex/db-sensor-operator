@@ -52,6 +52,10 @@ type CDCEvent struct {
 	// snapshot (blocking or incremental) and not a live change. Such events carry
 	// the timestamp of the read, so they must not feed lag, counters or history.
 	Snapshot bool
+	// Heartbeat is true when the record is a Debezium heartbeat: it carries a timestamp and no
+	// operation, source or row. A heartbeat proves the connector is running, not that data
+	// changed, so it must not feed lag, counters or history (ADR-018).
+	Heartbeat bool
 }
 
 // ErrMalformedEvent is returned by Parse when the input is not valid JSON. It is
@@ -89,7 +93,31 @@ func Parse(raw []byte) (CDCEvent, error) {
 		TsMs:  firstInt(root, "payload.ts_ms", "ts_ms", "payload.source.ts_ms", "source.ts_ms"),
 	}
 	ev.Snapshot = isSnapshot(root, ev.Op)
+	ev.Heartbeat = isHeartbeat(root, ev.Op)
 	return ev, nil
+}
+
+// isHeartbeat reports whether the record is a Debezium heartbeat. It looks at the record's own
+// fields and never at a topic name, because the HTTP sink does not send one. A heartbeat is
+// {"schema":{...},"payload":{"ts_ms":...}} or just {"ts_ms":...}: a timestamp, no op, and none
+// of source, before or after. Verified against Debezium Server 3.6.3 (bench/experiments/heartbeat).
+func isHeartbeat(root gjson.Result, op string) bool {
+	if op != "" {
+		return false
+	}
+	body := root
+	if payload := root.Get("payload"); payload.IsObject() {
+		body = payload
+	}
+	if !body.Get("ts_ms").Exists() {
+		return false
+	}
+	for _, key := range []string{"source", "before", "after"} {
+		if body.Get(key).Exists() {
+			return false
+		}
+	}
+	return true
 }
 
 // isSnapshot reports whether the event is a snapshot read and not a live change.

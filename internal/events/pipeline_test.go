@@ -110,3 +110,56 @@ func TestPipelineDropsSnapshotEvents(t *testing.T) {
 	assert.Equal(t, []int64{3}, lag.got)
 	assert.Equal(t, []events.CDCEvent{live}, rec.got)
 }
+
+// TestPipelineDropsHeartbeats checks ADR-018: a heartbeat feeds neither the exporter, the lag
+// tracker nor the history, while a live event after it still feeds all three.
+func TestPipelineDropsHeartbeats(t *testing.T) {
+	exp, lag, rec := &spyEvents{}, &spyLag{}, &spyEvents{}
+	pipe := &events.Pipeline{Exporter: exp, Lag: lag, Recorder: rec}
+
+	pipe.Handle(events.CDCEvent{TsMs: 1, Heartbeat: true})
+	assert.Empty(t, exp.got)
+	assert.Empty(t, lag.got)
+	assert.Empty(t, rec.got)
+
+	live := events.CDCEvent{Op: "c", DB: "pg", Table: tableOrders, TsMs: 2}
+	pipe.Handle(live)
+	assert.Equal(t, []events.CDCEvent{live}, exp.got)
+	assert.Equal(t, []int64{2}, lag.got)
+	assert.Equal(t, []events.CDCEvent{live}, rec.got)
+}
+
+// TestHeartbeatOverHTTPDoesNotResetTheNoEventsClock sends the heartbeat body Debezium Server
+// 3.6.3 produced, through the real HTTP consumer, parser and pipeline. A sensor that has seen no
+// change must still report no last event, and /metrics must not gain a series with empty labels.
+func TestHeartbeatOverHTTPDoesNotResetTheNoEventsClock(t *testing.T) {
+	exp := metrics.NewExporter(prometheus.NewRegistry())
+	lag := health.NewLagTracker()
+	pipe := &events.Pipeline{Exporter: exp, Lag: lag}
+
+	consumer, err := events.NewConsumer(sensoriov1.TransportConfig{Type: "http"})
+	require.NoError(t, err)
+	httpc, ok := consumer.(*events.HTTPConsumer)
+	require.True(t, ok)
+	ingest := httptest.NewServer(httpc.Handler(pipe.Handle))
+	defer ingest.Close()
+
+	heartbeat := `{"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"ts_ms"}],` +
+		`"optional":false,"name":"io.debezium.connector.common.Heartbeat","version":1},"payload":{"ts_ms":1794027479832}}`
+	resp, err := http.Post(ingest.URL, "application/json", strings.NewReader(heartbeat))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode, "the sink must still be acknowledged")
+
+	assert.True(t, lag.LastEvent().IsZero(), "a heartbeat must not count as an event")
+
+	scrape := httptest.NewServer(exp.Handler())
+	defer scrape.Close()
+	mResp, err := http.Get(scrape.URL)
+	require.NoError(t, err)
+	defer func() { _ = mResp.Body.Close() }()
+	body, err := io.ReadAll(mResp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), `db=""`)
+	assert.NotContains(t, string(body), `table=""`)
+}
