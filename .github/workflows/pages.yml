@@ -1,8 +1,9 @@
 name: Deck (GitHub Pages)
 
 # Publishes the HTML deck (docs/overview/deck.html and its slide SVGs) to GitHub Pages.
-# Only those files are copied into the site. In particular docs/overview/deck-notes.js
-# (the presenter notes, git-ignored) is never published.
+# Only those files are copied into the site. docs/overview/deck-notes.js (the presenter notes)
+# is git-ignored and never copied from the repository. The notes are published only while the
+# repository variable DECK_NOTES is set (see the step below), and then they are PUBLIC.
 
 on:
   push:
@@ -40,6 +41,21 @@ jobs:
           cp docs/overview/findings-slide-*.svg _site/
           touch _site/.nojekyll
           ls -la _site
+
+      # Optional presenter notes. They live in the repository variable DECK_NOTES, never in git,
+      # so they are not in the history. Set:   gh variable set DECK_NOTES < docs/overview/deck-notes.js
+      # Turn off: gh variable delete DECK_NOTES, then run this workflow again.
+      - name: Add presenter notes (only if DECK_NOTES is set)
+        env:
+          DECK_NOTES: ${{ vars.DECK_NOTES }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DECK_NOTES}" ]; then
+            printf '%s\n' "${DECK_NOTES}" > _site/deck-notes.js
+            echo "Presenter notes WILL be public: $(wc -c < _site/deck-notes.js) bytes"
+          else
+            echo "No presenter notes (DECK_NOTES is not set)"
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
