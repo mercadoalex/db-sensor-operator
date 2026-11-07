@@ -10,7 +10,7 @@
   html, body { margin: 0; height: 100%; background: #111; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
   #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
   #frame { aspect-ratio: 16 / 9; width: min(100vw, 100vh * 16 / 9); background: #fff; position: relative; }
-  #frame img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #frame > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px;
          padding: 8px 14px; background: rgba(0,0,0,.72); color: #ddd; font-size: 13px;
          opacity: 0; transition: opacity .2s; }
@@ -18,6 +18,7 @@
   #bar button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
   #bar button:hover { background: #3a3a3a; }
   #bar button:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+  #bar button[aria-pressed="true"] { background: #7f1d1d; border-color: #ef4444; }
   #title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #count { font-variant-numeric: tabular-nums; }
   #grid { position: fixed; inset: 0; background: rgba(17,17,17,.97); display: none; overflow: auto; padding: 24px;
@@ -27,19 +28,58 @@
   #grid button:hover, #grid button:focus-visible { border-color: #f97316; outline: none; }
   #grid img { width: 100%; display: block; background: #fff; }
   #grid span { display: block; padding: 6px 8px; font-size: 12px; }
+
+  /* Presenter notes. Only exist when deck-notes.js is present (it is git-ignored, so the public
+     GitHub Pages copy never has them). Hidden until N is pressed. */
+  #notes-btn { display: none; }
+  body.has-notes #notes-btn { display: inline-block; }
+  #notes-flag { display: none; position: fixed; top: 8px; left: 8px; z-index: 50; padding: 3px 10px; border-radius: 999px;
+                background: #b91c1c; color: #fff; font: 700 12px/1.4 -apple-system, Arial, sans-serif; letter-spacing: .04em; }
+  body.notes-on #notes-flag { display: block; }
+  .note { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; padding: 0; border-radius: 50%;
+          border: 2px solid #fff; color: #fff; font: 700 14px/1 -apple-system, Arial, sans-serif; cursor: help;
+          display: none; align-items: center; justify-content: center; box-shadow: 0 1px 6px rgba(0,0,0,.5); z-index: 5; }
+  body.notes-on .note { display: flex; }
+  .note.fragil { background: #b91c1c; }
+  .note.verificar { background: #9a5b00; }
+  .note.enfoque { background: #15803d; }
+  .note.actualizar { background: #1d4ed8; }
+  .note:hover, .note:focus-visible, .note.pinned { outline: 3px solid #111; z-index: 20; }
+  .tip { display: none; position: absolute; top: 34px; left: -10px; width: 380px; max-width: 80vw; padding: 10px 12px;
+         border-radius: 6px; background: #111; color: #f2f2f2; text-align: left; font: 400 14px/1.45 -apple-system, Arial, sans-serif;
+         box-shadow: 0 6px 24px rgba(0,0,0,.55); white-space: normal; cursor: default; }
+  .note.flip-left .tip { left: auto; right: -10px; }
+  .note.flip-up .tip { top: auto; bottom: 34px; }
+  .note:hover .tip, .note:focus-visible .tip, .note.pinned .tip { display: block; }
+  .tip b { display: block; margin-bottom: 4px; color: #fff; }
+  .tip em { display: block; margin-bottom: 6px; font-style: normal; font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; }
+  #legend { display: none; position: fixed; right: 8px; top: 8px; z-index: 50; padding: 6px 10px; border-radius: 6px;
+            background: rgba(0,0,0,.78); color: #ddd; font-size: 12px; line-height: 1.6; }
+  body.notes-on #legend { display: block; }
+  #legend i { display: inline-block; width: 16px; height: 16px; margin-right: 6px; border-radius: 50%; color: #fff; font: 700 11px/16px Arial, sans-serif; text-align: center; font-style: normal; }
 </style>
 </head>
 <body>
 <div id="stage"><div id="frame"><img id="slide" alt=""></div></div>
+<div id="notes-flag" role="status">PRESENTER NOTES VISIBLE (N to hide)</div>
+<div id="legend" aria-hidden="true">
+  <div><i style="background:#b91c1c">!</i>Frágil: no afirmar como hecho</div>
+  <div><i style="background:#9a5b00">?</i>Verificar antes de la charla</div>
+  <div><i style="background:#15803d">&rarr;</i>Cómo llevar la conversación</div>
+  <div><i style="background:#1d4ed8">&#8635;</i>Actualizar: hay datos nuevos</div>
+</div>
 <div id="bar" role="toolbar" aria-label="Deck controls">
   <button id="prev" aria-label="Previous slide">&larr;</button>
   <button id="next" aria-label="Next slide">&rarr;</button>
   <span id="count" aria-live="polite"></span>
   <span id="title"></span>
+  <button id="notes-btn" aria-pressed="false" aria-label="Toggle presenter notes">Notes (N)</button>
   <button id="overview" aria-label="Show all slides">Grid (G)</button>
   <button id="full" aria-label="Toggle fullscreen">Fullscreen (F)</button>
 </div>
 <div id="grid" role="dialog" aria-label="All slides"></div>
+<!-- Optional, local only. Missing on GitHub Pages by design. -->
+<script src="deck-notes.js" onerror="this.remove()"></script>
 <script>
   // Order: 5 main slides, then the appendix (not presented, for questions).
   const slides = [
@@ -52,11 +92,67 @@
     { file: "findings-slide-A2.svg", title: "Appendix A2 · Attribution (exploration)" },
     { file: "findings-slide-A3.svg", title: "Appendix A3 · More tools, and the ones that act" },
   ];
+  const KINDS = {
+    fragil:     { sym: "!",      label: "Frágil: no afirmar como hecho" },
+    verificar:  { sym: "?",      label: "Verificar antes de la charla" },
+    enfoque:    { sym: "\u2192", label: "Cómo llevar la conversación" },
+    actualizar: { sym: "\u21BB", label: "Actualizar: hay datos nuevos" },
+  };
   let i = 0;
+  const frame = document.getElementById("frame");
   const img = document.getElementById("slide");
   const count = document.getElementById("count");
   const title = document.getElementById("title");
   const grid = document.getElementById("grid");
+  const notesBtn = document.getElementById("notes-btn");
+  const hasNotes = typeof window.NOTES === "object" && window.NOTES !== null;
+  if (hasNotes) document.body.classList.add("has-notes");
+
+  // Notes are keyed by slide number (1..7). Built with textContent only.
+  function renderNotes() {
+    frame.querySelectorAll(".note").forEach(n => n.remove());
+    if (!hasNotes) return;
+    (window.NOTES[i + 1] || []).forEach((n, k) => {
+      const kind = KINDS[n.k] || KINDS.enfoque;
+      const b = document.createElement("button");
+      b.className = "note " + (KINDS[n.k] ? n.k : "enfoque");
+      if (n.x > 55) b.classList.add("flip-left");
+      if (n.y > 60) b.classList.add("flip-up");
+      b.style.left = n.x + "%";
+      b.style.top = n.y + "%";
+      const tipId = "tip-" + (i + 1) + "-" + k;
+      b.setAttribute("aria-label", kind.label + ": " + n.t);
+      b.setAttribute("aria-describedby", tipId);
+      const sym = document.createElement("span");
+      sym.textContent = kind.sym;
+      sym.setAttribute("aria-hidden", "true");
+      const tip = document.createElement("span");
+      tip.className = "tip";
+      tip.id = tipId;
+      tip.setAttribute("role", "tooltip");
+      const kd = document.createElement("em");
+      kd.textContent = kind.label;
+      const hd = document.createElement("b");
+      hd.textContent = n.t;
+      const tx = document.createElement("span");
+      tx.textContent = n.s;
+      tip.append(kd, hd, tx);
+      b.append(sym, tip);
+      // Click pins the tooltip so it can be read without holding the pointer still.
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        const was = b.classList.contains("pinned");
+        frame.querySelectorAll(".note.pinned").forEach(x => x.classList.remove("pinned"));
+        if (!was) b.classList.add("pinned");
+      });
+      frame.appendChild(b);
+    });
+  }
+  function setNotes(on) {
+    if (!hasNotes) return;
+    document.body.classList.toggle("notes-on", on);
+    notesBtn.setAttribute("aria-pressed", String(on));
+  }
 
   function show(n) {
     i = Math.max(0, Math.min(slides.length - 1, n));
@@ -65,6 +161,7 @@
     count.textContent = (i + 1) + " / " + slides.length;
     title.textContent = slides[i].title;
     history.replaceState(null, "", "#" + (i + 1));
+    renderNotes();
     // preload neighbours
     [i - 1, i + 1].forEach(k => { if (slides[k]) new Image().src = slides[k].file; });
   }
@@ -90,6 +187,7 @@
   document.getElementById("next").onclick = () => show(i + 1);
   document.getElementById("overview").onclick = () => toggleGrid(true);
   document.getElementById("full").onclick = toggleFull;
+  notesBtn.onclick = () => setNotes(!document.body.classList.contains("notes-on"));
   document.getElementById("stage").addEventListener("click", e => {
     show(e.clientX < innerWidth / 3 ? i - 1 : i + 1);
   });
@@ -105,7 +203,11 @@
       case "End": show(slides.length - 1); break;
       case "g": case "G": toggleGrid(!grid.classList.contains("on")); break;
       case "f": case "F": toggleFull(); break;
-      case "Escape": toggleGrid(false); break;
+      case "n": case "N": setNotes(!document.body.classList.contains("notes-on")); break;
+      case "Escape":
+        toggleGrid(false);
+        frame.querySelectorAll(".note.pinned").forEach(x => x.classList.remove("pinned"));
+        break;
     }
   });
 

@@ -65,3 +65,5 @@ docs/real_user_conversations.md
 
 # Raw output of the heartbeat experiment (RESULTS.md keeps the numbers)
 bench/results/heartbeat-*/
+# Presenter notes for the deck (local only; never published to GitHub Pages)
+docs/overview/deck-notes.js
