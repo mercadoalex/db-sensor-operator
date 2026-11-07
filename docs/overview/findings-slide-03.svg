@@ -1,30 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
-<title id="t">CDC already has a place; but can it have a place inside Kubernetes?</title><desc id="d">Debezium already has an official Kubernetes operator, installed via Helm and listed on OperatorHub. The open question is whether CDC can have a place in a new role: letting Kubernetes react to the behavior of the data. We tested where CDC beats cheaper sources (6 experiments).</desc>
+<title id="t">CDC already runs on Kubernetes; operators read the state, CDC reads the change</title><desc id="d">Debezium already has an official Kubernetes operator, installed via Helm and listed on OperatorHub. Operators that react to database data read its state, such as a query result; none we found reacts to a change, meaning what was altered and in what order. The open question is whether CDC can let Kubernetes react to what the data did. We tested where CDC beats cheaper sources (6 experiments).</desc>
 <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
 <rect width="1600" height="900" fill="#ffffff"/>
 <text x="64" y="92" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">THE FRAMING</text>
-<text x="64" y="160" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#09090b" text-anchor="start">CDC already has a place.</text>
-<text x="64" y="214" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#ea580c" text-anchor="start">But can it have a place inside Kubernetes?</text>
-<rect x="64" y="258" width="1472" height="104" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
-<text x="88" y="296" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#09090b" text-anchor="start">There is already an official Debezium Operator for Kubernetes.</text>
-<text x="88" y="324" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Helm install (debezium/debezium-operator), on OperatorHub. Capture is solved: 3 Debezium runtimes, this operator, and Strimzi for Kafka.</text>
-<text x="88" y="348" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">github.com/debezium/debezium-operator   ·   operatorhub.io/operator/debezium-operator</text>
-<rect x="1180" y="276" width="332" height="68" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1" stroke-dasharray="5 4"/>
-<text x="1346" y="304" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">[ add live numbers before the talk:</text>
-<text x="1346" y="324" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">GitHub stars / Helm installs ]</text>
-<text x="64" y="414" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ea580c" text-anchor="start" letter-spacing="2">OUR PROPOSAL  ·  A HYPOTHESIS, NOT YET VALIDATED</text>
-<rect x="64" y="440" width="420" height="116" rx="2" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
-<text x="88" y="488" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#16a34a" text-anchor="start">CDC SENSES</text>
-<text x="88" y="520" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">what changed in the data</text>
-<line x1="498" y1="498.0" x2="566" y2="498.0" stroke="#18181b" stroke-width="2" marker-end="url(#arr)"/>
-<rect x="580" y="440" width="420" height="116" rx="2" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
-<text x="604" y="488" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ea580c" text-anchor="start">A POLICY DECIDES</text>
-<text x="604" y="520" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">is this change allowed?</text>
-<line x1="1014" y1="498.0" x2="1082" y2="498.0" stroke="#18181b" stroke-width="2" marker-end="url(#arr)"/>
-<rect x="1096" y="440" width="420" height="116" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="2"/>
-<text x="1120" y="488" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#18181b" text-anchor="start">KUBERNETES ACTS</text>
-<text x="1120" y="520" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">stop the job, alert</text>
-<text x="64" y="636" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="400" fill="#09090b" text-anchor="start">Kubernetes knows who and when. CDC knows what changed. Neither alone is enough.</text>
+<text x="64" y="160" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#09090b" text-anchor="start">CDC already runs on Kubernetes.</text>
+<text x="64" y="214" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#ea580c" text-anchor="start">Operators read the state. CDC reads the change.</text>
+<text x="64" y="252" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#27272a" text-anchor="start">Operators already react to the <tspan font-weight="700">state</tspan> of a database: a query result, a number, a row.</text>
+<text x="64" y="278" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" font-weight="400" fill="#27272a" text-anchor="start">None we found reacts to a <tspan font-weight="700">change</tspan>: what was altered, and in what order.</text>
+<rect x="64" y="304" width="1472" height="104" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88" y="342" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#09090b" text-anchor="start">There is already an official Debezium Operator for Kubernetes.</text>
+<text x="88" y="370" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Helm install (debezium/debezium-operator), on OperatorHub. Capture is solved: 3 Debezium runtimes, this operator, and Strimzi for Kafka.</text>
+<text x="88" y="394" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">github.com/debezium/debezium-operator   ·   operatorhub.io/operator/debezium-operator</text>
+<rect x="1180" y="322" width="332" height="68" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="1346" y="350" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">[ add live numbers before the talk:</text>
+<text x="1346" y="370" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">GitHub stars / Helm installs ]</text>
+<text x="64" y="460" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ea580c" text-anchor="start" letter-spacing="2">OUR PROPOSAL  ·  A HYPOTHESIS, NOT YET VALIDATED</text>
+<rect x="64" y="486" width="420" height="116" rx="2" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
+<text x="88" y="534" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#16a34a" text-anchor="start">CDC SENSES</text>
+<text x="88" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">what changed in the data</text>
+<line x1="498" y1="544" x2="566" y2="544" stroke="#18181b" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="580" y="486" width="420" height="116" rx="2" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+<text x="604" y="534" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#ea580c" text-anchor="start">A POLICY DECIDES</text>
+<text x="604" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">is this change allowed?</text>
+<line x1="1014" y1="544" x2="1082" y2="544" stroke="#18181b" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="1096" y="486" width="420" height="116" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="2"/>
+<text x="1120" y="534" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#18181b" text-anchor="start">KUBERNETES ACTS</text>
+<text x="1120" y="566" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">stop the job, alert</text>
+<text x="64" y="644" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="400" fill="#09090b" text-anchor="start">Kubernetes knows who and when. CDC knows what changed. Neither alone is enough.</text>
 <rect x="64" y="668" width="1472" height="118" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
 <text x="88" y="704" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="400" fill="#52525b" text-anchor="start">We ran 6 scenarios (one run each) on a local kind cluster to test one thing:</text>
 <text x="88" y="730" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="600" fill="#09090b" text-anchor="start">where does CDC show something a plain Postgres counter and the Kubernetes API cannot?</text>

@@ -58,10 +58,11 @@
 <text x="806" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
 <text x="1054" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">no</text>
 <text x="1302" y="596" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#d97706" text-anchor="start">proposed, unbuilt</text>
-<rect x="64" y="650" width="1472" height="112" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<rect x="64" y="650" width="1472" height="136" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
 <text x="88" y="690" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#09090b" text-anchor="start">Capture is a commodity: three runtimes, two operators, an official guide.</text>
 <text x="88" y="722" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#52525b" text-anchor="start">Our only defensible ground is the reaction layer on top of a running Debezium Server, which none of them do.</text>
 <text x="88" y="748" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">From public docs read on 2026-11-05  ·  not an exhaustive audit  ·  docs/research/competitive-landscape.md</text>
+<text x="88" y="774" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">The slot row is true of these three operators. Generic PostgreSQL monitoring can already alert on an inactive slot (a postgres_exporter rule).</text>
 <text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
 <text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
 <text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A1</text>
