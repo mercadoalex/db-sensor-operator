@@ -1,0 +1,65 @@
+# Throwaway receiver for the heartbeat experiment (A1). It does NOT use Lactifluus's parser, so
+# the result is not biased by what we expect. It logs every POST untouched: arrival time
+# (epoch ms, from the pod clock), URL path (one path per variant), all request headers, the body
+# length and the first 700 bytes of the body. The analysis reads these lines afterwards.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hb-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import json, time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            body = self.rfile.read(n) if n else b""
+            # Classify on the FULL body: an event with its schema envelope is far longer than the
+            # excerpt kept below, so parsing the excerpt would misread events as unparseable.
+            keys, op, ts_ms, envelope = [], None, None, False
+            try:
+                doc = json.loads(body)
+                envelope = isinstance(doc, dict) and "schema" in doc
+                pl = doc.get("payload") if isinstance(doc, dict) and isinstance(doc.get("payload"), dict) else doc
+                if isinstance(pl, dict):
+                    keys, op, ts_ms = sorted(pl.keys()), pl.get("op"), pl.get("ts_ms")
+            except ValueError:
+                pass
+            rec = {
+                "t": int(time.time() * 1000),
+                "path": self.path,
+                "len": len(body),
+                "headers": {k: v for k, v in self.headers.items()},
+                "keys": keys, "op": op, "ts_ms": ts_ms, "envelope": envelope,
+                "body": body[:700].decode("utf-8", "replace"),
+            }
+            print("REQ " + json.dumps(rec), flush=True)
+            self.send_response(204); self.end_headers()
+        def log_message(self, *a): pass
+    ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hb-receiver
+  namespace: bench
+  labels: { app: hb-receiver }
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "-u", "/code/receiver.py"]
+      volumeMounts: [{ name: code, mountPath: /code }]
+  volumes:
+    - name: code
+      configMap: { name: hb-receiver-code }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hb-receiver
+  namespace: bench
+spec:
+  selector: { app: hb-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]
