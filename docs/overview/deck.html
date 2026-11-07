@@ -81,16 +81,19 @@
 <!-- Optional, local only. Missing on GitHub Pages by design. -->
 <script src="deck-notes.js" onerror="this.remove()"></script>
 <script>
-  // Order: 5 main slides, then the appendix (not presented, for questions).
+  // Order: disclaimer (00), 5 main slides, then the appendix (not presented, for questions).
+  // Presenter notes (deck-notes.js) are keyed by the slide id, so adding slides cannot shift them.
   const slides = [
-    { file: "findings-slide-01.svg", title: "01 · Background: how database monitoring in Kubernetes gets its data" },
-    { file: "findings-slide-02.svg", title: "02 · Why we built this" },
-    { file: "findings-slide-03.svg", title: "03 · The framing" },
-    { file: "findings-slide-04.svg", title: "04 · What we found" },
-    { file: "findings-slide-05.svg", title: "05 · What is next, and what we need from you" },
-    { file: "findings-slide-A1.svg", title: "Appendix A1 · Where Lactifluus sits" },
-    { file: "findings-slide-A2.svg", title: "Appendix A2 · Attribution (exploration)" },
-    { file: "findings-slide-A3.svg", title: "Appendix A3 · More tools, and the ones that act" },
+    { id: "00", file: "findings-slide-00.svg", title: "00 · Disclaimer" },
+    { id: "01", file: "findings-slide-01.svg", title: "01 · Background: how database monitoring in Kubernetes gets its data" },
+    { id: "02", file: "findings-slide-02.svg", title: "02 · Why we built this" },
+    { id: "03", file: "findings-slide-03.svg", title: "03 · The framing" },
+    { id: "04", file: "findings-slide-04.svg", title: "04 · What we found" },
+    { id: "05", file: "findings-slide-05.svg", title: "05 · What is next, and what we need from you" },
+    { id: "A1", file: "findings-slide-A1.svg", title: "Appendix A1 · Where Lactifluus sits" },
+    { id: "A2", file: "findings-slide-A2.svg", title: "Appendix A2 · Attribution (exploration)" },
+    { id: "A3", file: "findings-slide-A3.svg", title: "Appendix A3 · More tools, and the ones that act" },
+    { id: "A4", file: "findings-slide-A4.svg", title: "Appendix A4 · References" },
   ];
   const KINDS = {
     fragil:     { sym: "!",      label: "Frágil: no afirmar como hecho" },
@@ -112,7 +115,7 @@
   function renderNotes() {
     frame.querySelectorAll(".note").forEach(n => n.remove());
     if (!hasNotes) return;
-    (window.NOTES[i + 1] || []).forEach((n, k) => {
+    (window.NOTES[slides[i].id] || []).forEach((n, k) => {
       const kind = KINDS[n.k] || KINDS.enfoque;
       const b = document.createElement("button");
       b.className = "note " + (KINDS[n.k] ? n.k : "enfoque");
@@ -120,7 +123,7 @@
       if (n.y > 60) b.classList.add("flip-up");
       b.style.left = n.x + "%";
       b.style.top = n.y + "%";
-      const tipId = "tip-" + (i + 1) + "-" + k;
+      const tipId = "tip-" + slides[i].id + "-" + k;
       b.setAttribute("aria-label", kind.label + ": " + n.t);
       b.setAttribute("aria-describedby", tipId);
       const sym = document.createElement("span");
@@ -160,7 +163,7 @@
     img.alt = slides[i].title;
     count.textContent = (i + 1) + " / " + slides.length;
     title.textContent = slides[i].title;
-    history.replaceState(null, "", "#" + (i + 1));
+    history.replaceState(null, "", "#" + slides[i].id);
     renderNotes();
     // preload neighbours
     [i - 1, i + 1].forEach(k => { if (slides[k]) new Image().src = slides[k].file; });
@@ -211,8 +214,14 @@
     }
   });
 
-  const start = parseInt(location.hash.slice(1), 10);
-  show(Number.isNaN(start) ? 0 : start - 1);
+  // #04, #4, #A3 and #a3 all work; #0 is the disclaimer. Unknown or empty opens the first slide.
+  function indexFromHash() {
+    const h = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+    let k = slides.findIndex(x => x.id === h);
+    if (k < 0 && /^\d$/.test(h)) k = slides.findIndex(x => x.id === "0" + h);
+    return Math.max(k, 0);
+  }
+  show(indexFromHash());
 </script>
 </body>
 </html>
