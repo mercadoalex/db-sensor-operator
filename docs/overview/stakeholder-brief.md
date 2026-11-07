@@ -286,7 +286,7 @@ Possible uses, in no priority order: anomaly detection (starting statistical, as
 | **DDL** | Schema changes (`ALTER TABLE`, `CREATE`…). Not visible on PostgreSQL with this method. |
 | **`wal_level`** | A PostgreSQL setting that defines how much information it writes to the WAL. For CDC it must be `logical`; with any other value Debezium cannot create its replication slot. |
 | **Lag** | The delay between a change happening and us seeing it. |
-| **Idle table** | A table with no writes. Since lag is measured against the last event, a quiet table looks "behind" and goes to `Degraded` even though nothing is wrong. |
+| **Idle table** | A table with no writes. Since lag is measured against the last event, a quiet table looks "behind": it goes to `Degraded` after 30 seconds and to `Failed` after two minutes, even though nothing is wrong (measured 2026-11-06, `bench/experiments/quiet-table`). |
 | **Operator / reconciler** | A Kubernetes program that continuously drives the real state toward the state declared in a YAML. |
 | **CRD / CR** | A custom resource type (`DatabaseSensor`) and each instance the user creates. |
 | **Job** | A Kubernetes task that runs once and finishes. The inspector runs as a Job. |

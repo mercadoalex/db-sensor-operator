@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
+<title id="t">Appendix A3: more monitoring tools, and the tools that act in Kubernetes from database data</title><desc id="d">Four more database monitoring tools, and three Kubernetes tools that react to database data: KEDA's PostgreSQL scaler, db-query-operator and Argo Events. Read from public docs, nothing installed or tested. None of the tools described reading the write-ahead log.</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">APPENDIX A3  ·  FOR QUESTIONS, NOT PRESENTED</text>
+<text x="64" y="150" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="40" font-weight="700" fill="#09090b" text-anchor="start">More tools, and the ones that act</text>
+<rect x="64" y="596" width="1472" height="52" rx="2" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+<rect x="64" y="184" width="1472" height="464" rx="2" fill="none" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="314" y1="184" x2="314" y2="648" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="444" y1="184" x2="444" y2="648" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="1004" y1="184" x2="1004" y2="648" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="232" x2="1536" y2="232" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="284" x2="1536" y2="284" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="336" x2="1536" y2="336" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="388" x2="1536" y2="388" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="440" x2="1536" y2="440" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="492" x2="1536" y2="492" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="544" x2="1536" y2="544" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="596" x2="1536" y2="596" stroke="#d4d4d8" stroke-width="1"/>
+<line x1="64" y1="648" x2="1536" y2="648" stroke="#d4d4d8" stroke-width="1"/>
+<text x="78" y="215" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Tool</text>
+<text x="328" y="215" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Kind</text>
+<text x="458" y="215" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">How it gets the data, or its trigger</text>
+<text x="1018" y="215" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">What it carries, or what it does</text>
+<text x="78" y="264" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Coroot</text>
+<text x="328" y="264" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Monitoring</text>
+<text x="458" y="264" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">eBPF on the wire, plus PostgreSQL system views</text>
+<text x="1018" y="264" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Query timing per application; normalized queries</text>
+<text x="78" y="316" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">pganalyze</text>
+<text x="328" y="316" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Monitoring</text>
+<text x="458" y="316" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Collector queries the database and tails its logs</text>
+<text x="1018" y="316" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Query stats, plans, log events; query tags</text>
+<text x="78" y="368" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Percona PMM</text>
+<text x="328" y="368" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Monitoring</text>
+<text x="458" y="368" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">PMM Client or postgres_exporter, scraped</text>
+<text x="1018" y="368" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Metrics on dashboards</text>
+<text x="78" y="420" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Zabbix</text>
+<text x="328" y="420" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Monitoring</text>
+<text x="458" y="420" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Agent 2 plugin runs SQL queries (template)</text>
+<text x="1018" y="420" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Metrics and triggers on those queries</text>
+<text x="78" y="472" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">KEDA PostgreSQL scaler</text>
+<text x="328" y="472" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#d97706" text-anchor="start">Acts</text>
+<text x="458" y="472" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Polls one SQL query that returns one number</text>
+<text x="1018" y="472" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Scales Deployments or Jobs; can pause scaling</text>
+<text x="78" y="524" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">db-query-operator</text>
+<text x="328" y="524" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#d97706" text-anchor="start">Acts</text>
+<text x="458" y="524" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Polls a SQL query; optional timestamp-column check</text>
+<text x="1018" y="524" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Creates, updates and prunes resources per row</text>
+<text x="78" y="576" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#09090b" text-anchor="start">Argo Events</text>
+<text x="328" y="576" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#d97706" text-anchor="start">Acts</text>
+<text x="458" y="576" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Event sources (Kafka, webhook...) with data filters</text>
+<text x="1018" y="576" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Triggers workflows or Kubernetes objects</text>
+<text x="78" y="628" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">Lactifluus</text>
+<text x="328" y="628" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#09090b" text-anchor="start">Proposed</text>
+<text x="458" y="628" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#09090b" text-anchor="start">Reads the WAL through Debezium; rules on content</text>
+<text x="1018" y="628" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#09090b" text-anchor="start">Reaction not built: alert, approval or stop?</text>
+<rect x="64" y="670" width="1472" height="138" rx="2" fill="#fafafa" stroke="#d4d4d8" stroke-width="1"/>
+<text x="88" y="702" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#d97706" text-anchor="start" letter-spacing="0.5">A reading of the docs, not a test</text>
+<text x="88" y="732" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">The tools that act poll a query or consume events. We found none built to stop a workload on a change in the data's content.</text>
+<text x="88" y="758" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#09090b" text-anchor="start">But the pieces compose: in our bench, Debezium to Kafka to an Argo Events data filter suspended a Job in under a second. It cannot say which Job.</text>
+<text x="88" y="788" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="start">One run, local bench. Not checked: Kyverno, scale, a replicated Kafka. Notes: bench/experiments/argo-events-chain/RESULTS.md</text>
+<text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
+<text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
+<text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">Appendix A3</text>
+</svg>
