@@ -268,6 +268,7 @@ type DashboardConfig struct {
 // DatabaseSensorSpec defines the desired state of DatabaseSensor
 // +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || self.database.type == 'postgresql'",message="spec.snapshot.inspection is only available for postgresql"
 // +kubebuilder:validation:XValidation:rule="!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled) || (has(self.database.name) && size(self.database.name) > 0)",message="spec.snapshot.inspection requires spec.database.name"
+// +kubebuilder:validation:XValidation:rule="!has(self.heartbeat) || self.database.type == 'postgresql'",message="spec.heartbeat is only available for postgresql"
 type DatabaseSensorSpec struct {
 	// database is the connection to the database to monitor.
 	// +kubebuilder:validation:Required
@@ -302,6 +303,25 @@ type DatabaseSensorSpec struct {
 	// position across restarts (ADR-014). An omitted block keeps today's behaviour.
 	// +optional
 	Snapshot *SnapshotConfig `json:"snapshot,omitempty"`
+	// heartbeat configures the Debezium heartbeat (ADR-018). On PostgreSQL it is on by default
+	// every 30 seconds; this block changes the interval or turns it off.
+	// +optional
+	Heartbeat *HeartbeatConfig `json:"heartbeat,omitempty"`
+}
+
+// HeartbeatConfig configures the heartbeat Debezium emits while the monitored tables are quiet.
+// The heartbeat lets the connector confirm its position in the log, so the PostgreSQL replication
+// slot keeps moving and does not retain WAL when the changes are filtered out (ADR-018).
+type HeartbeatConfig struct {
+	// intervalSeconds is how often Debezium emits a heartbeat, in seconds. 0 turns it off.
+	// When unset the operator uses 30 on PostgreSQL. The slot is confirmed when Debezium commits
+	// its offsets, which was about every 60 seconds in the measured run, so a value below that
+	// buys nothing for the slot.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=3600
+	// +kubebuilder:validation:XValidation:rule="self == 0 || self >= 5",message="intervalSeconds must be 0 or at least 5"
+	IntervalSeconds *int32 `json:"intervalSeconds,omitempty"`
 }
 
 // SnapshotConfig configures Debezium's start behaviour and offset persistence.

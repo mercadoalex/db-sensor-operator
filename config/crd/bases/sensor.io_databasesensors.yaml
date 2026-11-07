@@ -126,6 +126,25 @@ spec:
                 - type
                 - user
                 type: object
+              heartbeat:
+                description: |-
+                  heartbeat configures the Debezium heartbeat (ADR-018). On PostgreSQL it is on by default
+                  every 30 seconds; this block changes the interval or turns it off.
+                properties:
+                  intervalSeconds:
+                    description: |-
+                      intervalSeconds is how often Debezium emits a heartbeat, in seconds. 0 turns it off.
+                      When unset the operator uses 30 on PostgreSQL. The slot is confirmed when Debezium commits
+                      its offsets, which was about every 60 seconds in the measured run, so a value below that
+                      buys nothing for the slot.
+                    format: int32
+                    maximum: 3600
+                    minimum: 0
+                    type: integer
+                    x-kubernetes-validations:
+                    - message: intervalSeconds must be 0 or at least 5
+                      rule: self == 0 || self >= 5
+                type: object
               sink:
                 description: sink configures the observability backends alerts and
                   metrics fan out to.
@@ -381,6 +400,8 @@ spec:
             - message: spec.snapshot.inspection requires spec.database.name
               rule: '!(has(self.snapshot) && has(self.snapshot.inspection) && self.snapshot.inspection.enabled)
                 || (has(self.database.name) && size(self.database.name) > 0)'
+            - message: spec.heartbeat is only available for postgresql
+              rule: '!has(self.heartbeat) || self.database.type == ''postgresql'''
           status:
             description: status defines the observed state of DatabaseSensor
             properties:

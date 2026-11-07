@@ -228,3 +228,44 @@ func TestSnapshotStatusMatchesGeneratedServer(t *testing.T) {
 	assert.Equal(t, "no_data", sourceConfig(t, obj)["snapshot.mode"])
 	assert.Equal(t, "no-data", SnapshotStatusFor(sensor).Strategy)
 }
+
+func TestBuildDebeziumServer_PostgresHeartbeatOnByDefault(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("postgresql", "public.orders"))
+	require.NoError(t, err)
+	assert.Equal(t, "30000", sourceConfig(t, obj)["heartbeat.interval.ms"])
+}
+
+func TestBuildDebeziumServer_HeartbeatInterval(t *testing.T) {
+	secs := func(v int32) *sensoriov1.HeartbeatConfig { return &sensoriov1.HeartbeatConfig{IntervalSeconds: &v} }
+
+	custom := newSensor("postgresql", "public.orders")
+	custom.Spec.Heartbeat = secs(10)
+	obj, err := BuildDebeziumServer(custom)
+	require.NoError(t, err)
+	assert.Equal(t, "10000", sourceConfig(t, obj)["heartbeat.interval.ms"])
+
+	off := newSensor("postgresql", "public.orders")
+	off.Spec.Heartbeat = secs(0)
+	obj, err = BuildDebeziumServer(off)
+	require.NoError(t, err)
+	assert.NotContains(t, sourceConfig(t, obj), "heartbeat.interval.ms", "0 turns the heartbeat off, so the property is left unset")
+
+	// An empty block keeps the default.
+	empty := newSensor("postgresql", "public.orders")
+	empty.Spec.Heartbeat = &sensoriov1.HeartbeatConfig{}
+	obj, err = BuildDebeziumServer(empty)
+	require.NoError(t, err)
+	assert.Equal(t, "30000", sourceConfig(t, obj)["heartbeat.interval.ms"])
+}
+
+func TestBuildDebeziumServer_MySQLHasNoHeartbeat(t *testing.T) {
+	obj, err := BuildDebeziumServer(newSensor("mysql", "app.orders"))
+	require.NoError(t, err)
+	assert.NotContains(t, sourceConfig(t, obj), "heartbeat.interval.ms")
+
+	// Even if the field is set (the CRD rejects it, this is defense in depth).
+	sensor := newSensor("mysql", "app.orders")
+	v := int32(10)
+	sensor.Spec.Heartbeat = &sensoriov1.HeartbeatConfig{IntervalSeconds: &v}
+	assert.Equal(t, int32(0), HeartbeatSeconds(sensor))
+}

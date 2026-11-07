@@ -135,6 +135,50 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// TestParseHeartbeat covers ADR-018. The first body is the one Debezium Server 3.6.3 sent over
+// the HTTP sink in bench/experiments/heartbeat; the rest are records that must NOT be taken for
+// a heartbeat, because they would then be dropped from lag, counters and history.
+func TestParseHeartbeat(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		wantHeartbeat bool
+		wantOp        string
+	}{
+		{
+			name: "heartbeat with schema envelope (as sent by Debezium Server 3.6.3)",
+			raw: `{"schema":{"type":"struct","fields":[{"type":"int64","optional":false,"field":"ts_ms"}],
+				"optional":false,"name":"io.debezium.connector.common.Heartbeat","version":1},
+				"payload":{"ts_ms":1794027479832}}`,
+			wantHeartbeat: true,
+		},
+		{name: "heartbeat without envelope", raw: `{"ts_ms":1794027479832}`, wantHeartbeat: true},
+		{name: "change with op but no source", raw: `{"payload":{"op":"c","ts_ms":1}}`, wantOp: "c"},
+		{name: "record with source but no op", raw: `{"payload":{"ts_ms":1,"source":{"db":"d","table":"t"}}}`},
+		{name: "record with a row image but no op", raw: `{"payload":{"ts_ms":1,"after":{"id":1}}}`},
+		{name: "record with a before image but no op", raw: `{"payload":{"ts_ms":1,"before":{"id":1}}}`},
+		{name: "ddl envelope", raw: `{"payload":{"ddl":"ALTER TABLE t ADD COLUMN c int","ts_ms":1}}`},
+		{name: "snapshot read", raw: `{"payload":{"op":"r","ts_ms":1,"source":{"db":"d","table":"t","snapshot":"true"}}}`, wantOp: "r"},
+		{name: "empty object has no timestamp", raw: `{}`},
+		{name: "envelope without a timestamp", raw: `{"payload":{}}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Parse([]byte(tc.raw))
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantHeartbeat, got.Heartbeat)
+			if tc.wantOp != "" {
+				assert.Equal(t, tc.wantOp, got.Op)
+			}
+			if tc.wantHeartbeat {
+				assert.Empty(t, got.DB)
+				assert.Empty(t, got.Table)
+				assert.NotZero(t, got.TsMs)
+			}
+		})
+	}
+}
+
 func TestParseMalformedDoesNotPanic(t *testing.T) {
 	bad := [][]byte{
 		[]byte(`{not json`),

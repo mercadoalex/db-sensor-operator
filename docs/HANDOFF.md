@@ -155,18 +155,16 @@ Not verified:
    with `get`); that path is covered by unit tests only, not by the kind run.
 3. **Server capability.** Encode PG version/capability so "absent" and "not measured" differ on
    PG<13. Test on a PG12 container.
-4. **Heartbeat.** Deployer sets none. Design: [ADR-018](adr/ADR-018-heartbeat.md). A1 and E1
-   verified 2026-11-06 (`bench/experiments/heartbeat/RESULTS.md`): the HTTP sink delivers
-   heartbeats (`{"schema":..,"payload":{"ts_ms":..}}`, no topic header) and the interval keeps
-   the slot moving, but only about every 60 s (offset flush), so stall detection must use
-   `confirmed_flush_lsn` unchanged over ~2 min, not "lag grew".
-   **Next (pick up here):** phase 1 = `heartbeat.interval.ms` in `internal/deployer/debezium.go`,
-   `CDCEvent.Heartbeat` in `internal/events/parser.go`, and routing in `Pipeline.Handle` to a new
-   `HeartbeatTracker` (never to `LagTracker`/`Exporter`; today a heartbeat would reset the
-   no-events clock and create a `{db="",table=""}` series). Optionally run E2 first (idle DB,
-   another DB writing), which decides whether `heartbeat.action.query` is needed. Open decisions
-   are at the end of the ADR. The raw run data in `bench/results/heartbeat-20261106/` is not
-   git-ignored; decide whether to ignore or commit it. Nothing from this work is committed yet.
+4. **Heartbeat.** Design: [ADR-018](adr/ADR-018-heartbeat.md). A1 and E1 verified 2026-11-06
+   (`bench/experiments/heartbeat/RESULTS.md`): the HTTP sink delivers heartbeats and the interval
+   keeps the slot moving, but only about every 60 s (offset flush). **Phase 1 is built
+   (2026-11-07):** `spec.heartbeat.intervalSeconds` (PostgreSQL only, 30 s default, 0 off), the
+   parser flags heartbeats and the pipeline drops them. Not yet run end to end in kind.
+   **Next:** phase 2 (a heartbeat tracker with its own clock, `Idle`/`HeartbeatMissing`, the
+   `HeartbeatReceived` condition, metrics, alerts), then phase 3 (`SlotAdvancing`: alert when
+   `confirmed_flush_lsn` does not move for about 2 minutes while heartbeats are fresh; do not test
+   "lag grew", it is a sawtooth). Optionally run E2 first (idle DB, another DB writing). Check
+   first in kind that the operator-generated config really carries the property.
 5. **PG17 / standby.** `invalidation_reason`, `inRecovery` behaviour: recorded in ADR-014 Pending, not built.
 6. **Staleness thresholds.** `estimate()` assumes autovacuum defaults and does not read server
    settings. Documented limitation.

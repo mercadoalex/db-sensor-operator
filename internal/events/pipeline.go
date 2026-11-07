@@ -69,8 +69,16 @@ type Pipeline struct {
 // Snapshot events (existing rows read during a snapshot) are dropped: they carry
 // the timestamp of the read, so they would make a healthy sensor look laggy, and
 // they are not mutations, so they belong in no counter or history. See ADR-014.
+// Heartbeat records are dropped for the same reason. See ADR-018.
 func (p *Pipeline) Handle(ev CDCEvent) {
 	if ev.Snapshot {
+		return
+	}
+	// A heartbeat is neither a mutation nor a sign that the table is active. If it reached the
+	// LagTracker it would reset the no-events clock on every beat and hide a stalled connector;
+	// if it reached the Exporter it would create a series with empty db and table labels.
+	// Phase 2 of ADR-018 gives it its own clock; until then it is dropped here.
+	if ev.Heartbeat {
 		return
 	}
 	if p.Exporter != nil {

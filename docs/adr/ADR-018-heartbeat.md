@@ -1,6 +1,6 @@
 # ADR-018 — Heartbeat: keep the slot moving and tell a quiet table from a stalled connector
 
-- **Status:** Proposed
+- **Status:** Accepted. Phase 1 is implemented (2026-11-07); phases 2 and 3 are not.
 - **Date:** 2026-11-06
 - **Context:** `docs/HANDOFF.md` "To do" item 4 (Heartbeat) and the open decision "Quiet
   table"; community conversations in `docs/real_user_conversations.md`. Relates to ADR-014
@@ -123,6 +123,27 @@ Two different jobs hide behind the word heartbeat, and they have different owner
 - **Phase 2:** decisions 3–5 and 8 (trackers, state table, condition, metrics, alerts).
 - **Phase 3:** decision 6 (`SlotAdvancing`).
 - **Later, if needed:** decision 7 (action query) and decision 9 (Kafka).
+
+## Phase 1, as built (2026-11-07)
+
+- **Deployer:** on PostgreSQL the generated `DebeziumServer` sets `heartbeat.interval.ms` (30 s by
+  default). Nothing is set for MySQL.
+- **API:** `spec.heartbeat.intervalSeconds`, optional. `0` turns the heartbeat off, otherwise 5 to
+  3600. The CRD rejects the block on MySQL. Both rules are enforced by CEL and covered by envtest
+  specs (`internal/controller/heartbeat_schema_test.go`).
+- **Parser:** `CDCEvent.Heartbeat`, set when a record has a timestamp and no op, source, before or
+  after. Verified against the body Debezium Server 3.6.3 sent over the HTTP sink.
+- **Pipeline:** a heartbeat is dropped before the exporter, the lag tracker and the dashboard
+  history. Without this, each beat would have reset the no-events clock and created a series with
+  empty `db` and `table` labels.
+- **Not built:** the heartbeat tracker and its own clock, the `Idle` and `HeartbeatMissing` states,
+  the `HeartbeatReceived` condition, the metrics and alert rules, `SlotAdvancing`, Kafka support.
+  A heartbeat is therefore invisible to the user for now; its only effect is that the slot keeps
+  moving.
+- **Tested:** unit tests for the deployer, parser and pipeline (each fails if its fix is removed),
+  and envtest specs for the CRD rules. **Not tested:** the operator end to end in kind with the
+  new setting. The experiment used a hand-written `DebeziumServer` with the same property under
+  `spec.source.config`, which is where the deployer puts it.
 
 ## API surface
 
