@@ -32,7 +32,7 @@ Numbers from the run: counters went `1001|1|0|1001` → `1251|1|300|951` (ins|up
 
 ## What this tells the direction
 
-- Counting mutations is not a reason to run CDC; `pg_stat` plus a Prometheus exporter covers it. This matches Mario's objection.
+- Counting mutations is not a reason to run CDC; `pg_stat` plus a Prometheus exporter covers it. This matches the Debezium maintainer's objection.
 - The only defensible edge is **per-row content and per-Job attribution**, and both are unbuilt and non-trivial (attribution needs the Job to be the sole writer, or a correlation signal we do not have).
 - Next, before any product code (still under the research rule): decide whether exposing row content + attribution is worth it, and confirm with user conversations (R8) that anyone needs it. If attribution cannot be done honestly, this is a kill-criterion hit (R9).
 
