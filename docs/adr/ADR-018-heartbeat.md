@@ -91,9 +91,9 @@ Two different jobs hide behind the word heartbeat, and they have different owner
    heartbeats flowing, a slot whose `confirmed_flush_lsn` does not move means the slot is not
    advancing even though the pipeline is alive. Add condition `SlotAdvancing` to
    `internal/inspection/evaluate.go`: `False` when `confirmed_flush_lsn` is unchanged across a
-   window of at least 2 × the offset flush period (about 2 min at the observed 60 s) and the
-   heartbeat is fresh. Do **not** test "`confirmedLagBytes` grew since the last probe": E1 showed
-   that with a healthy heartbeat the lag is a sawtooth that rises for about 60 s between
+   window of at least 2 minutes (twice the longest sawtooth tooth observed, 60 s with a 10 s
+   heartbeat; the teeth were 30 s with the 30 s default) and the heartbeat is fresh. Do **not** test "`confirmedLagBytes` grew since the last probe": E1 showed
+   that with a healthy heartbeat the lag is a sawtooth that rises for up to about 60 s between
    advances, so that test would fire inside every tooth. The previous reading and its time come
    from the sensor `status` (ADR-008: no controller memory), compared before the new reading
    overwrites it. Without a fresh heartbeat the condition stays `Unknown`, never `False`,
@@ -141,9 +141,13 @@ Two different jobs hide behind the word heartbeat, and they have different owner
   A heartbeat is therefore invisible to the user for now; its only effect is that the slot keeps
   moving.
 - **Tested:** unit tests for the deployer, parser and pipeline (each fails if its fix is removed),
-  and envtest specs for the CRD rules. **Not tested:** the operator end to end in kind with the
-  new setting. The experiment used a hand-written `DebeziumServer` with the same property under
-  `spec.source.config`, which is where the deployer puts it.
+  and envtest specs for the CRD rules. **Run end to end in kind on 2026-11-08** through the operator
+  (`bench/experiments/heartbeat/RESULTS.md`, follow-up): the generated `DebeziumServer` carried the
+  property; Debezium logged one record per heartbeat interval; the sensor's `lastEvent` was not
+  refreshed by heartbeats and no series with empty labels appeared; with writes to a table outside
+  the include list the lag stayed bounded (peak about 310 KiB with the 30 s default and 590 KiB with
+  10 s, against 1121 KiB and still growing without a heartbeat); the CRD accepted 0 and 5 to 3600 and
+  rejected 3. One run each, `all_tables` publication.
 
 ## API surface
 
@@ -172,14 +176,17 @@ user could not disable a heartbeat that interferes with their pipeline.
 - **A2. Job A holds with the interval alone when the filtered changes are in the same
   database** (the case reported in the community). **Verified for `publication all_tables`**
   (what the operator creates today): the baseline held 100% of the 2.8 MiB written, with
-  heartbeat the peak was 504 KiB. **Refinement:** the bound is the offset flush period (about
-  60 s observed), not the heartbeat interval; see decision 6 and `RESULTS.md`. Publication mode
+  heartbeat the peak was 504 KiB. **Refinement (2026-11-08):** the lag stays bounded to about one
+  sawtooth tooth, 60 s with a 10 s heartbeat and 30 s with a 30 s one; why is not known, and an earlier
+  explanation based on the offset flush period was withdrawn (`RESULTS.md`). Publication mode
   `filtered` not run.
 - **A3. Job A may not hold when the database is idle but the server is busy** (other databases
   writing). The connector only knows the position of changes it received. This is why the
   community pairs the interval with an action query, and why Debezium has the Technology
   Preview `lsn.flush.mode=connector_and_driver` (documented for low-activity databases; its docs
-  say the slot can then pass the stored offset). Unverified; test as E2.
+  say the slot can then pass the stored offset). Debezium's own startup log (3.6.3, seen
+  2026-11-08) says the pgjdbc keepalive flush is disabled in mode `connector` and suggests
+  `heartbeat.action.query` for low-activity databases. Unverified; test as E2.
 - **A4. The generated config has no SMTs today**, so the "predicate on the heartbeat topic"
   advice does not apply yet. If the spec ever passes SMTs through, add a validation for it.
 

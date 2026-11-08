@@ -11,9 +11,10 @@
 --   psql -d YOUR_DB -v schema=public -f export-db-guards.sql
 --   psql -d YOUR_DB -v schema=public -A -F $'\t' -f export-db-guards.sql > guards.tsv
 --
--- Status: written against the PostgreSQL system catalogs and the documentation of pg_trigger,
--- pg_constraint and pg_class. NOT YET RUN against a database by the author (2026-11-07); if a
--- query fails on your version, please report it.
+-- Status: run on 2026-11-08 against PostgreSQL 16.15 (kind, bench/experiments/trigger-bypass): no errors;
+-- sections 1, 2 and 4 returned rows for a table with a trigger, a check constraint and FULL replica identity,
+-- section 3 was empty because that database has no enum. The optional section 5 was not run. Other versions
+-- were not tried; if a query fails on yours, please report it.
 
 \echo '== 1. Triggers (mode: origin = default; always = also fires under session_replication_role=replica; replica only; disabled)'
 select c.relname                      as table_name,

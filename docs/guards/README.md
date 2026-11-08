@@ -8,8 +8,9 @@ psql -d YOUR_DB -v schema=public -f docs/guards/export-db-guards.sql
 ```
 
 The script only reads the system catalogs and returns no row data. It does return names and
-definitions of tables, triggers and constraints, so read the output before sharing it. It has not
-been run against a database yet (see the header of the file).
+definitions of tables, triggers and constraints, so read the output before sharing it. It has been
+tried on one database only: PostgreSQL 16.15, run on 2026-11-08 (see the header of the file and
+`bench/experiments/trigger-bypass`).
 
 ## What it tells you
 
