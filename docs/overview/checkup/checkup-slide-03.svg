@@ -46,7 +46,8 @@
 <text x="138" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">¿Cuánto cuesta ver el contenido: REPLICA IDENTITY FULL, almacenamiento, pods?</text>
 <text x="798" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">WAL por UPDATE según el ancho de la fila; GB por</text>
 <text x="798" y="556" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">día.</text>
-<text x="1204" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#dc2626" text-anchor="start">Sin cuantificar.</text>
+<text x="1204" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">Medido en 4 filas sintéticas:</text>
+<text x="1204" y="556" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">de 1,4x a 36x de WAL por UPDATE.</text>
 <text x="78" y="595" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">P5</text>
 <text x="138" y="587" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">¿Cuánto falla la propia reacción?</text>
 <text x="798" y="587" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Éxito de detectar y actuar con fallas inyectadas.</text>
