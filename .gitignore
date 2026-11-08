@@ -65,5 +65,7 @@ docs/real_user_conversations.md
 
 # Raw output of the heartbeat experiment (RESULTS.md keeps the numbers)
 bench/results/heartbeat-*/
+# Raw output of the repair experiment (events.jsonl is about 31 MB per run; RESULTS.md keeps the numbers)
+bench/results/repair-*/
 # Presenter notes for the deck (local only; never published to GitHub Pages)
 docs/overview/deck-notes.js

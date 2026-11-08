@@ -190,6 +190,8 @@ Not verified:
    inventory shows where it has not been closed, and it helps without any policy engine. Whether
    CDC rules on content have users is still open (R8, R9).
 
+8. **P3, repair from the change stream: first half done (2026-11-08).** `bench/experiments/repair-from-stream`: a bad job (1,100 updates, 100 deletes, 100 inserts) was undone exactly from the Debezium before and after images, 0 rows differing from an oracle, with 50 column conflicts and 10 gone rows reported rather than overwritten; three runs, the last with 59 other transactions interleaved. It needs `REPLICA IDENTITY FULL`, a durable store of the events (the operator keeps none), and the list of bad transactions, which was given. **Not done:** the comparison against restoring a backup (PITR), scale, triggers and foreign keys, other column types. Next step and design: end of its `RESULTS.md`.
+
 ## Open decisions (need the owner)
 
 - `captureStrategy: auto` in the spec: recommendation is not to add it until something acts on it
