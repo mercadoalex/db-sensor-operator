@@ -184,7 +184,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > Tiene tres condiciones. Una, la tabla necesita `REPLICA IDENTITY FULL`. Dos, hace falta un almacén durable de
 > eventos, y el operador hoy no guarda ninguno. Tres, los identificadores de las transacciones malas se los dimos
-> nosotros. Y falta lo principal: no lo hemos comparado contra un respaldo real con PITR.
+> nosotros. Y la comparación con un respaldo con PITR la hicimos en el mismo escenario. Cambiar la base por el clon recuperado deja 1224 filas distintas de lo esperado, porque le faltan las escrituras buenas posteriores. Copiar de vuelta solo las filas que tocó el trabajo malo deja 1024, porque pisa las escrituras buenas hechas sobre esas filas. La reparación desde el flujo dejó 0. El PITR tardó 0,5 s, y 7,9 s con 1 GB de WAL extra antes del incidente. Eso no dice que el flujo sea mejor en general: el PITR no necesita `REPLICA IDENTITY FULL` ni almacén de eventos, y recupera también cambios de esquema. Falta el híbrido, restaurar y reaplicar las transacciones buenas.
 >
 > Y la caja de abajo. Hay una pregunta que no se responde en el laboratorio: si alguien necesita esto. Sigue abierta, y
 > tenemos un criterio de salida escrito desde antes: si no aparece más de un caso real donde CDC más reacción supere a
@@ -226,7 +226,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 > **Quinto, la fase 2 del heartbeat.** Que el sensor use los latidos para distinguir una tabla quieta de un conector
 > estancado. Quita la falsa alarma que medimos y habilita la alerta de slot que no avanza.
 >
-> **Sexto, la segunda mitad de la reparación.** La primera salió exacta en un escenario; falta compararla con un PITR real. **Séptimo**, el caso de una base monitoreada quieta
+> **Sexto, la variante híbrida de la reparación.** El flujo salió exacto y el PITR solo perdió escrituras buenas, en un escenario; falta restaurar y reaplicar las buenas, y un PITR gestionado. **Séptimo**, el caso de una base monitoreada quieta
 > mientras otra escribe, donde quizá el heartbeat solo no alcance.
 >
 > A la derecha pongo qué cambiaría el rumbo. Si `FULL` sale caro y casi todas las invariantes caben en la base, el
@@ -293,7 +293,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 11. **¿Se puede reparar automáticamente?**
     No todavía. En un escenario, reparar desde el flujo dejó 0 filas distintas del esperado en tres corridas, pero los
     identificadores de las transacciones malas se los dimos nosotros, hace falta `REPLICA IDENTITY FULL` y un almacén
-    durable de eventos que el operador no tiene. Tampoco lo comparamos con un PITR real.
+    durable de eventos que el operador no tiene. Frente a un PITR solo ganó en ese escenario; el híbrido (PITR más reaplicar las buenas) no se midió.
 
 ---
 
@@ -304,7 +304,8 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 - "Reemplaza a los triggers". Con `ENABLE ALWAYS` la base se protege sola.
 - "Resolvimos la atribución". Existe un camino caro y condicional.
 - "El heartbeat lo arregla todo". Acota el slot; no arregla al consumidor lento ni la falsa alarma de la tabla quieta (fase 2).
-- "El flujo repara mejor que un respaldo". Aún no se comparó contra uno.
+- "El flujo repara mejor que un respaldo". Solo se midió en un escenario, contra un PITR solo; falta el híbrido y uno gestionado.
+- "El PITR no sirve". Sirve para volver al pasado; solo no repara una base que siguió recibiendo escrituras buenas.
 - "La reparación es automática". Necesita la lista de transacciones malas.
 - Cualquier número de producción. No hay ninguno.
 
@@ -324,6 +325,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 | Heartbeat | `bench/experiments/heartbeat/RESULTS.md` y `docs/adr/ADR-018-heartbeat.md` |
 | Tabla quieta | `bench/experiments/quiet-table/RESULTS.md` |
 | Reparación desde el flujo (primera mitad) | `bench/experiments/repair-from-stream/RESULTS.md` |
+| Reparación frente a PITR | `bench/experiments/repair-vs-pitr/RESULTS.md` |
 | Resumen consolidado | `bench/experiments/FINDINGS.md` |
 | Requisitos de un consumidor con estado | `docs/adr/ADR-016-stateful-stream-consumer-requirements.md` |
 

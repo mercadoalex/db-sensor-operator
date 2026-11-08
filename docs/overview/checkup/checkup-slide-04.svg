@@ -26,8 +26,8 @@
 <text x="110" y="562" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Quita la falsa alarma de la tabla quieta y habilita la alerta de slot que no avanza.</text>
 <rect x="64" y="602" width="30" height="30" rx="15" fill="#ea580c"/>
 <text x="79" y="623" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">6</text>
-<text x="110" y="616" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">P3, segunda mitad: reparar desde el flujo frente a restaurar un respaldo</text>
-<text x="110" y="640" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">La primera mitad salió exacta en un escenario; se compara contra PITR, que restaura todo y de golpe.</text>
+<text x="110" y="616" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">P3, variante híbrida: restaurar un respaldo y reaplicar las transacciones buenas</text>
+<text x="110" y="640" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Un PITR solo, o copiar filas de vuelta, perdió escrituras buenas; falta medir el híbrido.</text>
 <rect x="64" y="680" width="30" height="30" rx="15" fill="#ea580c"/>
 <text x="79" y="701" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
 <text x="110" y="694" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">E2: base monitoreada quieta mientras otra escribe</text>
@@ -37,7 +37,7 @@
 <text x="1056" y="252" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Si FULL sale caro y casi todas las invariantes caben en</text>
 <text x="1056" y="271" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">constraints y triggers, el proyecto se queda como capa de</text>
 <text x="1056" y="290" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">confianza para CDC.</text>
-<text x="1056" y="326" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Si la reparación desde el flujo resiste a un PITR real,</text>
+<text x="1056" y="326" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Si la reparación desde el flujo resiste al híbrido y a un PITR gestionado,</text>
 <text x="1056" y="345" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">aparece una línea distinta de detectar.</text>
 <text x="1056" y="381" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">Si la reacción pierde eventos por diseño, se construye</text>
 <text x="1056" y="400" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">entrega garantizada antes de cualquier política.</text>

@@ -40,8 +40,8 @@
 <text x="138" y="506" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">respaldo (PITR)?</text>
 <text x="798" y="487" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Filas restauradas exactas, escrituras buenas</text>
 <text x="798" y="506" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">conservadas, tiempo.</text>
-<text x="1204" y="487" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">Primera mitad probada: exacta</text>
-<text x="1204" y="506" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">en un escenario. Falta el PITR.</text>
+<text x="1204" y="487" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">Probada contra PITR en un</text>
+<text x="1204" y="506" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">escenario. Falta PITR + replay.</text>
 <text x="78" y="545" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">P4</text>
 <text x="138" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">¿Cuánto cuesta ver el contenido: REPLICA IDENTITY FULL, almacenamiento, pods?</text>
 <text x="798" y="537" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">WAL por UPDATE según el ancho de la fila; GB por</text>
