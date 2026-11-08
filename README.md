@@ -361,7 +361,7 @@ this repo does not run them.
 - [ADR-016](docs/adr/ADR-016-stateful-stream-consumer-requirements.md) — **draft**: what a stateful consumer would need if content or sequence policies are ever built. Not a decision to build.
 - [ADR-017](docs/adr/ADR-017-attribution-by-composition.md) — **draft, an exploration**: attribution by composition, Hubble for the "who" and CDC for the "what". Nothing of it is built.
 - [ADR-018](docs/adr/ADR-018-heartbeat.md) — the Debezium heartbeat: keep the slot moving and tell a quiet table from a stalled connector. Phase 1 is built; the rest is not.
-- [docs/guards/](docs/guards/README.md) — a read-only SQL script that lists the triggers, constraints and replica identity a PostgreSQL database already has. **Not yet run against a database.**
+- [docs/guards/](docs/guards/README.md) — a read-only SQL script that lists the triggers, constraints and replica identity a PostgreSQL database already has. Run once, on PostgreSQL 16.15 in kind, without errors; not tried elsewhere.
 - [docs/research/](docs/research/competitive-landscape.md) — where Lactifluus sits among other tools, and the research notes behind the slides.
 - [Deck](https://mercadoalex.github.io/db-sensor-operator/) — the HTML slides of the findings (source: `docs/overview/deck.html`).
 - [docs/overview/stakeholder-brief.md](docs/overview/stakeholder-brief.md) — technical brief for stakeholders ([español](docs/overview/stakeholder-brief_spanish.md)).

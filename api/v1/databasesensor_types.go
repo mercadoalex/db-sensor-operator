@@ -314,9 +314,9 @@ type DatabaseSensorSpec struct {
 // slot keeps moving and does not retain WAL when the changes are filtered out (ADR-018).
 type HeartbeatConfig struct {
 	// intervalSeconds is how often Debezium emits a heartbeat, in seconds. 0 turns it off.
-	// When unset the operator uses 30 on PostgreSQL. The slot is confirmed when Debezium commits
-	// its offsets, which was about every 60 seconds in the measured run, so a value below that
-	// buys nothing for the slot.
+	// When unset the operator uses 30 on PostgreSQL. In the measured runs the lag behind the slot
+	// stayed bounded to about one sawtooth tooth: roughly 30 seconds with a 30 second interval and
+	// 60 seconds with a 10 second one (bench/experiments/heartbeat).
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=3600

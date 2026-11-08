@@ -157,21 +157,27 @@ Not verified:
    PG<13. Test on a PG12 container.
 4. **Heartbeat.** Design: [ADR-018](adr/ADR-018-heartbeat.md). A1 and E1 verified 2026-11-06
    (`bench/experiments/heartbeat/RESULTS.md`): the HTTP sink delivers heartbeats and the interval
-   keeps the slot moving, but only about every 60 s (offset flush). **Phase 1 is built
-   (2026-11-07):** `spec.heartbeat.intervalSeconds` (PostgreSQL only, 30 s default, 0 off), the
-   parser flags heartbeats and the pipeline drops them. Not yet run end to end in kind.
+   keeps the slot moving. **Phase 1 is built (2026-11-07) and was run end to end in kind through the
+   operator on 2026-11-08:** `spec.heartbeat.intervalSeconds` (PostgreSQL only, 30 s default, 0 off), the
+   parser flags heartbeats and the pipeline drops them. The lag stayed bounded to about one sawtooth
+   tooth (60 s with a 10 s heartbeat, 30 s with the default; the earlier offset-flush explanation was
+   withdrawn, cause unknown). With heartbeats flowing and the tables quiet the sensor still goes
+   `Degraded`/`Ready=False` (`LagAboveCritical`): that is what phase 2 fixes.
    **Next:** phase 2 (a heartbeat tracker with its own clock, `Idle`/`HeartbeatMissing`, the
    `HeartbeatReceived` condition, metrics, alerts), then phase 3 (`SlotAdvancing`: alert when
    `confirmed_flush_lsn` does not move for about 2 minutes while heartbeats are fresh; do not test
-   "lag grew", it is a sawtooth). Optionally run E2 first (idle DB, another DB writing). Check
-   first in kind that the operator-generated config really carries the property.
+   "lag grew", it is a sawtooth). Optionally run E2 first (idle DB, another DB writing); Debezium's own
+   startup log suggests `heartbeat.action.query` for that case.
 5. **PG17 / standby.** `invalidation_reason`, `inRecovery` behaviour: recorded in ADR-014 Pending, not built.
 6. **Staleness thresholds.** `estimate()` assumes autovacuum defaults and does not read server
    settings. Documented limitation.
 7. **Guard inventory in the inspector (idea; not before R8 says someone wants it).** Step 1 exists:
    [docs/guards/](guards/README.md), a SQL script a person runs by hand (triggers with their
-   `tgenabled` mode, constraints, enums, `relreplident`). It has **not been run** against a database
-   yet (Docker was down); run it in kind first. Step 2: the inspector Job runs the same catalog
+   `tgenabled` mode, constraints, enums, `relreplident`). It was **run on 2026-11-08** against
+   PostgreSQL 16.15 in kind (`bench/experiments/trigger-bypass`, 11 of 11 checks): no errors, and it
+   reported a trigger as `origin (default)` and then `always`. The same experiment showed a guard trigger
+   in its default mode skipped under `session_replication_role = replica`, the change still reaching the
+   sensor, and `ENABLE ALWAYS` blocking it again. Step 2: the inspector Job runs the same catalog
    queries and reports them, uninterpreted, in `status.snapshot.inspection`. It needs a query in
    `internal/snapshot/inspector.go`, an optional field in the wire contract (`factsVersion` stays 1),
    a condition in `internal/inspection/evaluate.go` (for example a warning when a guard trigger is
