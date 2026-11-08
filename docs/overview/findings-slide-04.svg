@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900" width="1600" height="900" role="img" aria-labelledby="t d">
-<title id="t">What we found: where CDC wins, where it loses, and a gap in the product</title><desc id="d">CDC wins on the content and the order of a change. It loses on counting and on attribution. We also found a real gap: the operator sees the replication slot grow but still reports it healthy.</desc>
+<title id="t">What we found: where CDC wins, where it loses, and a gap in the product</title><desc id="d">CDC wins on the content and the order of a change. It loses on counting and on attribution. We also found a real gap: the operator sees the replication slot grow but still reports it healthy. A second cause, changes filtered out, now has a heartbeat on PostgreSQL (one run).</desc>
 <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#18181b"/></marker></defs>
 <rect width="1600" height="900" fill="#ffffff"/>
 <text x="64" y="96" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#52525b" text-anchor="start" letter-spacing="2">WHAT WE FOUND</text>
@@ -38,9 +38,10 @@
 <rect x="460" y="677" width="64" height="47" fill="#d97706"/>
 <rect x="552" y="668" width="64" height="56" fill="#d97706"/>
 <text x="92" y="754" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">64 kB → 1953 kB over 6 ticks</text>
-<text x="820" y="700" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#dc2626" text-anchor="start">The operator SEES the slot grow,</text>
-<text x="820" y="728" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#dc2626" text-anchor="start">but still reports it HEALTHY. It does not warn.</text>
-<text x="820" y="760" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Fixable next, and independent of everything else.</text>
+<text x="820" y="684" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#dc2626" text-anchor="start">The operator SEES the slot grow,</text>
+<text x="820" y="712" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#dc2626" text-anchor="start">but still reports it HEALTHY. It does not warn.</text>
+<text x="820" y="744" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">A second cause, changes filtered out, now has a 30 s heartbeat on</text>
+<text x="820" y="766" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#52525b" text-anchor="start">PostgreSQL: 2.8 MiB retained without it, 504 KiB peak with it (one run).</text>
 <text x="64" y="858" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Lactifluus — CDC observability on Kubernetes</text>
 <text x="1536" y="858" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="14" font-weight="400" fill="#52525b" text-anchor="end">github.com/mercadoalex/db-sensor-operator</text>
 <text x="1536" y="836" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#52525b" text-anchor="end">4 / 5</text>

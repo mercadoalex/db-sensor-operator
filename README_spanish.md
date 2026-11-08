@@ -55,6 +55,7 @@ La idea de CDC-como-observabilidad no es nuestra. El post del blog de los mainta
 - Fan-out de alertas a múltiples backends: Prometheus, Datadog, Webhook/Slack.
 - Dashboard embebido con gráficos en vivo.
 - **Inspección de la base de datos** opcional: un Job de solo lectura revisa `wal_level`, las tablas y el slot de replicación, y reporta el resultado en `status.snapshot`. Informa y recomienda; no bloquea. Verificado en kind con PostgreSQL 16. Ver [Inspección de la base de datos](#inspección-de-la-base-de-datos).
+- **Heartbeat** en PostgreSQL: el operator configura un heartbeat de Debezium (30 segundos por defecto) para que el slot de replicación siga avanzando cuando todos los cambios se filtran. Ver [Arranque y reinicios](#arranque-y-reinicios).
 - **Políticas** explícitas y deterministas (arranque, plan de backfill por tabla, retención de WAL). Cada decisión queda escrita en el `status` con su razón. Son reglas, no aprendizaje automático. El plan de backfill se calcula pero nunca se aplica.
 - Status enriquecido visible con `kubectl get`: `Phase`, `Lag`, `EventsPerMin`, `LastError`.
 - Bases de datos: PostgreSQL (verificado contra un cluster real) y MySQL (conector mapeado, aún sin verificar). Ver [Bases de datos soportadas](#bases-de-datos-soportadas).
@@ -194,6 +195,14 @@ Las lecturas de snapshot (`op=r`) nunca se cuentan: reportan filas que ya exist�
 ## Arranque y reinicios
 
 Para PostgreSQL el operator arranca Debezium con `snapshot.mode=no_data`: no lee las filas existentes, así que el sensor reporta desde el primer cambio vivo y no espera a un snapshot. En una tabla de 100.000 filas el snapshot `initial` por defecto dejó a un sensor ciego 57 s, mientras que `no_data` vio el primer cambio en 6 s (Debezium 3.6.3, una corrida; ver `bench/experiments/blind-window/RESULTS.md`). El costo es que las filas existentes no se entregan, lo que no afecta rates, lag ni conteos. Los otros motores conservan el default de Debezium hasta verificar su modo no bloqueante.
+
+Para PostgreSQL el operator también configura un heartbeat de Debezium (`heartbeat.interval.ms`, 30 segundos por defecto; se cambia o se apaga con `spec.heartbeat.intervalSeconds`, donde `0` es apagado). Cuando todos los cambios se filtran, el conector no tiene nada que confirmar y PostgreSQL conserva WAL sin límite; en una corrida el slot retuvo los 2,8 MiB escritos en cuatro minutos sin heartbeat y como máximo 504 KiB con él (Debezium Server 3.6.3, PostgreSQL 16; ver `bench/experiments/heartbeat/RESULTS.md` y [ADR-018](docs/adr/ADR-018-heartbeat.md)). El heartbeat prueba que el conector está vivo, no que cada tabla se esté capturando, y por ahora el sensor no lo reporta: los registros de heartbeat se descartan antes de las métricas y de la salud.
+
+```yaml
+spec:
+  heartbeat:
+    intervalSeconds: 30   # solo PostgreSQL; 0 lo apaga; si no, de 5 a 3600
+```
 
 Por defecto el Debezium Operator guarda su posición en memoria, así que un reinicio del pod de Debezium puede reentregar eventos recientes e inflar los conteos. `spec.snapshot.offsetStore: persistent` guarda el offset en un PersistentVolumeClaim, y en las pruebas un reinicio ordenado se reanudó sin reentrega. Un kill brusco aún puede repetir hasta un intervalo de flush; eso no se probó. `status.snapshot` muestra la estrategia, el offset store y una razón de una línea. Diseño y evidencia: [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md).
 
@@ -349,6 +358,12 @@ este repo no las ejecuta.
 - [ADR-013](docs/adr/ADR-013-derived-event-counts-vs-native-jmx-metrics.md) — derivar conteos del stream vs. métricas nativas JMX.
 - [ADR-014](docs/adr/ADR-014-snapshot-policy-layer.md) — arrancar el conector sin snapshot bloqueante, persistir el offset e inspeccionar la base.
 - [ADR-015](docs/adr/ADR-015-gradual-adoption-ladder.md) — **borrador de idea**, no una decisión: una escalera de etapas de adopción que se abren por política. No hay nada construido.
+- [ADR-016](docs/adr/ADR-016-stateful-stream-consumer-requirements.md) — **borrador**: qué necesitaría un consumidor con estado si algún día se construyen políticas de contenido o de secuencia. No es una decisión de construir.
+- [ADR-017](docs/adr/ADR-017-attribution-by-composition.md) — **borrador, una exploración**: atribución por composición, Hubble para el "quién" y CDC para el "qué". No hay nada construido.
+- [ADR-018](docs/adr/ADR-018-heartbeat.md) — el heartbeat de Debezium: mantener el slot en movimiento y distinguir una tabla quieta de un conector estancado. La fase 1 está construida; el resto no.
+- [docs/guards/](docs/guards/README.md) — un script SQL de solo lectura que lista los triggers, las restricciones y la identidad de réplica que una base PostgreSQL ya tiene. **Aún no se ha ejecutado contra una base de datos.**
+- [docs/research/](docs/research/competitive-landscape.md) — dónde se ubica Lactifluus frente a otras herramientas, y las notas de investigación detrás de las láminas.
+- [Deck](https://mercadoalex.github.io/db-sensor-operator/) — las láminas HTML de los hallazgos (fuente: `docs/overview/deck.html`).
 - [docs/overview/stakeholder-brief_spanish.md](docs/overview/stakeholder-brief_spanish.md) — resumen técnico para stakeholders ([English](docs/overview/stakeholder-brief.md)).
 - [docs/HANDOFF.md](docs/HANDOFF.md) — estado actual y trabajo pendiente.
 - [bench/](bench/README.md) — cluster kind, workload y experimentos reproducibles, con sus `RESULTS.md`.

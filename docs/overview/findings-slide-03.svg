@@ -11,9 +11,9 @@
 <text x="88" y="342" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="600" fill="#09090b" text-anchor="start">There is already an official Debezium Operator for Kubernetes.</text>
 <text x="88" y="370" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="400" fill="#52525b" text-anchor="start">Helm install (debezium/debezium-operator), on OperatorHub. Capture is solved: 3 Debezium runtimes, this operator, and Strimzi for Kafka.</text>
 <text x="88" y="394" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#52525b" text-anchor="start">github.com/debezium/debezium-operator   ·   operatorhub.io/operator/debezium-operator</text>
-<rect x="1180" y="322" width="332" height="68" rx="2" fill="#ffffff" stroke="#18181b" stroke-width="1" stroke-dasharray="5 4"/>
-<text x="1346" y="350" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">[ add live numbers before the talk:</text>
-<text x="1346" y="370" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">GitHub stars / Helm installs ]</text>
+<rect x="1180" y="322" width="332" height="68" rx="2" fill="#ffffff" stroke="#d4d4d8" stroke-width="1"/>
+<text x="1346" y="350" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="15" font-weight="600" fill="#52525b" text-anchor="middle">89 stars · 30 forks</text>
+<text x="1346" y="370" font-family="'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#52525b" text-anchor="middle">latest v3.7.1.Final · GitHub, 2026-11-08</text>
 <text x="64" y="460" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ea580c" text-anchor="start" letter-spacing="2">OUR PROPOSAL  ·  A HYPOTHESIS, NOT YET VALIDATED</text>
 <rect x="64" y="486" width="420" height="116" rx="2" fill="#ffffff" stroke="#16a34a" stroke-width="2"/>
 <text x="88" y="534" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#16a34a" text-anchor="start">CDC SENSES</text>
