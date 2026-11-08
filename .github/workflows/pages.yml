@@ -1,6 +1,7 @@
 name: Deck (GitHub Pages)
 
-# Publishes the HTML deck (docs/overview/deck.html and its slide SVGs) to GitHub Pages.
+# Publishes two HTML decks to GitHub Pages: the findings deck (docs/overview/deck.html and its slide SVGs)
+# at the root, and the project checkup (docs/overview/checkup/) under /checkup/.
 # Only those files are copied into the site. docs/overview/deck-notes.js (the presenter notes)
 # is git-ignored and never copied from the repository. The notes are published only while the
 # repository variable DECK_NOTES is set (see the step below), and then they are PUBLIC.
@@ -11,6 +12,7 @@ on:
     paths:
       - docs/overview/deck.html
       - docs/overview/findings-slide-*.svg
+      - docs/overview/checkup/**
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -39,6 +41,9 @@ jobs:
           mkdir _site
           cp docs/overview/deck.html _site/index.html
           cp docs/overview/findings-slide-*.svg _site/
+          mkdir _site/checkup
+          cp docs/overview/checkup/deck.html _site/checkup/index.html
+          cp docs/overview/checkup/checkup-slide-*.svg _site/checkup/
           touch _site/.nojekyll
           ls -la _site
 
