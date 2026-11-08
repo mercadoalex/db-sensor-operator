@@ -171,14 +171,20 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > De ahí salen siete sub-preguntas. Cada una tiene una métrica, y el estado de hoy es poco alentador, y está bien así.
 >
-> Cuatro no tienen medición o no tienen número: qué clases aparecen en postmortems públicos, si se puede **reparar**
-> desde el flujo, cuánto cuesta ver el contenido y sobre qué workload se actúa. Tres tienen una medición débil: qué ve
-> cada fuente, cuántos commits malos pasan antes de que la reacción actúe (una medición, 0,72 s, para un Job) y cuánto
-> falla la propia reacción, donde perdimos el evento 2 de 2 veces al reemplazar el Sensor.
+> Tres no tienen medición: qué clases aparecen en postmortems públicos, cuánto cuesta ver el contenido y sobre qué
+> workload se actúa. Tres tienen una medición débil: qué ve cada fuente, cuántos commits malos pasan antes de que la
+> reacción actúe (una medición, 0,72 s, para un Job) y cuánto falla la propia reacción, donde perdimos el evento 2 de 2
+> veces al reemplazar el Sensor. Y una está a medias: la reparación.
 >
-> Quiero detenerme en la reparación. Es la menos explorada, y es donde la comparación es más interesante: el respaldo
-> con restauración a un punto en el tiempo restaura todo y de golpe. Si el flujo de cambios guarda el valor anterior de
-> cada fila, quizá se podría reparar solo lo afectado. No lo sabemos.
+> Quiero detenerme en la reparación. El respaldo con restauración a un punto en el tiempo restaura todo y de golpe. Si
+> el flujo de cambios guarda el valor anterior de cada fila, quizá se podría reparar solo lo afectado. La primera mitad
+> ya la probamos: una tabla de 5000 filas, un trabajo malo con 13 transacciones (actualizaciones, borrados e inserciones
+> basura) mezclado con escrituras buenas. Reparamos desde el flujo y el resultado quedó idéntico al esperado, con 0
+> filas distintas, en tres corridas. Eso es lo medido, en un escenario.
+>
+> Tiene tres condiciones. Una, la tabla necesita `REPLICA IDENTITY FULL`. Dos, hace falta un almacén durable de
+> eventos, y el operador hoy no guarda ninguno. Tres, los identificadores de las transacciones malas se los dimos
+> nosotros. Y falta lo principal: no lo hemos comparado contra un respaldo real con PITR.
 >
 > Y la caja de abajo. Hay una pregunta que no se responde en el laboratorio: si alguien necesita esto. Sigue abierta, y
 > tenemos un criterio de salida escrito desde antes: si no aparece más de un caso real donde CDC más reacción supere a
@@ -220,11 +226,11 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 > **Quinto, la fase 2 del heartbeat.** Que el sensor use los latidos para distinguir una tabla quieta de un conector
 > estancado. Quita la falsa alarma que medimos y habilita la alerta de slot que no avanza.
 >
-> **Sexto, la reparación desde el flujo.** La pregunta menos explorada. **Séptimo**, el caso de una base monitoreada quieta
+> **Sexto, la segunda mitad de la reparación.** La primera salió exacta en un escenario; falta compararla con un PITR real. **Séptimo**, el caso de una base monitoreada quieta
 > mientras otra escribe, donde quizá el heartbeat solo no alcance.
 >
 > A la derecha pongo qué cambiaría el rumbo. Si `FULL` sale caro y casi todas las invariantes caben en la base, el
-> proyecto se queda como capa de confianza para CDC. Si la reparación funciona, aparece una línea distinta de detectar.
+> proyecto se queda como capa de confianza para CDC. Si la reparación resiste la comparación con un respaldo real, aparece una línea distinta de detectar.
 > Si la reacción pierde eventos por diseño, se construye entrega garantizada antes de cualquier política. Y el criterio
 > de salida que ya mencioné.
 >
@@ -265,8 +271,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
    diagnóstico del servidor. No comprobamos si un proveedor deja usar el ajuste de replicación, ni la red.
 
 6. **¿Cuánto cuesta?**
-   Hay un dato y un vacío. Dato: la cadena con Argo Events usa ocho pods. Vacío: el costo en WAL de `FULL` y el almacenamiento
-   para reparar no están medidos. Es el paso 2.
+   Hay un dato y un vacío. Dato: la cadena con Argo Events usa ocho pods. Vacío: el costo en WAL de `FULL` no está medido. Un dato de la reparación: unos 12 KB por evento para una fila de 6,4 KB, porque `FULL` lleva la fila dos veces. Es el paso 2.
 
 7. **¿Cuándo dejamos de intentarlo?**
    El criterio de salida está escrito: sin más de un caso real donde CDC más reacción supere a la prevención en la base y a
@@ -285,6 +290,11 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
     Hoy es una capa de confianza construida y medida, con una hipótesis de producto encima que no está validada. No conviene
     llamarla producto de políticas todavía.
 
+11. **¿Se puede reparar automáticamente?**
+    No todavía. En un escenario, reparar desde el flujo dejó 0 filas distintas del esperado en tres corridas, pero los
+    identificadores de las transacciones malas se los dimos nosotros, hace falta `REPLICA IDENTITY FULL` y un almacén
+    durable de eventos que el operador no tiene. Tampoco lo comparamos con un PITR real.
+
 ---
 
 ## Lo que conviene no decir
@@ -294,6 +304,8 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 - "Reemplaza a los triggers". Con `ENABLE ALWAYS` la base se protege sola.
 - "Resolvimos la atribución". Existe un camino caro y condicional.
 - "El heartbeat lo arregla todo". Acota el slot; no arregla al consumidor lento ni la falsa alarma de la tabla quieta (fase 2).
+- "El flujo repara mejor que un respaldo". Aún no se comparó contra uno.
+- "La reparación es automática". Necesita la lista de transacciones malas.
 - Cualquier número de producción. No hay ninguno.
 
 ---
@@ -311,6 +323,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 | Slot que crece, diagnóstico sano | `bench/experiments/backpressure/RESULTS.md` |
 | Heartbeat | `bench/experiments/heartbeat/RESULTS.md` y `docs/adr/ADR-018-heartbeat.md` |
 | Tabla quieta | `bench/experiments/quiet-table/RESULTS.md` |
+| Reparación desde el flujo (primera mitad) | `bench/experiments/repair-from-stream/RESULTS.md` |
 | Resumen consolidado | `bench/experiments/FINDINGS.md` |
 | Requisitos de un consumidor con estado | `docs/adr/ADR-016-stateful-stream-consumer-requirements.md` |
 
