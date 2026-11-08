@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lactifluus — Checkup del proyecto</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #111; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #frame { aspect-ratio: 16 / 9; width: min(100vw, 100vh * 16 / 9); background: #fff; position: relative; }
+  #frame > img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px;
+         padding: 8px 14px; background: rgba(0,0,0,.72); color: #ddd; font-size: 13px;
+         opacity: 0; transition: opacity .2s; }
+  body:hover #bar, #bar:focus-within { opacity: 1; }
+  #bar button { background: #2a2a2a; color: #eee; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  #bar button:hover { background: #3a3a3a; }
+  #bar button:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+  #bar button[aria-pressed="true"] { background: #7f1d1d; border-color: #ef4444; }
+  #title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #count { font-variant-numeric: tabular-nums; }
+  #grid { position: fixed; inset: 0; background: rgba(17,17,17,.97); display: none; overflow: auto; padding: 24px;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-content: start; }
+  #grid.on { display: grid; }
+  #grid button { background: none; border: 2px solid #333; padding: 0; cursor: pointer; text-align: left; color: #ccc; }
+  #grid button:hover, #grid button:focus-visible { border-color: #f97316; outline: none; }
+  #grid img { width: 100%; display: block; background: #fff; }
+  #grid span { display: block; padding: 6px 8px; font-size: 12px; }
+
+  /* Presenter notes. Only exist when deck-notes.js is present (it is git-ignored, so the public
+     GitHub Pages copy never has them). Hidden until N is pressed. */
+  #notes-btn { display: none; }
+  body.has-notes #notes-btn { display: inline-block; }
+  #notes-flag { display: none; position: fixed; top: 8px; left: 8px; z-index: 50; padding: 3px 10px; border-radius: 999px;
+                background: #b91c1c; color: #fff; font: 700 12px/1.4 -apple-system, Arial, sans-serif; letter-spacing: .04em; }
+  body.notes-on #notes-flag { display: block; }
+  .note { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; padding: 0; border-radius: 50%;
+          border: 2px solid #fff; color: #fff; font: 700 14px/1 -apple-system, Arial, sans-serif; cursor: help;
+          display: none; align-items: center; justify-content: center; box-shadow: 0 1px 6px rgba(0,0,0,.5); z-index: 5; }
+  body.notes-on .note { display: flex; }
+  .note.fragil { background: #b91c1c; }
+  .note.verificar { background: #9a5b00; }
+  .note.enfoque { background: #15803d; }
+  .note.actualizar { background: #1d4ed8; }
+  .note:hover, .note:focus-visible, .note.pinned { outline: 3px solid #111; z-index: 20; }
+  .tip { display: none; position: absolute; top: 34px; left: -10px; width: 380px; max-width: 80vw; padding: 10px 12px;
+         border-radius: 6px; background: #111; color: #f2f2f2; text-align: left; font: 400 14px/1.45 -apple-system, Arial, sans-serif;
+         box-shadow: 0 6px 24px rgba(0,0,0,.55); white-space: normal; cursor: default; }
+  .note.flip-left .tip { left: auto; right: -10px; }
+  .note.flip-up .tip { top: auto; bottom: 34px; }
+  .note:hover .tip, .note:focus-visible .tip, .note.pinned .tip { display: block; }
+  .tip b { display: block; margin-bottom: 4px; color: #fff; }
+  .tip em { display: block; margin-bottom: 6px; font-style: normal; font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; }
+  #legend { display: none; position: fixed; left: 50%; transform: translateX(-50%); top: 8px; z-index: 50; padding: 6px 10px; border-radius: 6px;
+            background: rgba(0,0,0,.78); color: #ddd; font-size: 12px; line-height: 1.6; }
+  body.notes-on #legend { display: block; }
+  #legend i { display: inline-block; width: 16px; height: 16px; margin-right: 6px; border-radius: 50%; color: #fff; font: 700 11px/16px Arial, sans-serif; text-align: center; font-style: normal; }
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame"><img id="slide" alt=""></div></div>
+<div id="notes-flag" role="status">PRESENTER NOTES VISIBLE (N to hide)</div>
+<div id="legend" aria-hidden="true">
+  <div><i style="background:#b91c1c">!</i>Frágil: no afirmar como hecho</div>
+  <div><i style="background:#9a5b00">?</i>Verificar antes de la charla</div>
+  <div><i style="background:#15803d">&rarr;</i>Cómo llevar la conversación</div>
+  <div><i style="background:#1d4ed8">&#8635;</i>Actualizar: hay datos nuevos</div>
+</div>
+<div id="bar" role="toolbar" aria-label="Deck controls">
+  <button id="prev" aria-label="Previous slide">&larr;</button>
+  <button id="next" aria-label="Next slide">&rarr;</button>
+  <span id="count" aria-live="polite"></span>
+  <span id="title"></span>
+  <button id="notes-btn" aria-pressed="false" aria-label="Toggle presenter notes">Notes (N)</button>
+  <button id="overview" aria-label="Show all slides">Grid (G)</button>
+  <button id="full" aria-label="Toggle fullscreen">Fullscreen (F)</button>
+</div>
+<div id="grid" role="dialog" aria-label="All slides"></div>
+<!-- Optional, local only. Missing on GitHub Pages by design. -->
+<script src="deck-notes.js" onerror="this.remove()"></script>
+<script>
+  // Cuatro láminas: lo que sabemos, las hipótesis, lo que falta y los próximos pasos.
+  const slides = [
+    { id: "01", file: "checkup-slide-01.svg", title: "01 · Lo que sabemos, y con qué respaldo" },
+    { id: "02", file: "checkup-slide-02.svg", title: "02 · Hipótesis: qué se sostuvo y qué cayó" },
+    { id: "03", file: "checkup-slide-03.svg", title: "03 · Lo que todavía no sabemos demostrar" },
+    { id: "04", file: "checkup-slide-04.svg", title: "04 · Próximos pasos y qué cambiaría el rumbo" },
+  ];
+  const KINDS = {
+    fragil:     { sym: "!",      label: "Frágil: no afirmar como hecho" },
+    verificar:  { sym: "?",      label: "Verificar antes de la charla" },
+    enfoque:    { sym: "\u2192", label: "Cómo llevar la conversación" },
+    actualizar: { sym: "\u21BB", label: "Actualizar: hay datos nuevos" },
+  };
+  let i = 0;
+  const frame = document.getElementById("frame");
+  const img = document.getElementById("slide");
+  const count = document.getElementById("count");
+  const title = document.getElementById("title");
+  const grid = document.getElementById("grid");
+  const notesBtn = document.getElementById("notes-btn");
+  const hasNotes = typeof window.NOTES === "object" && window.NOTES !== null;
+  if (hasNotes) document.body.classList.add("has-notes");
+
+  // Notes are keyed by slide number (1..7). Built with textContent only.
+  function renderNotes() {
+    frame.querySelectorAll(".note").forEach(n => n.remove());
+    if (!hasNotes) return;
+    (window.NOTES[slides[i].id] || []).forEach((n, k) => {
+      const kind = KINDS[n.k] || KINDS.enfoque;
+      const b = document.createElement("button");
+      b.className = "note " + (KINDS[n.k] ? n.k : "enfoque");
+      if (n.x > 55) b.classList.add("flip-left");
+      if (n.y > 60) b.classList.add("flip-up");
+      b.style.left = n.x + "%";
+      b.style.top = n.y + "%";
+      const tipId = "tip-" + slides[i].id + "-" + k;
+      b.setAttribute("aria-label", kind.label + ": " + n.t);
+      b.setAttribute("aria-describedby", tipId);
+      const sym = document.createElement("span");
+      sym.textContent = kind.sym;
+      sym.setAttribute("aria-hidden", "true");
+      const tip = document.createElement("span");
+      tip.className = "tip";
+      tip.id = tipId;
+      tip.setAttribute("role", "tooltip");
+      const kd = document.createElement("em");
+      kd.textContent = kind.label;
+      const hd = document.createElement("b");
+      hd.textContent = n.t;
+      const tx = document.createElement("span");
+      tx.textContent = n.s;
+      tip.append(kd, hd, tx);
+      b.append(sym, tip);
+      // Click pins the tooltip so it can be read without holding the pointer still.
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        const was = b.classList.contains("pinned");
+        frame.querySelectorAll(".note.pinned").forEach(x => x.classList.remove("pinned"));
+        if (!was) b.classList.add("pinned");
+      });
+      frame.appendChild(b);
+    });
+  }
+  function setNotes(on) {
+    if (!hasNotes) return;
+    document.body.classList.toggle("notes-on", on);
+    notesBtn.setAttribute("aria-pressed", String(on));
+  }
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    img.src = slides[i].file;
+    img.alt = slides[i].title;
+    count.textContent = (i + 1) + " / " + slides.length;
+    title.textContent = slides[i].title;
+    history.replaceState(null, "", "#" + slides[i].id);
+    renderNotes();
+    // preload neighbours
+    [i - 1, i + 1].forEach(k => { if (slides[k]) new Image().src = slides[k].file; });
+  }
+  function toggleGrid(on) {
+    grid.classList.toggle("on", on);
+    if (on) grid.querySelectorAll("button")[i].focus();
+  }
+  function toggleFull() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  }
+
+  slides.forEach((s, k) => {
+    const b = document.createElement("button");
+    b.innerHTML = '<img alt=""><span></span>';
+    b.querySelector("img").src = s.file;
+    b.querySelector("span").textContent = s.title;
+    b.addEventListener("click", () => { show(k); toggleGrid(false); });
+    grid.appendChild(b);
+  });
+
+  document.getElementById("prev").onclick = () => show(i - 1);
+  document.getElementById("next").onclick = () => show(i + 1);
+  document.getElementById("overview").onclick = () => toggleGrid(true);
+  document.getElementById("full").onclick = toggleFull;
+  notesBtn.onclick = () => setNotes(!document.body.classList.contains("notes-on"));
+  document.getElementById("stage").addEventListener("click", e => {
+    show(e.clientX < innerWidth / 3 ? i - 1 : i + 1);
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case "ArrowRight": case "PageDown": case " ": case "Enter":
+        if (document.activeElement.tagName === "BUTTON") return;
+        e.preventDefault(); show(i + 1); break;
+      case "ArrowLeft": case "PageUp": show(i - 1); break;
+      case "Home": show(0); break;
+      case "End": show(slides.length - 1); break;
+      case "g": case "G": toggleGrid(!grid.classList.contains("on")); break;
+      case "f": case "F": toggleFull(); break;
+      case "n": case "N": setNotes(!document.body.classList.contains("notes-on")); break;
+      case "Escape":
+        toggleGrid(false);
+        frame.querySelectorAll(".note.pinned").forEach(x => x.classList.remove("pinned"));
+        break;
+    }
+  });
+
+  // #04, #4, #A3 and #a3 all work; #0 is the disclaimer. Unknown or empty opens the first slide.
+  function indexFromHash() {
+    const h = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+    let k = slides.findIndex(x => x.id === h);
+    if (k < 0 && /^\d$/.test(h)) k = slides.findIndex(x => x.id === "0" + h);
+    return Math.max(k, 0);
+  }
+  show(indexFromHash());
+</script>
+</body>
+</html>
