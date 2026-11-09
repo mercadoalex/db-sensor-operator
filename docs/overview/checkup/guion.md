@@ -171,10 +171,9 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > De ahí salen siete sub-preguntas. Cada una tiene una métrica, y el estado de hoy es poco alentador, y está bien así.
 >
-> Tres no tienen medición: qué clases aparecen en postmortems públicos, cuánto cuesta ver el contenido y sobre qué
-> workload se actúa. Tres tienen una medición débil: qué ve cada fuente, cuántos commits malos pasan antes de que la
+> Dos no tienen medición: qué clases aparecen en postmortems públicos y sobre qué workload se actúa. Tres tienen una medición débil: qué ve cada fuente, cuántos commits malos pasan antes de que la
 > reacción actúe (una medición, 0,72 s, para un Job) y cuánto falla la propia reacción, donde perdimos el evento 2 de 2
-> veces al reemplazar el Sensor. Y una está a medias: la reparación.
+> veces al reemplazar el Sensor. Y dos están a medias: la reparación, y el costo de ver el contenido, que medimos en filas sintéticas.
 >
 > Quiero detenerme en la reparación. El respaldo con restauración a un punto en el tiempo restaura todo y de golpe. Si
 > el flujo de cambios guarda el valor anterior de cada fila, quizá se podría reparar solo lo afectado. La primera mitad
@@ -212,8 +211,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 > Es barato, cabe en una tarde, y cierra la corrección que dejamos abierta. Además fija con fundamento la ventana de la
 > alerta de slot estancado.
 >
-> **Segundo, el costo de `REPLICA IDENTITY FULL`.** Toda la línea de contenido se apoya en eso y no tiene número. Es un
-> experimento corto: mismas escrituras con filas angostas y anchas, en los dos modos, midiendo el WAL.
+> **Segundo, el costo de `REPLICA IDENTITY FULL`.** Toda la línea de contenido se apoya en eso, y ya tiene número en cuatro filas sintéticas. Un UPDATE de una columna chica escribe 1,4 veces el WAL en una fila angosta, unas 1,9 veces en filas de 1 a 1,8 KB, y 36 veces en una fila de 6,4 KB con una columna ancha en TOAST que no cambió, porque con la identidad por defecto ese valor no se escribe nunca. Un DELETE de una fila ancha cuesta de 15 a 24 veces más. Lo que falta es saber qué forma tienen las tablas reales.
 >
 > **Tercero, clasificar las invariantes de proyectos abiertos.** Tomar modelos de datos grandes y públicos, listar las
 > reglas que tienen y marcar cuáles caben en restricciones o triggers y cuáles solo se vigilan desde el flujo. Es lo que
@@ -229,7 +227,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 > **Sexto, la variante híbrida de la reparación.** El flujo salió exacto y el PITR solo perdió escrituras buenas, en un escenario; falta restaurar y reaplicar las buenas, y un PITR gestionado. **Séptimo**, el caso de una base monitoreada quieta
 > mientras otra escribe, donde quizá el heartbeat solo no alcance.
 >
-> A la derecha pongo qué cambiaría el rumbo. Si `FULL` sale caro y casi todas las invariantes caben en la base, el
+> A la derecha pongo qué cambiaría el rumbo. Si `FULL` sale caro en las tablas reales, que hoy sabemos que depende de la forma de la fila, y casi todas las invariantes caben en la base, el
 > proyecto se queda como capa de confianza para CDC. Si la reparación resiste la comparación con un respaldo real, aparece una línea distinta de detectar.
 > Si la reacción pierde eventos por diseño, se construye entrega garantizada antes de cualquier política. Y el criterio
 > de salida que ya mencioné.
@@ -271,7 +269,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
    diagnóstico del servidor. No comprobamos si un proveedor deja usar el ajuste de replicación, ni la red.
 
 6. **¿Cuánto cuesta?**
-   Hay un dato y un vacío. Dato: la cadena con Argo Events usa ocho pods. Vacío: el costo en WAL de `FULL` no está medido. Un dato de la reparación: unos 12 KB por evento para una fila de 6,4 KB, porque `FULL` lleva la fila dos veces. Es el paso 2.
+   Hay un dato y un vacío. Dato: la cadena con Argo Events usa ocho pods. El costo en WAL de `FULL` se midió en cuatro filas sintéticas: de 1,4 a 1,9 veces por UPDATE si la fila es inline, y 36 veces con una columna TOAST sin cambios. Vacío: no conocemos la forma de las tablas reales, ni el almacenamiento del almacén de eventos (unos 12 KB por evento para una fila de 6,4 KB, de la reparación).
 
 7. **¿Cuándo dejamos de intentarlo?**
    El criterio de salida está escrito: sin más de un caso real donde CDC más reacción supere a la prevención en la base y a
@@ -305,6 +303,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 - "Resolvimos la atribución". Existe un camino caro y condicional.
 - "El heartbeat lo arregla todo". Acota el slot; no arregla al consumidor lento ni la falsa alarma de la tabla quieta (fase 2).
 - "El flujo repara mejor que un respaldo". Solo se midió en un escenario, contra un PITR solo; falta el híbrido y uno gestionado.
+- "FULL duplica el WAL". Decir "depende de la forma de la fila": 1,4x a 1,9x inline, 36x con TOAST sin cambios, en filas sintéticas.
 - "El PITR no sirve". Sirve para volver al pasado; solo no repara una base que siguió recibiendo escrituras buenas.
 - "La reparación es automática". Necesita la lista de transacciones malas.
 - Cualquier número de producción. No hay ninguno.
@@ -325,6 +324,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 | Heartbeat | `bench/experiments/heartbeat/RESULTS.md` y `docs/adr/ADR-018-heartbeat.md` |
 | Tabla quieta | `bench/experiments/quiet-table/RESULTS.md` |
 | Reparación desde el flujo (primera mitad) | `bench/experiments/repair-from-stream/RESULTS.md` |
+| Costo de `REPLICA IDENTITY FULL` | `bench/experiments/replica-identity-full-cost/RESULTS.md` |
 | Reparación frente a PITR | `bench/experiments/repair-vs-pitr/RESULTS.md` |
 | Resumen consolidado | `bench/experiments/FINDINGS.md` |
 | Requisitos de un consumidor con estado | `docs/adr/ADR-016-stateful-stream-consumer-requirements.md` |

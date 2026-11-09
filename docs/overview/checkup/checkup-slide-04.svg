@@ -10,8 +10,8 @@
 <text x="110" y="250" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Cierra la corrección abierta y fija la ventana de la alerta de slot estancado.</text>
 <rect x="64" y="290" width="30" height="30" rx="15" fill="#ea580c"/>
 <text x="79" y="311" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
-<text x="110" y="304" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">Costo de REPLICA IDENTITY FULL (P4)</text>
-<text x="110" y="328" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Pone un número al costo de toda la línea de contenido: WAL por UPDATE según el ancho de la fila.</text>
+<text x="110" y="304" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">Costo de REPLICA IDENTITY FULL (P4): medido, falta la forma real</text>
+<text x="110" y="328" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Depende de la fila: 1,4x a 1,9x si es inline y 36x con una columna TOAST sin cambios.</text>
 <rect x="64" y="368" width="30" height="30" rx="15" fill="#ea580c"/>
 <text x="79" y="389" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
 <text x="110" y="382" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#09090b" text-anchor="start">Clasificar las invariantes de proyectos abiertos (P0 y P1)</text>
