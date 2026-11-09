@@ -171,7 +171,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > De ahí salen siete sub-preguntas. Cada una tiene una métrica, y el estado de hoy es poco alentador, y está bien así.
 >
-> Dos no tienen medición: qué clases aparecen en postmortems públicos y sobre qué workload se actúa. Tres tienen una medición débil: qué ve cada fuente, cuántos commits malos pasan antes de que la
+> Dos no tienen medición: qué clases aparecen en postmortems públicos y sobre qué workload se actúa. Tres tienen una medición débil: qué ve cada fuente (con el bypass del trigger medimos tres: eBPF en el cliente, el log del servidor y quitar el privilegio), cuántos commits malos pasan antes de que la
 > reacción actúe (una medición, 0,72 s, para un Job) y cuánto falla la propia reacción, donde perdimos el evento 2 de 2
 > veces al reemplazar el Sensor. Y dos están a medias: la reparación, y el costo de ver el contenido, que medimos en filas sintéticas.
 >
@@ -293,6 +293,13 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
     identificadores de las transacciones malas se los dimos nosotros, hace falta `REPLICA IDENTITY FULL` y un almacén
     durable de eventos que el operador no tiene. Frente a un PITR solo ganó en ese escenario; el híbrido (PITR más reaplicar las buenas) no se midió.
 
+
+12. **¿Puede eBPF avisar del bypass del trigger?**
+    En un caso acotado sí. Una sonda en el nodo del cliente leyó el `SET session_replication_role` de psql sin TLS y
+    nombró el pod correcto en todas las repeticiones, sin falsas alarmas. Detectó 7 de 11 variantes; no ve el texto armado
+    en el servidor, ni lo que pase de 199 caracteres, ni TLS. El log del servidor vio las mismas 7 y dos más, así que
+    eBPF no gana en cobertura: gana en atribuir al pod sin tocar el servidor. Y quitar el privilegio de superusuario
+    bloqueó las 11, que es lo que de verdad cierra el hueco. La sonda avisa, no previene.
 ---
 
 ## Lo que conviene no decir
@@ -304,6 +311,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 - "El heartbeat lo arregla todo". Acota el slot; no arregla al consumidor lento ni la falsa alarma de la tabla quieta (fase 2).
 - "El flujo repara mejor que un respaldo". Solo se midió en un escenario, contra un PITR solo; falta el híbrido y uno gestionado.
 - "FULL duplica el WAL". Decir "depende de la forma de la fila": 1,4x a 1,9x inline, 36x con TOAST sin cambios, en filas sintéticas.
+- "eBPF avisa del bypass". Avisa de 7 de 11 variantes en psql sin TLS, y un cliente que arme el texto lo evade. No lo previene.
 - "El PITR no sirve". Sirve para volver al pasado; solo no repara una base que siguió recibiendo escrituras buenas.
 - "La reparación es automática". Necesita la lista de transacciones malas.
 - Cualquier número de producción. No hay ninguno.
@@ -325,6 +333,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 | Tabla quieta | `bench/experiments/quiet-table/RESULTS.md` |
 | Reparación desde el flujo (primera mitad) | `bench/experiments/repair-from-stream/RESULTS.md` |
 | Costo de `REPLICA IDENTITY FULL` | `bench/experiments/replica-identity-full-cost/RESULTS.md` |
+| Bypass de trigger visto por eBPF, log y privilegio | `bench/experiments/ebpf-session-role/RESULTS.md` |
 | Reparación frente a PITR | `bench/experiments/repair-vs-pitr/RESULTS.md` |
 | Resumen consolidado | `bench/experiments/FINDINGS.md` |
 | Requisitos de un consumidor con estado | `docs/adr/ADR-016-stateful-stream-consumer-requirements.md` |
