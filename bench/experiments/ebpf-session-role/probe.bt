@@ -1,0 +1,15 @@
+// Reads the text of PostgreSQL simple (Q) and extended (P, Parse) query messages from sendto() of any psql process.
+// Run through run.sh (privileged, --pid=host, BPFTRACE_STRLEN=200). One line per message:
+//   EV|<nsecs>|<cgroup inode>|<Q or P>|<bytes sent>|<first 199 characters of the SQL>
+// The cgroup inode is resolved to a pod afterwards. Only Q and P messages are printed; the SCRAM exchange and the
+// terminate message are not (the first byte of a message is its type: 81 = 'Q', 80 = 'P').
+// A Parse message is: 'P', int32 length, statement name, NUL, query, NUL. The unnamed statement has an empty name, so
+// the query starts at offset 6 instead of 5.
+tracepoint:syscalls:sys_enter_sendto
+/comm == "psql"/
+{
+  $b = (uint8 *)args->buff;
+  $t = *$b;
+  if ($t == 81) { printf("EV|%llu|%llu|Q|%d|%s\n", nsecs, cgroup, args->len, str($b + 5)); }
+  if ($t == 80) { printf("EV|%llu|%llu|P|%d|%s\n", nsecs, cgroup, args->len, str($b + 6)); }
+}

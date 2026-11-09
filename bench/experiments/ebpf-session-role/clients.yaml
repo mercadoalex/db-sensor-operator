@@ -1,0 +1,35 @@
+# Two client pods that talk to bench-postgres over TCP (never kubectl exec into the server pod: that is a local socket).
+# The password comes from the existing bench-pg-creds Secret, so it is never written to a file.
+apiVersion: v1
+kind: Pod
+metadata: {name: client-a, labels: {app: ebpf-client}}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: psql
+      image: postgres:16
+      command: ["sleep", "infinity"]
+      env:
+        - {name: PGHOST, value: bench-postgres}
+        - {name: PGUSER, value: bench}
+        - {name: PGDATABASE, value: bench}
+        - {name: PGSSLMODE, value: disable}
+        - name: PGPASSWORD
+          valueFrom: {secretKeyRef: {name: bench-pg-creds, key: password}}
+---
+apiVersion: v1
+kind: Pod
+metadata: {name: client-b, labels: {app: ebpf-client}}
+spec:
+  restartPolicy: Never
+  containers:
+    - name: psql
+      image: postgres:16
+      command: ["sleep", "infinity"]
+      env:
+        - {name: PGHOST, value: bench-postgres}
+        - {name: PGUSER, value: bench}
+        - {name: PGDATABASE, value: bench}
+        - {name: PGSSLMODE, value: disable}
+        - name: PGPASSWORD
+          valueFrom: {secretKeyRef: {name: bench-pg-creds, key: password}}

@@ -70,3 +70,4 @@ bench/results/repair-*/
 # Presenter notes for the deck (local only; never published to GitHub Pages)
 docs/overview/deck-notes.js
 bench/results/fullcost-*/
+bench/results/ebpf-*/
