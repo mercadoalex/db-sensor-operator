@@ -30,7 +30,8 @@
 <text x="78" y="395" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">P1</text>
 <text x="138" y="387" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">¿Qué clases de incidente ve cada fuente: CDC, constraints, triggers, contadores?</text>
 <text x="798" y="387" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Detecta sí o no, y en cuánto tiempo.</text>
-<text x="1204" y="387" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">Parcial: contenido, secuencia y conteo.</text>
+<text x="1204" y="387" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">Parcial: contenido, secuencia, conteo</text>
+<text x="1204" y="406" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#d97706" text-anchor="start">y bypass de trigger (un caso).</text>
 <text x="78" y="445" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#ea580c" text-anchor="start">P2</text>
 <text x="138" y="437" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#09090b" text-anchor="start">¿Cuántos commits malos pasan antes de que la reacción haga efecto?</text>
 <text x="798" y="437" font-family="Inter, Geist, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#52525b" text-anchor="start">Tasa de escritura × latencia, p50 y p99.</text>
