@@ -71,3 +71,4 @@ bench/results/repair-*/
 docs/overview/deck-notes.js
 bench/results/fullcost-*/
 bench/results/ebpf-*/
+bench/results/ebpf-auth-*/
