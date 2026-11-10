@@ -1,0 +1,25 @@
+// Unfiltered variant of probe.bt: captures every sendto() from any psql process with no check of the message type,
+// used by auth-handshake.sh to see whether the probe that was built to read query (Q) and Parse (P) messages also
+// sees the authentication handshake. Unlike probe.bt, this prints TWO views of the same send:
+//   HEX: the first bytes as hex, so nothing is lost to a premature NUL (a StartupMessage carries no leading type
+//        byte, only a 4-byte length and a 4-byte protocol version, both binary; a SCRAM message is 'p' + a 4-byte
+//        binary length before the text starts). This is how the capture was validated byte by byte.
+//   TXT: str() from a fixed offset chosen per case (0 for the StartupMessage, 5 for a 'p' SASL message, 5 for a
+//        simple query), to read the embedded text directly, the same way probe.bt already does for Q/P messages.
+// One line per send: EV|<nsecs>|<cgroup inode>|<bytes sent>|HEX=<hex of first 48 bytes>|TXT=<text from the offset>
+tracepoint:syscalls:sys_enter_sendto
+/comm == "psql"/
+{
+  $b = (uint8 *)args->buff;
+  $n = args->len;
+  if ($n > 48) { $n = 48; }
+  printf("EV|%llu|%llu|%d|HEX=", nsecs, cgroup, args->len);
+  $p = $b; $k = $n;
+  unroll(48) {
+    if ($k > 0) { printf("%02x", *$p); $p++; $k--; }
+  }
+  $t = *$b;
+  if ($t == 112) { printf("|TXT=%s\n", str($b + 5)); }            // 'p' = SASLInitialResponse / SASLResponse
+  else { if ($t == 81) { printf("|TXT=%s\n", str($b + 5)); }       // 'Q' = simple query
+  else { printf("|TXT=%s\n", str($b + 8)); } }                    // StartupMessage: skip len(4)+protover(4)
+}
