@@ -81,6 +81,25 @@ Strategic open question (a Debezium maintainer, 2026-10-31):
    `competitive-landscape.md` to match slide 2.
 6. The slide generator lives only in `/tmp/gen_slides.py`; decide whether to keep it in the repo.
 
+## Pending, added 2026-11-09 (checkup deck, P0 to P6)
+
+Done and merged: P3 first half (repair from the stream) and second half (against PITR), P4 (WAL cost of `REPLICA IDENTITY FULL`), the eBPF probe for `session_replication_role` (`bench/experiments/ebpf-session-role`). PR #31 (P1 row and script for the eBPF result) was open when this was written.
+
+Next, in the deck's order (slide 4):
+1. **P5: why did the reaction lose the event 2 of 2 times when the Sensor pod was replaced?** It can change the direction: if it is by design, guaranteed delivery comes before any policy (ADR-016). Start here.
+2. Tooth matrix: heartbeat 5 to 120 s by offset flush 10 to 60 s (the earlier explanation of the tooth length was withdrawn).
+3. Classify the invariants of open projects (P0 and P1).
+4. P3 hybrid: restore a backup and replay the good transactions. It is the realistic competitor of the stream repair, not measured yet.
+5. Heartbeat phase 2 (Idle, HeartbeatMissing, SlotAdvancing) and E2 (quiet monitored database while another one writes).
+
+Optional, from the eBPF experiment (none is in the deck):
+- **pgaudit**: install it in the throwaway server and repeat the matrix. It may catch T6 (text built on the server) because it logs nested statements; today that is a guess. Short.
+- Other clients (JDBC, pgx, psycopg) and other syscalls (`write`, `sendmsg`): how much of the result is only psql.
+- uprobes on `SSL_write` for TLS: uncertain, depends on each client library.
+- Joining the `SET` with a CDC change is not measured, only reasoned (no source port in the event; the `SET` can come long before the change).
+
+Open decision: `docs/overview/checkup` slide 4 still says "Si FULL sale caro..." in the box "Qué cambiaría el rumbo"; only the script was softened (cost depends on the row shape).
+
 ## Research plan: Kubernetes reacting to data behavior (started 2026-10-31)
 
 Direction (an idea, not a product yet): metrics are not the product; the product is that Kubernetes reacts to the behavior of the data. Workflow:
