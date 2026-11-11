@@ -1,0 +1,100 @@
+
+== 1. pods: sc2-pg (logical decoding) and sc2-receiver (event log)
+PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+
+== 2. tables (2000 rows each, inserted in id order), donor index, SHIFT=5
+sc2_donor|d|2
+sc2_full_bad|f|2
+sc2_full_ok|f|2
+sc2_pk_bad|d|2
+sc2_pk_ok|d|2
+
+== 3. pre-swap sanity: all five indexes pass amcheck (heapallindexed)
+PASS  amcheck passes before the swap on sc2_donor_grp_idx
+PASS  amcheck passes before the swap on sc2_full_bad_grp_idx
+PASS  amcheck passes before the swap on sc2_full_ok_grp_idx
+PASS  amcheck passes before the swap on sc2_pk_bad_grp_idx
+PASS  amcheck passes before the swap on sc2_pk_ok_grp_idx
+sc2_donor_grp_idx|40960
+sc2_full_bad_grp_idx|40960
+sc2_full_ok_grp_idx|40960
+sc2_pk_bad_grp_idx|40960
+sc2_pk_ok_grp_idx|40960
+
+== 4. the fault: stop the server cleanly, copy the donor's index file over the *_bad indexes, restart
+  donor base/5/16398; full_bad base/5/16406; pk_bad base/5/16424
+  file sizes donor=40960 full_bad=40960 pk_bad=40960
+  swapped and restarted
+PASS  the index files were the same size and were swapped
+
+== 5. amcheck on all four indexes (the corrupted ones must raise, the controls must not)
+  sc2_full_bad: rc=1 ERROR:  heap tuple (0,6) from table "sc2_full_bad" lacks matching index tuple within index "sc2_full_bad_grp_idx" HINT:  Retrying verification using the function bt_index_parent_check() might provide a more specific error. command terminated with exit code 1 
+  sc2_full_ok: rc=0 
+  sc2_pk_bad: rc=1 ERROR:  heap tuple (0,6) from table "sc2_pk_bad" lacks matching index tuple within index "sc2_pk_bad_grp_idx" HINT:  Retrying verification using the function bt_index_parent_check() might provide a more specific error. command terminated with exit code 1 
+  sc2_pk_ok: rc=0 
+
+== 6. ground truth before: seqscan JSON dump of every table (index not used)
+sc2_full_bad|30
+sc2_full_ok|30
+sc2_pk_bad|30
+sc2_pk_ok|30
+
+== 7. Debezium Server probe (slot sc2_probe, the four tables, decimals as strings, no schema in the events)
+  slot active
+
+== 8. the incident: the clean-up DELETE on each table, index-driven (enable_seqscan=off, enable_bitmapscan=off)
+PASS  the DELETE on sc2_full_bad ran and committed
+  TX 757
+  Delete on sc2_full_bad
+    ->  Index Scan using sc2_full_bad_grp_idx on sc2_full_bad
+          Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))
+  REMOVED_BEGIN
+PASS  the DELETE on sc2_full_ok ran and committed
+  TX 758
+  Delete on sc2_full_ok
+    ->  Index Scan using sc2_full_ok_grp_idx on sc2_full_ok
+          Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))
+  REMOVED_BEGIN
+PASS  the DELETE on sc2_pk_bad ran and committed
+  TX 759
+  Delete on sc2_pk_bad
+    ->  Index Scan using sc2_pk_bad_grp_idx on sc2_pk_bad
+          Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))
+  REMOVED_BEGIN
+PASS  the DELETE on sc2_pk_ok ran and committed
+  TX 760
+  Delete on sc2_pk_ok
+    ->  Index Scan using sc2_pk_ok_grp_idx on sc2_pk_ok
+          Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))
+  REMOVED_BEGIN
+  sc2_full_bad seq_scan=6 idx_scan=0
+  sc2_full_ok seq_scan=6 idx_scan=0
+  sc2_pk_bad seq_scan=6 idx_scan=0
+  sc2_pk_ok seq_scan=6 idx_scan=0
+  sc2_full_bad seq_scan=6 idx_scan=3
+  sc2_full_ok seq_scan=6 idx_scan=3
+  sc2_pk_bad seq_scan=6 idx_scan=3
+  sc2_pk_ok seq_scan=6 idx_scan=3
+
+== 9. wait for the stream
+  removed rows over the four tables (RETURNING): 120
+  receiver holds 120 events
+PASS  the stream holds exactly the removed rows' events (120 of 120)
+
+== 10. repair check (H5): before images re-inserted into a seqscan copy of the post-incident FULL tables
+PASS  the restore SQL for sc2_full_bad ran
+PASS  the restore SQL for sc2_full_ok ran
+
+== 11. analysis
+run run-2  SHIFT=5  valid(H1 held and stream complete)=True
+table          identity corrupt removed foreign missed amcheck rc events ids==removed mismatch/nonkey
+sc2_full_bad   FULL     True         30      15     15          1     30         True               0
+sc2_full_ok    FULL     False        30       0      0          0     30         True               0
+sc2_pk_bad     default  True         30      15     15          1     30         True             180
+sc2_pk_ok      default  False        30       0      0          0     30         True             180
+hypotheses: H1=held, H2=held, H3=FAILED, H4=FAILED, H5=held, H6=held
+
+== harness: 13 passed, 0 failed (raw data in /Users/alexmarket/Desktop/db-sensor-operator/bench/experiments/repair-via-logical-decoding/raw/run-2; hypotheses are judged by analyze.py per run and summarize.py across runs)
+
+== cleanup
+  removed: DebeziumServer sc2-probe, pod and service sc2-pg (its data directory, slot and tables go with it), receiver pod, service and configmap

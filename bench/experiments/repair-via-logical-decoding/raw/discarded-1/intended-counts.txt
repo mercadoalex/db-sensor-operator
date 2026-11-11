@@ -1,0 +1,4 @@
+sc2_full_bad|30
+sc2_full_ok|30
+sc2_pk_bad|30
+sc2_pk_ok|30

@@ -1,0 +1,192 @@
+{
+ "run": "run-1",
+ "shift": 5,
+ "tables": {
+  "sc2_full_bad": {
+   "corrupted": true,
+   "identity": "FULL",
+   "removed": 30,
+   "intended": 30,
+   "foreign": 15,
+   "missed": 15,
+   "foreign_heap_groups": [
+    11,
+    61,
+    111
+   ],
+   "removed_equals_seqscan_diff": true,
+   "returning_equals_snapshot": true,
+   "amcheck_rc": 1,
+   "amcheck_first_line": "ERROR:  heap tuple (0,6) from table \"sc2_full_bad\" lacks matching index tuple within index \"sc2_full_bad_grp_idx\"",
+   "explain": [
+    "Delete on sc2_full_bad",
+    "  ->  Index Scan using sc2_full_bad_grp_idx on sc2_full_bad",
+    "        Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))"
+   ],
+   "idx_scan_delta": 3,
+   "seq_scan_delta": 0,
+   "h1": {
+    "a_amcheck": true,
+    "b_index_driven": true,
+    "c_counts": true,
+    "all": true
+   },
+   "events": 30,
+   "events_op_d": 30,
+   "event_ids_equal_removed": true,
+   "event_foreign_present": true,
+   "event_missed_absent": true,
+   "event_txids": [
+    757
+   ],
+   "delete_txid": 757,
+   "h6_tx": true,
+   "before_cells_compared": 210,
+   "before_cells_mismatching": 0,
+   "identity_criteria": true,
+   "h5_rows_differing_after_reinsert": 0,
+   "h5": true
+  },
+  "sc2_full_ok": {
+   "corrupted": false,
+   "identity": "FULL",
+   "removed": 30,
+   "intended": 30,
+   "foreign": 0,
+   "missed": 0,
+   "foreign_heap_groups": [],
+   "removed_equals_seqscan_diff": true,
+   "returning_equals_snapshot": true,
+   "amcheck_rc": 0,
+   "amcheck_first_line": "",
+   "explain": [
+    "Delete on sc2_full_ok",
+    "  ->  Index Scan using sc2_full_ok_grp_idx on sc2_full_ok",
+    "        Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))"
+   ],
+   "idx_scan_delta": 3,
+   "seq_scan_delta": 0,
+   "h1": {
+    "a_amcheck": true,
+    "b_index_driven": true,
+    "c_counts": true,
+    "all": true
+   },
+   "events": 30,
+   "events_op_d": 30,
+   "event_ids_equal_removed": true,
+   "event_foreign_present": true,
+   "event_missed_absent": true,
+   "event_txids": [
+    758
+   ],
+   "delete_txid": 758,
+   "h6_tx": true,
+   "before_cells_compared": 210,
+   "before_cells_mismatching": 0,
+   "identity_criteria": true,
+   "h5_rows_differing_after_reinsert": 0,
+   "h5": true
+  },
+  "sc2_pk_bad": {
+   "corrupted": true,
+   "identity": "default",
+   "removed": 30,
+   "intended": 30,
+   "foreign": 15,
+   "missed": 15,
+   "foreign_heap_groups": [
+    11,
+    61,
+    111
+   ],
+   "removed_equals_seqscan_diff": true,
+   "returning_equals_snapshot": true,
+   "amcheck_rc": 1,
+   "amcheck_first_line": "ERROR:  heap tuple (0,6) from table \"sc2_pk_bad\" lacks matching index tuple within index \"sc2_pk_bad_grp_idx\"",
+   "explain": [
+    "Delete on sc2_pk_bad",
+    "  ->  Index Scan using sc2_pk_bad_grp_idx on sc2_pk_bad",
+    "        Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))"
+   ],
+   "idx_scan_delta": 3,
+   "seq_scan_delta": 0,
+   "h1": {
+    "a_amcheck": true,
+    "b_index_driven": true,
+    "c_counts": true,
+    "all": true
+   },
+   "events": 30,
+   "events_op_d": 30,
+   "event_ids_equal_removed": true,
+   "event_foreign_present": true,
+   "event_missed_absent": true,
+   "event_txids": [
+    759
+   ],
+   "delete_txid": 759,
+   "h6_tx": true,
+   "before_nonkey_values_present": 180,
+   "before_nonkey_equal_type_default": 180,
+   "before_nonkey_equal_true_value": 5,
+   "before_nonkey_neither": 0,
+   "identity_criteria": false
+  },
+  "sc2_pk_ok": {
+   "corrupted": false,
+   "identity": "default",
+   "removed": 30,
+   "intended": 30,
+   "foreign": 0,
+   "missed": 0,
+   "foreign_heap_groups": [],
+   "removed_equals_seqscan_diff": true,
+   "returning_equals_snapshot": true,
+   "amcheck_rc": 0,
+   "amcheck_first_line": "",
+   "explain": [
+    "Delete on sc2_pk_ok",
+    "  ->  Index Scan using sc2_pk_ok_grp_idx on sc2_pk_ok",
+    "        Index Cond: (state_group = ANY ('{10,60,110}'::integer[]))"
+   ],
+   "idx_scan_delta": 3,
+   "seq_scan_delta": 0,
+   "h1": {
+    "a_amcheck": true,
+    "b_index_driven": true,
+    "c_counts": true,
+    "all": true
+   },
+   "events": 30,
+   "events_op_d": 30,
+   "event_ids_equal_removed": true,
+   "event_foreign_present": true,
+   "event_missed_absent": true,
+   "event_txids": [
+    760
+   ],
+   "delete_txid": 760,
+   "h6_tx": true,
+   "before_nonkey_values_present": 180,
+   "before_nonkey_equal_type_default": 180,
+   "before_nonkey_equal_true_value": 4,
+   "before_nonkey_neither": 0,
+   "identity_criteria": false
+  }
+ },
+ "stream": {
+  "events_received": 120,
+  "removed_total": 120,
+  "only_op_d": true
+ },
+ "hypotheses": {
+  "H1": true,
+  "H2": true,
+  "H3": false,
+  "H4": false,
+  "H5": true,
+  "H6": true
+ },
+ "valid_run": true
+}

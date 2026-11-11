@@ -1,0 +1,3 @@
+ERROR:  heap tuple (0,6) from table "sc2_pk_bad" lacks matching index tuple within index "sc2_pk_bad_grp_idx"
+HINT:  Retrying verification using the function bt_index_parent_check() might provide a more specific error.
+command terminated with exit code 1

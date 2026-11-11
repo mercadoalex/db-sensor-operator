@@ -1,0 +1,5 @@
+sc2_donor|d|2
+sc2_full_bad|f|2
+sc2_full_ok|f|2
+sc2_pk_bad|d|2
+sc2_pk_ok|d|2

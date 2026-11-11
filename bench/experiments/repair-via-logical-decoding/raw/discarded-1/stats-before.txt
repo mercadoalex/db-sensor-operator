@@ -1,0 +1,4 @@
+sc2_full_bad seq_scan=6 idx_scan=0
+sc2_full_ok seq_scan=6 idx_scan=0
+sc2_pk_bad seq_scan=6 idx_scan=0
+sc2_pk_ok seq_scan=6 idx_scan=0

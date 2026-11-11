@@ -1,0 +1,2 @@
+  file sizes donor=40960 full_bad=40960 pk_bad=40960
+  swapped and restarted

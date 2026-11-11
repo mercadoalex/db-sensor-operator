@@ -1,0 +1,39 @@
+per run (valid = H1 held and the stream complete):
+run | shift | valid | H1 | H2 | H3 | H4 | H5 | H6
+run-1 | 5 | True | held | held | FAILED | FAILED | held | held
+run-2 | 5 | True | held | held | FAILED | FAILED | held | held
+run-3 | 5 | True | held | held | FAILED | FAILED | held | held
+run-4 | 370 | True | held | held | FAILED | FAILED | held | held
+
+counts per run: table: removed/foreign/missed, amcheck rc, events, before cells mismatching (FULL) or non-key values present (default)
+run-1
+  sc2_full_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_full_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_pk_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+  sc2_pk_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+run-2
+  sc2_full_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_full_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_pk_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+  sc2_pk_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+run-3
+  sc2_full_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_full_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_pk_bad: 30/15/15  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+  sc2_pk_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+run-4
+  sc2_full_bad: 30/30/30  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_full_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=0  ids_equal_removed=True
+  sc2_pk_bad: 30/30/30  amcheck_rc=1  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+  sc2_pk_ok: 30/0/0  amcheck_rc=0  events=30  idx_scan+3 seq_scan+0  extra=180  ids_equal_removed=True
+
+H7 reproducibility: valid runs = 4; distinct outcome signatures per SHIFT = {5: 1, 370: 1} -> held
+
+verdict rule applied:
+  FULL mode (H2 on corrupted + control, all valid runs, >=3 valid): PASS
+  default identity, identification half (event key set == removed set, corrupted + control): PASS
+  default identity, H3 as worded (non-key columns null or absent): FAILED
+  run-1 default-identity non-key values present=180 equal-to-type-default=180 equal-to-true-value=5 neither=0
+  run-2 default-identity non-key values present=180 equal-to-type-default=180 equal-to-true-value=5 neither=0
+  run-3 default-identity non-key values present=180 equal-to-type-default=180 equal-to-true-value=5 neither=0
+  run-4 default-identity non-key values present=180 equal-to-type-default=180 equal-to-true-value=5 neither=0

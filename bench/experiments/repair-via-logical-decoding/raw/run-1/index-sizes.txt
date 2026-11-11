@@ -1,0 +1,5 @@
+sc2_donor_grp_idx|40960
+sc2_full_bad_grp_idx|40960
+sc2_full_ok_grp_idx|40960
+sc2_pk_bad_grp_idx|40960
+sc2_pk_ok_grp_idx|40960
