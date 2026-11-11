@@ -174,7 +174,7 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > Dos no tienen medición: qué clases aparecen en postmortems públicos y sobre qué workload se actúa. Tres tienen una medición débil: qué ve cada fuente (con el bypass del trigger medimos tres: eBPF en el cliente, el log del servidor y quitar el privilegio), cuántos commits malos pasan antes de que la
 > reacción actúe (una medición, 0,72 s, para un Job) y cuánto falla la propia reacción, donde perdimos el evento 2 de 2
-> veces al reemplazar el Sensor. Y dos están a medias: la reparación, y el costo de ver el contenido, que medimos en filas sintéticas.
+> veces al reemplazar el Sensor (después se vio que el bus lo retuvo unos 5 minutos en un miembro muerto; en reemplazos limpios la pérdida fue 1 de 15, ver `argo-events-chain/SENSOR-LOSS-RESULTS.md`). Y dos están a medias: la reparación, y el costo de ver el contenido, que medimos en filas sintéticas.
 >
 > Quiero detenerme en la reparación. El respaldo con restauración a un punto en el tiempo restaura todo y de golpe. Si
 > el flujo de cambios guarda el valor anterior de cada fila, quizá se podría reparar solo lo afectado. La primera mitad
@@ -220,7 +220,9 @@ heartbeat de 10 s. Por qué el de 10 s es más largo no lo sabemos. Está en la 
 >
 > **Cuarto, entender por qué la reacción perdió eventos.** Si es un defecto de configuración, es trabajo corto. Si es un
 > diseño que puede perder, hay que construir entrega garantizada antes de cualquier política. Eso cambia el tamaño del
-> proyecto.
+> proyecto. Ya se midió para la cadena de Argo Events: el bus retiene el evento en un miembro muerto unos 5 minutos y
+> ningún ajuste de ack-wait o reentrega lo arregla en el bus nativo; no se construyó ninguna garantía del lado de la
+> reacción (`argo-events-chain/SENSOR-LOSS-RESULTS.md`). Si se construye antes de las políticas, lo decide el dueño.
 >
 > **Quinto, la fase 2 del heartbeat.** Que el sensor use los latidos para distinguir una tabla quieta de un conector
 > estancado. Quita la falsa alarma que medimos y habilita la alerta de slot que no avanza.
