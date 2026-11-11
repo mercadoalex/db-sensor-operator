@@ -82,7 +82,7 @@ Esta es la pregunta donde ya tenemos la comparación más completa.
 2. Hace falta guardar todos los eventos de CDC en algún lugar durable por un tiempo (un "almacén de eventos"), y el operador que estamos construyendo hoy no guarda ninguno; simplemente los cuenta y los descarta.
 3. Alguien tiene que decirnos de antemano cuáles fueron exactamente las transacciones malas que hay que deshacer. No lo averiguamos automáticamente.
 
-**Lo comparamos contra PITR (restaurar un respaldo):** si en vez de reparar desde el flujo se restaura un respaldo completo a un punto antes del incidente, se pierde todo el trabajo bueno que se hizo después de ese punto, porque PITR regresa toda la base a como estaba, sin distinguir cambios buenos de malos. Esa es la ventaja real y medida de reparar desde el flujo.
+**Lo comparamos contra PITR (restaurar un respaldo):** si en vez de reparar desde el flujo se restaura un respaldo completo a un punto antes del incidente, se pierde todo el trabajo bueno que se hizo después de ese punto, porque PITR regresa toda la base a como estaba, sin distinguir cambios buenos de malos. **Reparar desde el flujo sí distingue entre lo bueno y lo malo, y por eso conserva el trabajo bueno que PITR tendría que descartar.** Esa es la ventaja medida de reparar desde el flujo frente a PITR, no al revés.
 
 **Lo que todavía falta:** el competidor más realista no es PITR solo, sino un "híbrido": restaurar el respaldo y después reaplicar manualmente los cambios buenos que se perdieron. Ese híbrido todavía no lo hemos medido, y es el próximo paso de esta sub-pregunta.
 
