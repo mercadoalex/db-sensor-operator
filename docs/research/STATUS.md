@@ -112,7 +112,7 @@ Esta es la pregunta donde ya tenemos la comparación más completa.
 
 Es la misma operación, el mismo cambio real (solo el precio), pero 36 veces más trabajo de escritura, solo por tener esa columna ancha al lado.
 
-![Por qué una fila cuesta 36 veces más con REPLICA IDENTITY FULL](kiro-artifact://b11e25a9-59b2-49f4-a764-e3128f17911e)
+![Por qué una fila cuesta 36 veces más con REPLICA IDENTITY FULL](assets/full-cost-example.svg)
 
 **Estado: medido, pero solo en estas cuatro filas sintéticas.** Falta todavía averiguar cómo son las tablas de un proyecto real (de producción), para saber si el escenario de la columna ancha sin cambiar (el de 36 veces) es raro o común en la práctica.
 

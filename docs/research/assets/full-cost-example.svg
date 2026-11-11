@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" font-family="Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect width="1200" height="760" fill="#ffffff"/>
+  <text x="40" y="45" font-size="24" font-weight="700" fill="#09090b">Una fila con una nota larga: por qué cuesta 36 veces más</text>
+  <text x="40" y="72" font-size="14" fill="#52525b">Ejemplo real del experimento: una fila de "pedido" de 6,4 KB. Se cambia solo el precio (`amount`); la nota (`note`) no se toca.</text>
+
+  <!-- the row shape -->
+  <rect x="40" y="100" width="1120" height="70" rx="8" fill="#f4f4f5" stroke="#d4d4d8"/>
+  <text x="60" y="124" font-size="13" font-weight="600" fill="#09090b">La fila completa (6,4 KB)</text>
+  <rect x="60" y="134" width="90" height="26" fill="#e4e4e7" stroke="#a1a1aa"/>
+  <text x="105" y="151" font-size="11" text-anchor="middle" fill="#3f3f46">id</text>
+  <rect x="150" y="134" width="90" height="26" fill="#fde68a" stroke="#d97706"/>
+  <text x="195" y="151" font-size="11" text-anchor="middle" fill="#78350f" font-weight="700">amount</text>
+  <rect x="240" y="134" width="860" height="26" fill="#bfdbfe" stroke="#2563eb"/>
+  <text x="670" y="151" font-size="12" text-anchor="middle" fill="#1e3a8a" font-weight="600">note — el texto largo, 6,3 KB, guardado aparte por PostgreSQL ("TOAST"). No cambia en este UPDATE.</text>
+
+  <!-- DEFAULT path -->
+  <text x="40" y="215" font-size="16" font-weight="700" fill="#09090b">Identidad por defecto (sin FULL)</text>
+  <text x="40" y="236" font-size="13" fill="#52525b">El WAL guarda solo lo que cambió: el precio nuevo. La nota larga nunca se vuelve a escribir.</text>
+
+  <rect x="40" y="255" width="1120" height="60" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+  <rect x="60" y="270" width="90" height="28" fill="#e4e4e7" stroke="#a1a1aa"/>
+  <text x="105" y="288" font-size="11" text-anchor="middle" fill="#3f3f46">id</text>
+  <rect x="150" y="270" width="90" height="28" fill="#fde68a" stroke="#d97706"/>
+  <text x="195" y="288" font-size="11" text-anchor="middle" fill="#78350f" font-weight="700">amount (nuevo)</text>
+  <rect x="250" y="270" width="250" height="28" fill="#f4f4f5" stroke="#d4d4d8" stroke-dasharray="4 3"/>
+  <text x="375" y="288" font-size="11" text-anchor="middle" fill="#a1a1aa">note: no se escribe</text>
+  <text x="920" y="289" font-size="18" font-weight="700" fill="#16a34a">186 bytes</text>
+
+  <!-- FULL path -->
+  <text x="40" y="355" font-size="16" font-weight="700" fill="#09090b">REPLICA IDENTITY FULL</text>
+  <text x="40" y="376" font-size="13" fill="#52525b">El WAL guarda la fila completa de antes Y la fila completa de después, para que CDC vea el valor viejo.</text>
+
+  <rect x="40" y="395" width="1120" height="60" rx="8" fill="#fef2f2" stroke="#dc2626"/>
+  <rect x="60" y="410" width="90" height="28" fill="#e4e4e7" stroke="#a1a1aa"/>
+  <text x="105" y="428" font-size="11" text-anchor="middle" fill="#3f3f46">id</text>
+  <rect x="150" y="410" width="90" height="28" fill="#fde68a" stroke="#d97706"/>
+  <text x="195" y="428" font-size="11" text-anchor="middle" fill="#78350f" font-weight="700">amount (viejo)</text>
+  <rect x="240" y="410" width="430" height="28" fill="#bfdbfe" stroke="#2563eb"/>
+  <text x="455" y="428" font-size="11" text-anchor="middle" fill="#1e3a8a" font-weight="600">note — se reescribe completa, aunque no cambió (antes)</text>
+  <text x="1020" y="429" font-size="18" font-weight="700" fill="#dc2626">+</text>
+
+  <rect x="40" y="463" width="1120" height="60" rx="8" fill="#fef2f2" stroke="#dc2626"/>
+  <rect x="60" y="478" width="90" height="28" fill="#e4e4e7" stroke="#a1a1aa"/>
+  <text x="105" y="496" font-size="11" text-anchor="middle" fill="#3f3f46">id</text>
+  <rect x="150" y="478" width="90" height="28" fill="#fde68a" stroke="#d97706"/>
+  <text x="195" y="496" font-size="11" text-anchor="middle" fill="#78350f" font-weight="700">amount (nuevo)</text>
+  <rect x="240" y="478" width="430" height="28" fill="#bfdbfe" stroke="#2563eb"/>
+  <text x="455" y="496" font-size="11" text-anchor="middle" fill="#1e3a8a" font-weight="600">note — se reescribe completa, aunque no cambió (después)</text>
+  <text x="920" y="545" font-size="18" font-weight="700" fill="#dc2626">6.637 bytes</text>
+
+  <!-- comparison -->
+  <rect x="40" y="580" width="1120" height="150" rx="10" fill="#fafafa" stroke="#e4e4e7"/>
+  <text x="60" y="610" font-size="15" font-weight="700" fill="#09090b">Mismo UPDATE, mismo cambio real (solo el precio). La diferencia es cuánto hay que escribir en el WAL.</text>
+
+  <text x="60" y="650" font-size="13" fill="#3f3f46">Por defecto</text>
+  <rect x="150" y="636" width="4" height="22" fill="#16a34a"/>
+  <text x="165" y="653" font-size="20" font-weight="700" fill="#16a34a">186 B</text>
+
+  <text x="340" y="650" font-size="13" fill="#3f3f46">Con FULL</text>
+  <rect x="420" y="632" width="140" height="26" fill="#fecaca"/>
+  <text x="565" y="653" font-size="20" font-weight="700" fill="#dc2626">6.637 B</text>
+
+  <text x="60" y="695" font-size="15" font-weight="700" fill="#09090b">36 veces más WAL, por una columna que ni siquiera cambió.</text>
+  <text x="60" y="715" font-size="12" fill="#71717a">Fuente: bench/experiments/replica-identity-full-cost/RESULTS.md — fila sintética de prueba, 20.000 filas, 3 repeticiones idénticas.</text>
+</svg>
