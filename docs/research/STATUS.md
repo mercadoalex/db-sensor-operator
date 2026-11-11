@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-**Fecha de este resumen: 11 de noviembre de 2026.**
+**Fecha de este resumen: 11 de noviembre de 2026** (actualizado el mismo día con el resultado de los postmortems públicos).
 
 Este documento se actualiza a mano cada vez que algo cambia de estado. No reemplaza `bench/experiments/FINDINGS.md` (los hallazgos técnicos consolidados) ni los `RESULTS.md` de cada experimento (el detalle de cada prueba); es el resumen para explicarle el proyecto a cualquiera, técnico o no, sin tener que leer todo lo demás.
 
@@ -29,7 +29,9 @@ Este criterio (lo llamamos internamente "R9", por ser la novena línea de nuestr
 
 **¿Qué significa "le gane claramente"?** No basta con que CDC también detecte el problema. Tiene que hacer algo que las otras dos opciones no puedan hacer, o hacerlo de forma sustancialmente mejor (por ejemplo: ver el contenido exacto de un cambio cuando un contador solo ve "algo cambió"; o reparar con precisión en vez de perder trabajo bueno al restaurar un respaldo completo). Si CDC solo iguala lo que ya hacían los contadores, para efectos de este criterio cuenta como que no ganó.
 
-**¿Por qué "constraints y contadores" y no PITR en esta frase puntual?** Porque la pregunta de R9 nació pensando en *prevenir y detectar* (constraints/triggers evitan el problema antes de que ocurra; los contadores avisan que algo pasó). PITR entra más bien como el competidor a la hora de *reparar* después del incidente, y por eso aparece comparado en detalle en la sub-pregunta 3 (ver abajo) en vez de en la frase general del criterio de salida.
+**¿Por qué "constraints y contadores" y no PITR en esta frase puntual?** Porque la pregunta de R9 nació pensando en *prevenir y detectar* (constraints/triggers evitan el problema antes de que ocurra; los contadores avisan que algo pasó). PITR entra más bien como el competidor a la hora de *reparar* después del incidente, y por eso aparece comparado en detalle en la sub-pregunta 4 (ver abajo) en vez de en la frase general del criterio de salida.
+
+**Primer intento real de encontrar ese "caso real": revisamos 16 postmortems públicos (sub-pregunta 1, abajo).** Encontramos 1 caso claro y 1 parcial, ninguno confirmado con una implementación real de CDC. Por una lectura estricta del criterio, **todavía no se cumple**. El detalle completo está en la sub-pregunta 1.
 
 **Estado de este criterio hoy: no se ha cumplido ni se ha refutado.** No tenemos todavía ese caso real ganador. Lo que sí tenemos es evidencia medida en las dos direcciones: una ventaja real de CDC en un escenario (sub-pregunta 4), un costo real que puede ser alto (sub-pregunta 5), y una fragilidad real de la reacción (sub-pregunta 6). Nada de esto cierra la pregunta todavía.
 
@@ -45,7 +47,21 @@ Partimos la pregunta central en 7 preguntas más chicas y concretas, cada una co
 
 **¿Por qué "públicos"? ¿Existen postmortems privados?** Sí, existen, y de hecho son la mayoría: casi toda empresa escribe estos reportes internamente, pero casi nunca los publica, porque pueden exponer debilidades de seguridad o errores vergonzosos frente a clientes. Nosotros solo podemos leer los que alguien decidió hacer públicos (empresas como GitLab, Cloudflare o muchas otras publican los suyos). Es una limitación real de este método: lo que encontremos ahí es una muestra sesgada, no el panorama completo de lo que pasa en la industria. Para ver el panorama completo haría falta acceso a postmortems privados, que no tenemos, o preguntarle directamente a la gente (que es justo lo que busca la sub-pregunta de las conversaciones con usuarios, mencionada arriba).
 
-**Estado: sin hacer.** No se ha empezado a leer y catalogar postmortems todavía.
+**Lo que hicimos:** leímos y catalogamos 16 postmortems públicos reales de incidentes de datos (no caídas de servicio sin problema de datos): 14 publicados directamente por la empresa (GitLab, Atlassian, GitHub, Twilio, Bungie, Travis CI, Razorpay, Turso, OpenAI, Matrix.org, Keepthescore, Kickstarter), y 2 conocidos solo por cobertura de prensa, marcados como menos confiables (Azure DevOps, Salesforce/Pardot). El detalle completo, con la fuente de cada uno, está en `docs/research/p0-public-postmortems.md`.
+
+**El resultado, dicho sin adornos: de 16 incidentes reales, solo 1 es un caso claro donde CDC le gana a la prevención y a los contadores, y 1 más es un caso a medias.**
+
+- **El caso claro: Bungie, el juego Destiny 2, en 2020.** Un error de programación calculó mal la cantidad de un ítem (moneda y materiales del juego) en un subconjunto de servidores, y a los jugadores se les borró parte de su inventario. No había ningún constraint que pudiera detectar esto, porque el valor escrito era un número válido, simplemente estaba mal calculado; y ningún contador lo nota, porque para el contador fue una escritura normal. Lo más revelador: para repararlo, Bungie restauró **las cuentas de todos los jugadores** a un respaldo de antes del error, en vez de intentar identificar cuáles cuentas sí estaban afectadas, porque el riesgo de dejar alguna sin corregir les pareció peor. Es exactamente el costo que medimos nosotros mismos en la sub-pregunta 4: restaurar un respaldo completo descarta trabajo bueno que no tenía nada que ver con el problema.
+- **El caso a medias: Matrix.org (el proyecto detrás de la app de mensajería Element), en 2025.** Aquí un constraint, agregado por el equipo justo después de encontrar el problema, sí logró detener el daño en cuanto se reactivó el proceso que lo causaba. En eso, el constraint le ganó a cualquier cosa que CDC hubiera podido hacer. Pero para repararlo, el equipo tuvo que comparar a mano un respaldo viejo contra la base en producción, durante cerca de una semana, para reconstruir la lista exacta de filas afectadas. Un registro de cambios con el valor anterior de cada fila borrada les hubiera dado esa lista de inmediato.
+- **Los otros 14 casos:** o ya los resuelve algo que no es CDC (permisos revocados, borrado lógico en vez de físico, aislar el ambiente de pruebas del de producción, el propio registro interno de la base de datos que ya existía), o no los resuelve nada de esto (por ejemplo, alguien borró físicamente los archivos del disco con un comando, y ahí no hay ningún "cambio de fila" que CDC pueda ver).
+
+**El dato más incómodo, y el más honesto de todo este ejercicio: en 0 de los 16 casos una alerta basada en el contenido de un cambio fue lo que detectó el problema.** Esto no prueba que una alerta así no funcionaría (puede ser que ninguna de esas empresas tuviera algo parecido instalado), pero sí confirma que, en la práctica real que pudimos observar, nadie estaba vigilando *qué* cambió; solo se dieron cuenta cuando *algo ya se había roto* (una persona lo reportó, o se disparó una alarma por otra razón).
+
+**¿Qué significa esto para el criterio de salida (R9, explicado arriba)?** Con una lectura estricta, **todavía no se cumple**: el criterio pide más de un caso real y claro, y aquí solo hay uno claro y uno a medias, ninguno de los dos con una implementación real de CDC detrás (son nuestra propia evaluación de qué hubiera pasado si la hubiera habido). Con una lectura generosa, apenas se cumpliría. Por honestidad, no vamos a usar los otros 14 casos (ni siquiera los más dramáticos, como el de GitLab o el de Twilio) como argumento a favor del proyecto en ninguna presentación: son incidentes de datos reales y graves, pero CDC no los hubiera resuelto, y cualquier persona informada que los conozca lo notaría.
+
+**Lo que sí encontramos de valor, aunque no cierre la pregunta:** identificamos la condición exacta bajo la cual CDC gana. Tienen que cumplirse las dos cosas a la vez: (1) el valor incorrecto se ve válido, así que ningún constraint lo detecta, **y** (2) el daño afecta solo una parte de los datos, mientras sigan llegando escrituras buenas de otras partes del sistema. Esa es la misma condición que ya habíamos medido nosotros mismos en el banco de pruebas (sub-pregunta 4, el experimento contra PITR). En esta muestra de 16 postmortems públicos, esa condición solo apareció dos veces.
+
+**Estado: hecho.** Encontramos 1 caso claro y 1 parcial, ninguno con una implementación real de CDC que lo confirme; es evidencia razonada, no probada. El siguiente paso natural es llevar la pregunta que los postmortems públicos no pueden responder a las conversaciones con usuarios reales (la sub-pregunta mencionada en el criterio de salida, arriba): "la última vez que tuviste un cambio malo de datos, ¿fue a toda la tabla o solo a una parte, y seguían llegando escrituras buenas mientras lo arreglabas?".
 
 ### 2. ¿Qué tipo de incidente puede ver cada fuente de información?
 
@@ -187,3 +203,4 @@ Esto no significa que el proyecto esté condenado, ni que esté confirmado. Sign
 - **Lista detallada de pendientes y decisiones abiertas:** `docs/HANDOFF.md`
 - **La presentación y el guion para explicarle esto al equipo:** `docs/overview/checkup/`
 - **El criterio de salida (R9) y el plan de conversaciones con usuarios reales:** `docs/research/user-conversations.md`
+- **El detalle completo de los 16 postmortems revisados, con fuentes:** `docs/research/p0-public-postmortems.md`
