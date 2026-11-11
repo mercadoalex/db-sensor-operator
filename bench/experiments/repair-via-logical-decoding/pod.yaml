@@ -1,0 +1,35 @@
+# Throwaway PostgreSQL 16 host for the Matrix-shaped scenario. It only provides binaries, a scratch disk and a
+# service name: run.sh creates the cluster (logical decoding) in it, applies the index swap with the server stopped, and runs the DELETEs.
+# Unique names (sc2-*) so nothing here collides with bench-postgres or bench-cdc.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sc2-pg
+  labels:
+    app: sc2-pg
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+  containers:
+    - name: pg
+      image: postgres:16
+      command: ["sleep", "infinity"]
+      env:
+        - name: PATH
+          value: /usr/lib/postgresql/16/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      volumeMounts:
+        - name: work
+          mountPath: /work
+  volumes:
+    - name: work
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sc2-pg
+spec:
+  selector: { app: sc2-pg }
+  ports: [{ port: 5432, targetPort: 5432 }]
