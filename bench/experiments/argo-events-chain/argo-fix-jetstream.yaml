@@ -1,0 +1,73 @@
+# F2: the same chain on a JetStream EventBus, in its own namespace so the STAN chain in argo-events is untouched.
+# Own EventSource (own Kafka consumer group), own Sensor, own target Job (payments-writer-js in bench).
+apiVersion: v1
+kind: Namespace
+metadata: { name: argo-js }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata: { name: default, namespace: argo-js }
+spec:
+  jetstream:
+    version: latest
+    replicas: 3
+---
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata: { name: payments-cdc-js, namespace: argo-js }
+spec:
+  kafka:
+    payments:
+      url: argo-kafka.bench.svc.cluster.local:9092
+      topic: argotest.public.payments
+      jsonBody: true
+      consumerGroup: { groupName: argo-events-payments-js }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: job-suspender, namespace: argo-js }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: job-suspender-js, namespace: bench }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: job-suspender }
+subjects:
+  - { kind: ServiceAccount, name: job-suspender, namespace: argo-js }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata: { name: settled-to-pending-js, namespace: argo-js }
+spec:
+  template:
+    serviceAccountName: job-suspender
+  dependencies:
+    - name: forbidden-transition
+      eventSourceName: payments-cdc-js
+      eventName: payments
+      filters:
+        data:
+          - { path: body.before.status, type: string, value: ["settled"] }
+          - { path: body.after.status,  type: string, value: ["pending"] }
+  triggers:
+    - template:
+        name: suspend-payments-writer-js
+        k8s:
+          operation: patch
+          patchStrategy: application/merge-patch+json
+          source:
+            resource:
+              apiVersion: batch/v1
+              kind: Job
+              metadata: { name: payments-writer-js, namespace: bench }
+              spec: { suspend: true }
+---
+apiVersion: batch/v1
+kind: Job
+metadata: { name: payments-writer-js, namespace: bench }
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - { name: writer, image: busybox:1.36, command: ["sh", "-c", "echo running; sleep 3600"] }

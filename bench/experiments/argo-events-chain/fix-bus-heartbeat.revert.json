@@ -1,0 +1,4 @@
+[
+  {"op": "replace", "path": "/spec/template/spec/containers/0/command",
+   "value": ["/nats-streaming-server", "-sc", "/etc/stan-config/stan.conf"]}
+]

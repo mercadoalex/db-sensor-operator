@@ -1,0 +1,5 @@
+[
+  {"op": "add", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": 60},
+  {"op": "add", "path": "/spec/template/spec/containers/0/lifecycle",
+   "value": {"preStop": {"sleep": {"seconds": 10}}}}
+]

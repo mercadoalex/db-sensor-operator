@@ -1,0 +1,5 @@
+[
+  {"op": "replace", "path": "/spec/template/spec/containers/0/command",
+   "value": ["/nats-streaming-server", "-sc", "/etc/stan-config/stan.conf",
+             "--hb_interval", "3s", "--hb_timeout", "2s", "--hb_fail_count", "4"]}
+]

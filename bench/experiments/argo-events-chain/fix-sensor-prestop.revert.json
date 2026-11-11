@@ -1,0 +1,4 @@
+[
+  {"op": "replace", "path": "/spec/template/spec/terminationGracePeriodSeconds", "value": 30},
+  {"op": "remove", "path": "/spec/template/spec/containers/0/lifecycle"}
+]

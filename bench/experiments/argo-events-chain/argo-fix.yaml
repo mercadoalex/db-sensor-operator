@@ -1,0 +1,24 @@
+# Additive fix candidates for the Sensor-replacement loss (see .agents/tasks/argo-sensor-loss/prereg.md,
+# "Added after seeing data, second session"). argo.yaml is NOT changed. Nothing here is applied by up.sh.
+# Each candidate is applied alone, measured, then reverted. The patch files next to this one are applied
+# with `kubectl patch ... --type=json --patch-file`.
+#
+# G1  Sensor leader election through a Kubernetes Lease instead of the bus (changes the exit code path).
+#     Needs: this Role/RoleBinding + `kubectl -n argo-events annotate sensor settled-to-pending events.argoproj.io/leader-election=k8s`
+# G2  preStop sleep + longer terminationGracePeriodSeconds on the Sensor Deployment: fix-sensor-prestop.patch.json
+# F1  shorter STAN client heartbeats on the bus StatefulSet (not exposed by the EventBus CRD): fix-bus-heartbeat.patch.json
+# F2  JetStream bus in its own namespace: argo-fix-jetstream.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: sensor-lease, namespace: argo-events }
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: sensor-lease, namespace: argo-events }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: sensor-lease }
+subjects:
+  - { kind: ServiceAccount, name: job-suspender, namespace: argo-events }
