@@ -21,7 +21,7 @@ Reproduce with `make -C bench setup && bench/collectors/cdc/up.sh && bench/exper
 | Sensor pod deleted while the stream was flowing, forbidden update made right after | **Not suspended within 120 s, in 2 of 2 runs.** The EventSource logged publishing the event 0.8 s before the new Sensor pod subscribed. |
 | Sensor scaled to 0 and fully gone, forbidden update made, 15 s later scaled back to 1 | Job suspended 1.8 s after scale-up (1 run). The event was kept and delivered. |
 
-So the loss happens when the Sensor pod is being replaced at the moment the event is published, not when it is simply down. **The mechanism was not diagnosed.** My guess is that the terminating pod took the event and the trigger never ran; that is a guess.
+So the loss happens when the Sensor pod is being replaced at the moment the event is published, not when it is simply down. **Diagnosed afterwards, see `SENSOR-LOSS-RESULTS.md`.** My original guess (the terminating pod took the event and the trigger never ran) was falsified. The event is handed to a dead process that the NATS Streaming bus still counts as a member of the Sensor's queue group, and it stays there until the bus's heartbeat check removes the member, about 5 minutes later with stock settings. A 120 s check sees that as lost. If a newer event triggers first, the late one is acknowledged and dropped. This is not fixable by an ack-wait or redelivery setting on the native bus.
 
 **Kafka outage: the slot stalls and nothing in the chain reports it.** With Kafka scaled to 0 and about 3000 non-forbidden updates, `argo_test_slot` stayed at a confirmed lag of about 530 kB while the sensor's own slot stayed near 20 kB. The `argo-cdc` Debezium pod restarted twice. After Kafka came back the slot caught up within 60 s. The volume was small (about 0.5 MB of WAL), so this shows the mechanism, not a danger. No Argo Events component exposes slot state, and no `DatabaseSensor` was watching that slot.
 
@@ -43,14 +43,14 @@ Eight pods on top of PostgreSQL (Kafka 1, Debezium 1, Argo Events controller 1, 
 - any view of the slot or of the stalled path,
 - sequence and order checks (read, not tested),
 - the `REPLICA IDENTITY FULL` check (done by hand here),
-- reliable delivery while the Sensor pod is replaced (2 of 2 events lost; cause unknown).
+- reliable delivery while the Sensor pod is replaced (2 of 2 events lost in this first run; the later study found them held by a dead queue member for about 5 minutes, and no ack-wait setting fixes it on the native bus; see `SENSOR-LOSS-RESULTS.md`).
 
 Whether anyone prefers to assemble this from five components instead of using one is a question for the user conversations (R8).
 
 ## Not verified
 
 - One run per phase, one local cluster, PostgreSQL 16, tiny data volumes.
-- The loss mechanism when the Sensor is replaced.
+- The loss mechanism when the Sensor is replaced was not diagnosed in this run; it was in `SENSOR-LOSS-RESULTS.md`, with its own limits (single machine, one event at a time, JetStream only lightly tested).
 - Other Argo Events versions, a Kafka cluster with replication, authentication, TLS.
 - Whether Argo Rollouts or an HTTP trigger behave the same (the docs say any Kubernetes object, including custom resources, can be triggered; only a Job patch was run).
 - Resource use.

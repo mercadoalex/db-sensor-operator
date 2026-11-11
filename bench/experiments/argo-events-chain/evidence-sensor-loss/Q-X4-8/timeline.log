@@ -1,0 +1,8 @@
+2026-11-11T05:16:12.701Z clean baseline=True after waiting 0.3 s
+2026-11-11T05:16:19.094Z baseline: old pod ['settled-to-pending-sensor-t46q2-5b877cf4b-nptk9'] client client-4092367313-67 bus last_seq=51
+2026-11-11T05:16:29.225Z E issued id=568  psql call start=2026-11-11T05:16:29.104Z end=2026-11-11T05:16:29.225Z
+2026-11-11T05:16:29.810Z graceful delete issued 0.60 s after E start
+2026-11-11T05:16:29.863Z sensor subscriptions on bus: [('client-4092367313-67', False, 51, 0)]
+2026-11-11T05:16:31.916Z sensor subscriptions on bus: [('client-4092367313-67', False, 52, 1), ('client-4092367313-85', False, 0, 0)]
+2026-11-11T05:17:29.247Z Job NOT suspended within 60 s
+2026-11-11T05:17:33.254Z final bus subs=[('client-4092367313-67', False, 52, 1), ('client-4092367313-85', False, 0, 0)]

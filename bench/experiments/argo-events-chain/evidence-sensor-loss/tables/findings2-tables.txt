@@ -1,0 +1,58 @@
+== ghost-rate trials (graceful termination, no events) ==
+G0-default       n=20  no-unsubscribe-line= 3 (15%, 95% CI 3-38%)  bus-sub-still-online-8s= 4
+G0b-default      n=40  no-unsubscribe-line= 7 (18%, 95% CI 7-33%)  bus-sub-still-online-8s= 9
+G3-rollout       n=20  no-unsubscribe-line= 2 (10%, 95% CI 1-32%)  bus-sub-still-online-8s= 2
+G1-k8s-lease     n=20  no-unsubscribe-line= 0 (0%, 95% CI 0-17%)  bus-sub-still-online-8s= 0
+G1b-k8s-lease    n=40  no-unsubscribe-line= 0 (0%, 95% CI 0-9%)  bus-sub-still-online-8s= 0
+G2-prestop       n=20  no-unsubscribe-line= 3 (15%, 95% CI 3-38%)  bus-sub-still-online-8s= 5
+pooled default delete: 10/60 ; pooled k8s-lease: 0/60 ; Fisher exact p=0.001299
+pooled default delete+rollout: 12/80 vs lease 0/60 Fisher p=0.001222
+prestop vs default delete: 3/20 vs 10/60 Fisher p=1
+
+== SIGKILL protocols ==
+K1 default bus (Y*-K1): [('Y01-K1-1', 'delayed', 311.705), ('Y03-K1-2', 'delayed', 304.395), ('Y04-K1-3', 'delayed', 317.123), ('Y10-K1-4', 'delayed', 301.851), ('Y12-K1-5', 'delayed', 301.134)]
+K1 with k8s-lease election (L-K1): [('L-K1-1', 'delayed', 318.768), ('L-K1-2', 'delayed', 312.825), ('L-K1-3', 'delayed', 300.982), ('L-K1-4', 'delayed', 326.292), ('L-K1-5', 'delayed', 326.019)]
+K2 default bus (E at +60 s): [('Y02-K2-1', 'delivered', 0.719), ('Y06-K2-2', 'delivered', 0.418), ('Y07-K2-3', 'delivered', 0.995), ('Y11-K2-4', 'delivered', 1.008), ('Y13-K2-5', 'delivered', 0.46)]
+M5GC = K1 on short-heartbeat bus (F1): [('M-M5GC-1', 'delayed', 13.028), ('M-M5GC-2', 'delayed', 12.917), ('M-M5GC-3', 'delayed', 14.503), ('M-M5GC-4', 'delayed', 12.67), ('M-M5GC-5', 'delayed', 13.012)]
+M5G (E2 before reap): [('M-M5G-1', 'lost', None), ('M-M5G-2', 'lost', None), ('M-M5G-3', 'lost', None), ('M-M5G-4', 'lost', None), ('M-M5G-5', 'lost', None), ('M-M5G-6', 'lost', None)]
+
+== hand-over analysis (analyze2) ==
+Y01-K1-1 delayed lat=311.705 handed_to_killed_pod=True hb_timeout_after_kill=311.5
+Y02-K2-1 delivered lat=0.719 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y03-K1-2 delayed lat=304.395 handed_to_killed_pod=True hb_timeout_after_kill=304.1
+Y04-K1-3 delayed lat=317.123 handed_to_killed_pod=True hb_timeout_after_kill=317.1
+Y05-X3-1 delivered lat=0.696 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y06-K2-2 delivered lat=0.418 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y07-K2-3 delivered lat=0.995 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y08-X3-2 delivered lat=0.705 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y09-X3-3 delivered lat=0.991 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y10-K1-4 delayed lat=301.851 handed_to_killed_pod=True hb_timeout_after_kill=301.6
+Y11-K2-4 delivered lat=1.008 handed_to_killed_pod=False hb_timeout_after_kill=None
+Y12-K1-5 delayed lat=301.134 handed_to_killed_pod=True hb_timeout_after_kill=301.0
+Y13-K2-5 delivered lat=0.46 handed_to_killed_pod=False hb_timeout_after_kill=None
+L-K1-1 delayed lat=318.768 handed_to_killed_pod=True hb_timeout_after_kill=318.9
+L-K1-2 delayed lat=312.825 handed_to_killed_pod=True hb_timeout_after_kill=312.9
+L-K1-3 delayed lat=300.982 handed_to_killed_pod=True hb_timeout_after_kill=301.2
+L-K1-4 delayed lat=326.292 handed_to_killed_pod=True hb_timeout_after_kill=326.3
+L-K1-5 delayed lat=326.019 handed_to_killed_pod=True hb_timeout_after_kill=326.1
+M-M5G-1 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=13.1
+M-M5G-2 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=13.2
+M-M5G-3 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=13.2
+M-M5G-4 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=13.0
+M-M5G-5 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=13.1
+M-M5G-6 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=12.8
+M-M5GC-1 delayed lat=13.028 handed_to_killed_pod=True hb_timeout_after_kill=13.1
+M-M5GC-2 delayed lat=12.917 handed_to_killed_pod=True hb_timeout_after_kill=13.0
+M-M5GC-3 delayed lat=14.503 handed_to_killed_pod=True hb_timeout_after_kill=14.7
+M-M5GC-4 delayed lat=12.67 handed_to_killed_pod=True hb_timeout_after_kill=12.8
+M-M5GC-5 delayed lat=13.012 handed_to_killed_pod=True hb_timeout_after_kill=13.1
+Q-X4-1 delivered lat=2.188 handed_to_killed_pod=False hb_timeout_after_kill=None
+Q-X4-10 delivered lat=1.036 handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-2 delivered lat=0.62 handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-3 delivered lat=0.678 handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-4 delivered lat=0.908 handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-5 delivered lat=1.006 handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-6 delivered lat=2.17 handed_to_killed_pod=False hb_timeout_after_kill=None
+Q-X4-7 delivered lat=2.297 handed_to_killed_pod=False hb_timeout_after_kill=None
+Q-X4-8 lost lat=None handed_to_killed_pod=True hb_timeout_after_kill=None
+Q-X4-9 delivered lat=0.838 handed_to_killed_pod=True hb_timeout_after_kill=None

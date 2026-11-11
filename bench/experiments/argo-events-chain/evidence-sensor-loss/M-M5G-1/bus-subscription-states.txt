@@ -1,0 +1,9 @@
+# source: bus-eventbus-default-stan-1.jsonl (changed samples only). fields: time, channel last_seq, subscriptions as (client id suffix, is_offline, last_sent, pending_count)
+2026-11-11T04:08:41.260Z last_seq=215 [('86', False, 215, 0)]
+2026-11-11T04:08:52.322Z last_seq=216 [('86', False, 215, 0)]
+2026-11-11T04:08:52.765Z last_seq=216 [('86', False, 216, 1)]
+2026-11-11T04:08:53.443Z last_seq=216 [('86', False, 216, 1)]
+2026-11-11T04:08:53.663Z last_seq=216 [('86', False, 216, 1), ('52', False, 0, 0)]
+2026-11-11T04:08:57.864Z last_seq=217 [('86', False, 216, 1), ('52', False, 0, 0)]
+2026-11-11T04:08:58.737Z last_seq=217 [('86', False, 216, 1), ('52', False, 217, 0)]
+2026-11-11T04:09:04.619Z last_seq=217 [('52', False, 217, 0)]

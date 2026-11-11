@@ -1,0 +1,35 @@
+01-C1-1 delivered 0.715 Eseq 8 received_by client-4092367313-92 24qhx-5b877cf4b-gxp6g alive pod_shutdown_rel_t0 33.1 recv_rel_t0 1.57
+02-S-1 lost None Eseq 10 received_by client-4092367313-26 24qhx-5b877cf4b-zvpm4 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -66.2 recv_rel_t0 1.45
+03-SW1-1 delivered 0.683 Eseq 12 received_by client-4092367313-30 24qhx-5b877cf4b-xd6d2 alive pod_shutdown_rel_t0 32.9 recv_rel_t0 1.76
+04-C2-1 delayed 56.505 Eseq 14 received_by client-4092367313-30 24qhx-5b877cf4b-xd6d2 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -16.6 recv_rel_t0 1.25
+05-C3-1 lost None Eseq 16 received_by client-4092367313-30 24qhx-5b877cf4b-xd6d2 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -109.5 recv_rel_t0 1.25
+06-SW3-1 lost None Eseq 18 received_by client-4092367313-29 24qhx-5b877cf4b-shmtj DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -3.0 recv_rel_t0 1.82
+07-S-2 lost None Eseq 20 received_by client-4092367313-29 24qhx-5b877cf4b-shmtj DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -156.7 recv_rel_t0 1.05
+08-C6-1 delivered 1.025 Eseq 22 received_by client-4092367313-65 t46q2-5b877cf4b-2tdkn alive pod_shutdown_rel_t0 72.6 recv_rel_t0 1.06
+09-C5-1 delivered 0.983 Eseq 24 received_by client-4092367313-65 t46q2-5b877cf4b-2tdkn alive pod_shutdown_rel_t0 39.4 recv_rel_t0 1.9
+10-SW1-2 delivered 0.972 Eseq 26 received_by client-4092367313-14 t46q2-5b877cf4b-8gp6k alive pod_shutdown_rel_t0 None recv_rel_t0 1.52
+11-S-3 delivered 1.0 Eseq 28 received_by client-4092367313-13 t46q2-5b877cf4b-qkr4m alive pod_shutdown_rel_t0 33.3 recv_rel_t0 1.24
+12-S-4 delivered 0.698 Eseq 30 received_by client-4092367313-7 t46q2-5b877cf4b-p7j4g alive pod_shutdown_rel_t0 38.3 recv_rel_t0 0.84
+13-C1-2 delivered 0.403 Eseq 34 received_by client-4092367313-81 t46q2-5b877cf4b-7976m alive pod_shutdown_rel_t0 32.7 recv_rel_t0 1.06
+14-SW0-1 lost None Eseq 36 received_by client-4092367313-81 t46q2-5b877cf4b-7976m DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 0.0 recv_rel_t0 1.34
+15-C1-3 delivered 0.407 Eseq 40 received_by client-4092367313-69 t46q2-5b877cf4b-k8x6p alive pod_shutdown_rel_t0 37.2 recv_rel_t0 1.03
+16-C1-4 delivered 0.688 Eseq 44 received_by client-4092367313-91 t46q2-5b877cf4b-snpdd alive pod_shutdown_rel_t0 73.2 recv_rel_t0 1.02
+17-C4-1 delayed 7.067 Eseq 46 received_by client-4092367313-91 t46q2-5b877cf4b-snpdd alive pod_shutdown_rel_t0 39.4 recv_rel_t0 7.2
+18-S-5 delivered 1.265 Eseq 48 received_by client-4092367313-27 t46q2-5b877cf4b-6k29w alive pod_shutdown_rel_t0 33.6 recv_rel_t0 1.86
+19-C2-2 delivered 0.963 Eseq 50 received_by client-4092367313-52 t46q2-5b877cf4b-9nccb alive pod_shutdown_rel_t0 33.3 recv_rel_t0 1.07
+20-SW3-2 delivered 0.992 Eseq 52 received_by client-4092367313-38 t46q2-5b877cf4b-cmf72 alive pod_shutdown_rel_t0 75.3 recv_rel_t0 1.8
+21-C4-2 delayed 8.609 Eseq 54 received_by client-4092367313-38 t46q2-5b877cf4b-cmf72 alive pod_shutdown_rel_t0 40.9 recv_rel_t0 9.52
+22-C3-2 lost None Eseq 56 received_by client-4092367313-38 t46q2-5b877cf4b-cmf72 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -3.6 recv_rel_t0 1.02
+23-C3-3 lost None Eseq 58 received_by client-4092367313-38 t46q2-5b877cf4b-cmf72 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -99.8 recv_rel_t0 1.78
+24-SW0-2 lost None Eseq 60 received_by client-4092367313-38 t46q2-5b877cf4b-cmf72 DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -192.3 recv_rel_t0 1.27
+25-C4-3 delayed 7.902 Eseq 62 received_by client-4092367313-13 t46q2-5b877cf4b-wkj2t alive pod_shutdown_rel_t0 44.6 recv_rel_t0 8.89
+26-C1-5 delivered 0.415 Eseq 66 received_by client-4092367313-64 t46q2-5b877cf4b-rlxl7 alive pod_shutdown_rel_t0 32.7 recv_rel_t0 1.24
+27-SW0-3 lost None Eseq 68 received_by client-4092367313-13 t46q2-5b877cf4b-wkj2t DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -64.8 recv_rel_t0 0.56
+28-SW1-3 delayed 95.633 Eseq 70 received_by client-4092367313-2 t46q2-5b877cf4b-ncljf DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -1.0 recv_rel_t0 0.88
+29-C5-2 delivered 0.68 Eseq 72 received_by client-4092367313-26 t46q2-5b877cf4b-4qrfw alive pod_shutdown_rel_t0 32.9 recv_rel_t0 0.74
+30-C2-3 lost None Eseq 74 received_by client-4092367313-26 t46q2-5b877cf4b-4qrfw DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -16.8 recv_rel_t0 1.9
+31-C2-4 delivered 0.981 Eseq 76 received_by client-4092367313-36 t46q2-5b877cf4b-trx89 alive pod_shutdown_rel_t0 66.3 recv_rel_t0 1.09
+32-C5-3 delivered 0.978 Eseq 78 received_by client-4092367313-36 t46q2-5b877cf4b-trx89 alive pod_shutdown_rel_t0 33.2 recv_rel_t0 1.06
+33-SW3-3 delivered 0.4 Eseq 80 received_by client-4092367313-85 t46q2-5b877cf4b-dfh2q alive pod_shutdown_rel_t0 32.6 recv_rel_t0 0.84
+34-C2-5 lost None Eseq 82 received_by client-4092367313-85 t46q2-5b877cf4b-dfh2q DEAD (process exiting/exited before delivery) pod_shutdown_rel_t0 -17.2 recv_rel_t0 1.03
+35-LONG-1 delivered 0.973 Eseq 84 received_by client-4092367313-67 t46q2-5b877cf4b-wk47m alive pod_shutdown_rel_t0 None recv_rel_t0 1.14

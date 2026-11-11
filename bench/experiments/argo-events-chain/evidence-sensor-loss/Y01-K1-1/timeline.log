@@ -1,0 +1,9 @@
+2026-11-11T00:57:09.378Z clean baseline=True after waiting 240.6 s
+2026-11-11T00:57:15.864Z baseline: old pod ['settled-to-pending-sensor-t46q2-5b877cf4b-ph89q'] client client-4092367313-50 bus last_seq=109
+2026-11-11T00:57:26.050Z SIGKILL of container dffb20fda90f in pod settled-to-pending-sensor-t46q2-5b877cf4b-ph89q at 2026-11-11T00:57:25.870Z (done 2026-11-11T00:57:26.050Z): killed 1015614 
+2026-11-11T00:57:26.165Z E issued id=300  psql call start=2026-11-11T00:57:26.051Z end=2026-11-11T00:57:26.165Z
+2026-11-11T00:57:26.202Z sensor subscriptions on bus: [('client-4092367313-50', False, 109, 0)]
+2026-11-11T00:57:41.964Z sensor subscriptions on bus: [('client-4092367313-50', False, 110, 1), ('client-4092367313-68', False, 0, 0)]
+2026-11-11T01:02:37.467Z sensor subscriptions on bus: [('client-4092367313-68', False, 110, 0)]
+2026-11-11T01:02:37.756Z Job suspended observed +311.71 s from E
+2026-11-11T01:02:41.765Z final bus subs=[('client-4092367313-68', False, 110, 0)]

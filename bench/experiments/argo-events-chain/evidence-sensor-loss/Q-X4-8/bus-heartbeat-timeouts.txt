@@ -1,0 +1,4 @@
+2026-11-11T04:57:29.648441751Z [1] 2026/11/11 04:57:29.648360 [ERR] STREAM: [Client:client-payments-cdc-eventsource-z9nmz-cdf997557-ntxnn-789] Timed out on heartbeats
+2026-11-11T04:57:29.648506293Z [1] 2026/11/11 04:57:29.648448 [ERR] STREAM: [Client:client-4092367313-92] Timed out on heartbeats
+2026-11-11T05:13:28.970614251Z [1] 2026/11/11 05:13:28.970497 [ERR] STREAM: [Client:client-4092367313-48] Timed out on heartbeats
+2026-11-11T05:13:41.980431840Z [1] 2026/11/11 05:13:41.980373 [ERR] STREAM: [Client:client-4092367313-37] Timed out on heartbeats
