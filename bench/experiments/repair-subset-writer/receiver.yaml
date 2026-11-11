@@ -1,0 +1,59 @@
+# Throwaway durable log for the Bungie-shaped scenario (sc1). It appends the raw body of every POST that
+# Debezium Server sends to /data/events.jsonl, one event per line, in arrival order, and answers
+# GET /count with the number of lines. It parses nothing and keeps nothing else.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sc1-receiver-code
+  namespace: bench
+data:
+  receiver.py: |
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    LOCK = threading.Lock()
+    COUNT = [0]
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            body = self.rfile.read(n) if n else b""
+            line = body.decode("utf-8", "replace").replace("\r", " ").replace("\n", " ")
+            with LOCK:
+                with open("/data/events.jsonl", "a") as f:
+                    f.write(line + "\n")
+                COUNT[0] += 1
+            self.send_response(204); self.end_headers()
+        def do_GET(self):
+            out = str(COUNT[0]).encode()
+            self.send_response(200); self.send_header("Content-Length", str(len(out))); self.end_headers()
+            self.wfile.write(out)
+        def log_message(self, *a): pass
+    ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sc1-receiver
+  namespace: bench
+  labels: { app: sc1-receiver }
+spec:
+  containers:
+    - name: receiver
+      image: python:3.12-alpine
+      command: ["python", "-u", "/code/receiver.py"]
+      volumeMounts:
+        - { name: code, mountPath: /code }
+        - { name: data, mountPath: /data }
+  volumes:
+    - name: code
+      configMap: { name: sc1-receiver-code }
+    - name: data
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sc1-receiver
+  namespace: bench
+spec:
+  selector: { app: sc1-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]

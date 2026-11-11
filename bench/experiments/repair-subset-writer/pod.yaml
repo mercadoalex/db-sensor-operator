@@ -1,0 +1,35 @@
+# Throwaway PostgreSQL 16 host for the Bungie-shaped scenario. It only provides binaries, a scratch disk and a
+# service name: run.sh creates the cluster (WAL archiving + logical decoding), the base backup and the clone in it.
+# Unique names (sc1-*) so nothing here collides with bench-postgres or bench-cdc.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sc1-pg
+  labels:
+    app: sc1-pg
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+  containers:
+    - name: pg
+      image: postgres:16
+      command: ["sleep", "infinity"]
+      env:
+        - name: PATH
+          value: /usr/lib/postgresql/16/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      volumeMounts:
+        - name: work
+          mountPath: /work
+  volumes:
+    - name: work
+      emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sc1-pg
+spec:
+  selector: { app: sc1-pg }
+  ports: [{ port: 5432, targetPort: 5432 }]
