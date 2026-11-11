@@ -187,9 +187,12 @@ SQL
   KX exec -i sc2-pg -- env PGAPPNAME=cleanup-job ${PSQL} -tA -v ON_ERROR_STOP=1 < "${OUT}/incident-${t}.sql" > "${OUT}/incident-${t}.txt" 2>&1
   check "the DELETE on ${t} ran and committed" $?
   sed -n '1,/REMOVED_BEGIN/p' "${OUT}/incident-${t}.txt" | sed 's/^/  /'
+done
+# the stats are read BEFORE the post-incident seqscan dumps, which would otherwise add a seq_scan to each table
+sleep 2; : > "${OUT}/stats-after.txt"; stats "${OUT}/stats-after.txt"
+for t in ${TABLES}; do
   P_SEQ -tA -c "select coalesce(json_agg(t order by id), '[]'::json) from public.${t} t" > "${OUT}/post-${t}.json"
 done
-sleep 2; : > "${OUT}/stats-after.txt"; stats "${OUT}/stats-after.txt"
 cat "${OUT}/stats-before.txt" "${OUT}/stats-after.txt" | sed 's/^/  /'
 say "9. wait for the stream"
 REMOVED_TOTAL=$(python3 - "${OUT}" <<'PY'

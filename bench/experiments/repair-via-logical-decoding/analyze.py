@@ -129,6 +129,22 @@ def main(d):
             ok = same_set and mism == 0 and m["event_foreign_present"] and m["event_missed_absent"]
         else:
             m["before_nonkey_values_present"] = nonnull
+            # not part of H3's criterion: what those values are. Placeholder = the type default for a NOT NULL column.
+            ph = {"state_group": 0, "event_id": "", "depth": 0, "amount": Decimal("0.00"),
+                  "ts": datetime(1970, 1, 1, tzinfo=timezone.utc), "content": ""}
+            n_ph = n_true = n_neither = 0
+            for e in ev_d:
+                b = e["before"]; i = int(b["id"]); nb = nrow(b)
+                for c in NONKEY:
+                    if nb[c] is None:
+                        continue
+                    if nb[c] == ph[c]:
+                        n_ph += 1
+                    if nb[c] == pre[i][c]:
+                        n_true += 1
+                    if nb[c] != ph[c] and nb[c] != pre[i][c]:
+                        n_neither += 1
+            m["before_nonkey_equal_type_default"], m["before_nonkey_equal_true_value"], m["before_nonkey_neither"] = n_ph, n_true, n_neither
             ok = same_set and nonnull == 0 and m["event_foreign_present"] and m["event_missed_absent"]
         m["identity_criteria"] = ok
         # H5
