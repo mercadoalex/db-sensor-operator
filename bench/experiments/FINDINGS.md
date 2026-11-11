@@ -35,6 +35,10 @@ of the data. For that to be worth building, CDC has to show something the cheape
 | [argo-events-chain](argo-events-chain/RESULTS.md) | Can Debezium to Kafka to Argo Events detect a forbidden value transition and act on a Job, with no code of ours? | **PASS for detect and act** (Job suspended within 0.72 s, upper bound, one run; legal updates did not trigger). **Limits:** the target Job is fixed (no "who"); sequence checks not tested (read from the docs: stateless per event); 2 of 2 events lost when the Sensor pod was replaced at that moment (later diagnosed in [SENSOR-LOSS-RESULTS.md](argo-events-chain/SENSOR-LOSS-RESULTS.md): the NATS Streaming bus held the event on a dead queue member for 301 to 326 s in 10 of 10 forced kills; no ack-wait or redelivery setting fixes it on the native bus; clean graceful replacements lost 1 of 15); a Kafka outage stalled the slot with nothing reporting it. |
 | [quiet-table](quiet-table/RESULTS.md) | What does the sensor report for a table with no writes? | **A product defect.** `lag` is the age of the last event, so with the default thresholds a quiet table goes `Degraded` after 30 s and `Failed` after 120 s. HANDOFF said it stays `Degraded`. |
 | [backpressure](backpressure/RESULTS.md) | Does a slow consumer retain WAL, and does the operator see it? | **Confirmed growth** (64 kB -> 1953 kB), inspector sees `retainedBytes`. **Gap found:** on an unbounded slot the diagnosis still says `SlotHealthy` while WAL piles up. |
+| [p0-public-postmortems](../../docs/research/p0-public-postmortems.md) | Of 16 real public data-incident postmortems, how many would CDC + a content policy have clearly beaten DB-side prevention and counters? | **1 clear case (Bungie/Destiny 2 2020), 1 partial (Matrix.org 2025).** Neither had a real CDC deployment behind it; both are our own reasoning about the public account. In 0 of 16 did a content-aware alert detect the incident. The winning shape, in both cases: a valid-looking wrong value, on a subset of rows, while legitimate writes kept arriving elsewhere — exactly what `repair-vs-pitr` already measured. |
+| [p1-invariant-classification](../../docs/research/p1-invariant-classification.md) | Of 56 real business invariants across 4 OSS projects on PostgreSQL (Mastodon, Discourse, Saleor, Odoo), how many need CDC and not a constraint? | **Only 3 of 56 (5%).** 32% already enforced by the DB; of the 68% that are not, 61% needs cross-row/cross-table state a per-row content policy cannot evaluate, and 75% of what IS row-decidable is a plain `CHECK` the DB could do directly. CDC's edge in this sample is narrow: value-transition rules on tables the owner will not constrain. |
+| [repair-subset-writer](repair-subset-writer/RESULTS.md) | Bungie-shaped lab scenario: a tagged bad writer corrupts a subset of rows while a good writer keeps writing; compare stream repair, PITR copy-back, and full restore | **Stream repair wins clearly.** 952-953/1000 rows fixed, 0 legitimate writes lost, 47-48 left wrong (flagged as conflicts, not silently overwritten). PITR copy-back: 697/1000 fixed, ~477 legitimate writes lost. Full restore (the real Bungie choice): 697/1000 fixed, 100% of later legitimate writes lost. One hypothesis failed: PITR was expected to be faster at this scale; it tied with stream repair within noise (5,000 rows). |
+| [repair-via-logical-decoding](repair-via-logical-decoding/RESULTS.md) | Matrix-shaped lab scenario: when a DELETE is driven by a corrupted index, do Debezium's delete events still name the rows actually removed? | **PASS for `REPLICA IDENTITY FULL`.** Events matched the removed rows exactly (including the "foreign" collateral rows of other groups), with exact prior content; re-inserting the before-images fully repaired the table. **Unexpected finding:** with the default identity, non-key columns of a delete event are not null as assumed — they are the column's type default (`0`, empty string, epoch date), which looks like real data and is not. Turns our earlier "plausible, not proven" reasoning in `docs/research/p0-public-postmortems.md` into a measured result. |
 
 ## What we learned, in one paragraph
 
@@ -48,6 +52,21 @@ change to the workload that caused it. Session identity is not enough; the `txId
 looked like the lead, but eBPF cannot recover it from the wire and neither can Cilium, so
 per-change attribution is not cheaply solvable; the one honest path is a Job that is the sole
 writer in its window (Kubernetes side).
+
+**Narrower than we first thought.** P0 and P1 (added 2026-11-11) quantify just how narrow. Across
+56 real invariants in 4 OSS projects, only 5% are transition rules a `CHECK` cannot express but
+CDC could evaluate from a single row; 61% of what the database does not already enforce needs
+cross-row or cross-table state, which is a different, bigger product (a stateful stream
+processor, out of scope today, and the exact thing that competes with counter-based alerts and
+periodic reconciliation queries). Across 16 real public postmortems, only one (Bungie/Destiny 2)
+is a clear win and one (Matrix.org) a partial one, and in zero of the 16 did a content-aware
+alert detect anything. The winning shape in both is specific: **a valid-looking wrong value, on a
+subset of rows, while legitimate writes keep arriving elsewhere** — the same shape
+`repair-vs-pitr` already measured, and now confirmed twice more as lab scenarios
+(`repair-subset-writer`, `repair-via-logical-decoding`) with the same result: stream repair wins
+precision and keeps legitimate writes, full/PITR restore does not. The positioning this supports
+is narrow and specific, not broad: value-transition detection and precise subset repair, for
+tables the owner will not constrain, not "CDC detects business-rule violations" in general.
 
 ## Open, in priority order
 
