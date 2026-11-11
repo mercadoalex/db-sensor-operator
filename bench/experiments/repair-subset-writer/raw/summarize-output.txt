@@ -1,0 +1,47 @@
+
+### Per-run metrics (rows; 'lost' = legitimate writes lost)
+
+| run | workload WAL (MB) / archive (MB) | affected | W_post | (a) fixed / left wrong / outside / lost | (b) fixed / left wrong / outside / lost | (c) fixed / left wrong / outside / lost | rows wrong a / b / c |
+|---|---|---|---|---|---|---|---|
+| run-1 | 20 / 101 | 1000 | 1005 | 952 / 48 / 0 / 0 | 697 / 303 / 143 / 478 | 697 / 303 / 668 / 1005 | 48 / 446 / 971 |
+| run-2 | 20 / 101 | 1000 | 1005 | 953 / 47 / 0 / 0 | 697 / 303 / 143 / 478 | 697 / 303 / 668 / 1005 | 47 / 446 / 971 |
+| run-3 | 20 / 101 | 1000 | 1005 | 952 / 48 / 0 / 0 | 697 / 303 / 143 / 478 | 697 / 303 / 668 / 1005 | 48 / 446 / 971 |
+| run-4 | 20 / 319 | 1000 | 1002 | 953 / 47 / 0 / 0 | 698 / 302 / 142 / 476 | 698 / 302 / 666 / 1002 | 47 / 444 / 968 |
+
+### Per-run times (seconds)
+
+| run | (a) fetch + repair = total | PITR recovery | (b) recovery + row copy | (c) recovery |
+|---|---|---|---|---|
+| run-1 | 0.16 + 0.42 = 0.61 | 0.52 | 0.77 | 0.52 |
+| run-2 | 0.16 + 0.44 = 0.63 | 0.65 | 0.89 | 0.65 |
+| run-3 | 0.17 + 0.40 = 0.60 | 0.61 | 0.88 | 0.61 |
+| run-4 | 0.15 + 0.41 = 0.59 | 2.04 | 2.27 | 2.04 |
+
+### Hypotheses
+
+H1: HELD (4 of 4 runs)
+   ok   run-1: source keys with application/client/user: []; tagged txids == ledger txids: True; tagged events 1000 vs ledger rows 1000
+   ok   run-2: source keys with application/client/user: []; tagged txids == ledger txids: True; tagged events 1000 vs ledger rows 1000
+   ok   run-3: source keys with application/client/user: []; tagged txids == ledger txids: True; tagged events 1000 vs ledger rows 1000
+   ok   run-4: source keys with application/client/user: []; tagged txids == ledger txids: True; tagged events 1000 vs ledger rows 1000
+H2: HELD (4 of 4 runs)
+   ok   run-1: outside affected wrong 0, legit lost 0, left-wrong == flagged: True, conflict rows 48
+   ok   run-2: outside affected wrong 0, legit lost 0, left-wrong == flagged: True, conflict rows 47
+   ok   run-3: outside affected wrong 0, legit lost 0, left-wrong == flagged: True, conflict rows 48
+   ok   run-4: outside affected wrong 0, legit lost 0, left-wrong == flagged: True, conflict rows 47
+H3: HELD (4 of 4 runs)
+   ok   run-1: (c) lost/W_post = 1005/1005 = 1.000; rows wrong (c) 971 vs (a) 48
+   ok   run-2: (c) lost/W_post = 1005/1005 = 1.000; rows wrong (c) 971 vs (a) 47
+   ok   run-3: (c) lost/W_post = 1005/1005 = 1.000; rows wrong (c) 971 vs (a) 48
+   ok   run-4: (c) lost/W_post = 1002/1002 = 1.000; rows wrong (c) 968 vs (a) 47
+H4: HELD (4 of 4 runs)
+   ok   run-1: (b) wrong on other servers 0, legit lost 478, rows wrong (a) 48 < (b) 446 < (c) 971
+   ok   run-2: (b) wrong on other servers 0, legit lost 478, rows wrong (a) 47 < (b) 446 < (c) 971
+   ok   run-3: (b) wrong on other servers 0, legit lost 478, rows wrong (a) 48 < (b) 446 < (c) 971
+   ok   run-4: (b) wrong on other servers 0, legit lost 476, rows wrong (a) 47 < (b) 444 < (c) 968
+H5: FAILED (1 of 3 runs)
+   ok   run-1: time_s a=0.61 b=0.77 c=0.52
+   FAIL run-2: time_s a=0.63 b=0.89 c=0.65
+   FAIL run-3: time_s a=0.60 b=0.88 c=0.61
+H6: HELD (1 of 1 runs)
+   ok   run-4: recovery 2.04 s vs unpadded mean 0.59 s (needs >= 2x); stream 0.59 s vs unpadded mean 0.61 s (needs <= 2x)

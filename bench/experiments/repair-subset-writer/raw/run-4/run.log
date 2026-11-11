@@ -1,0 +1,126 @@
+
+== 1. pods: sc1-pg (WAL archive + logical decoding) and sc1-receiver (event log)
+PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+
+== 2. tables: sc_inventory (5000 rows, 10 servers of 500, tag trigger), oracle sc_expected, ledger, pad
+rows=5000  bad-server rows with qty>100: 995
+
+== 3. base backup (before the workload, before the stream)
+NOTICE:  all required WAL segments have been archived
+  base backup took 1.52 s
+
+== 4. Debezium Server probe (slot sc1_probe, only sc_inventory, decimals as strings, no schema in the events)
+  slot active
+
+== 5. workload
+-- padding: 6 passes over 100000 unrelated rows (WAL between the base backup and the restore point)
+-- legitimate writes before the patch
+  restore point pre_patch at 0/11B1E738
+-- the good writer keeps running for 14 s: other servers, and also the bad servers (note, small qty deltas)
+-- the bad writer (inventory-patch-v2): qty = 100 where qty > 100, on servers 3, 4, 5, in 10 batches 0.3 s apart
+  bad job ran for 3.22 s; transactions: 793,800,807,814,821,828,835,842,848,854
+-- legitimate writes after the bad writer stopped (same rows and others)
+  the bad writer changed 1000 rows; 2804 change events expected on sc_inventory since the stream started
+PASS  the archiver holds the WAL up to the end of the workload
+
+== 6. wait for the stream (expecting 2804 events)
+  receiver holds 2804 events
+PASS  the stream is complete (2804 of 2804 events)
+
+== 7. strategy (a): stream repair, events selected by the tag inventory-patch-v2
+{
+  "events_in_file": 2804,
+  "unparsable_lines": 0,
+  "tagged_events": 1000,
+  "source_keys_seen": [
+    "connector",
+    "db",
+    "lsn",
+    "name",
+    "origin",
+    "origin_lsn",
+    "schema",
+    "sequence",
+    "snapshot",
+    "table",
+    "ts_ms",
+    "ts_ns",
+    "ts_us",
+    "txId",
+    "version",
+    "xmin"
+  ],
+  "file_bytes": 10655348,
+  "tagged_event_bytes": 3930544,
+  "statements": 1000,
+  "columns_restored": 943,
+  "column_conflicts": 47,
+  "column_conflict_columns": [
+    "qty"
+  ],
+  "rows_gone": 10,
+  "seconds_build": 0.04,
+  "seconds_apply": 0.21
+}
+PASS  the stream repair ran and committed
+  fetch 0.15 s + repair 0.41 s = 0.59 s
+
+== 8. PITR clone at pre_patch (shared by (b) and (c))
+  recovery time (copy the backup, replay the archive, promote): 2.04 s
+  log: 2026-11-11 18:03:13.332 UTC [447] LOG:  recovery stopping at restore point "pre_patch", time 2026-11-11 18:02:51.524448+00
+  log: 2026-11-11 18:03:13.332 UTC [447] LOG:  redo done at 0/11B1E6D0 system usage: CPU: user: 0.58 s, system: 0.17 s, elapsed: 1.17 s
+  log: 2026-11-11 18:03:13.366 UTC [447] LOG:  archive recovery complete
+PASS  the clone was promoted
+
+== 9. strategy (b): rows of servers 3, 4, 5 copied from the clone into the incident table
+  copied 1500 rows in 0.23 s
+
+== 10. numbers
+{
+  "affected_rows": 1000,
+  "w_post": 1002,
+  "conflict_rows_flagged_by_stream": 47,
+  "a": {
+    "affected_correct": 953,
+    "affected_left_wrong": 47,
+    "rows_wrong_total": 47,
+    "rows_wrong_outside_affected": 0,
+    "rows_wrong_other_servers": 0,
+    "legit_writes_lost": 0,
+    "legit_lost_versions": 0,
+    "legit_deletes_undone": 0,
+    "affected_left_wrong_ids_equal_conflicts": true
+  },
+  "b": {
+    "affected_correct": 698,
+    "affected_left_wrong": 302,
+    "rows_wrong_total": 444,
+    "rows_wrong_outside_affected": 142,
+    "rows_wrong_other_servers": 0,
+    "legit_writes_lost": 476,
+    "legit_lost_versions": 466,
+    "legit_deletes_undone": 10,
+    "affected_left_wrong_ids_equal_conflicts": null
+  },
+  "c": {
+    "affected_correct": 698,
+    "affected_left_wrong": 302,
+    "rows_wrong_total": 968,
+    "rows_wrong_outside_affected": 666,
+    "rows_wrong_other_servers": 494,
+    "legit_writes_lost": 1002,
+    "legit_lost_versions": 992,
+    "legit_deletes_undone": 10,
+    "affected_left_wrong_ids_equal_conflicts": null
+  },
+  "time_s": {
+    "a": 0.59,
+    "b": 2.27,
+    "c": 2.04
+  }
+}
+
+== harness: 4 passed, 0 failed (raw data in /Users/alexmarket/Desktop/db-sensor-operator/bench/experiments/repair-subset-writer/raw/run-4; hypotheses are judged by summarize.py across runs)
+
+== cleanup
+  removed: DebeziumServer sc1-probe, pod and service sc1-pg (its slot and clone go with it), receiver pod, service and configmap

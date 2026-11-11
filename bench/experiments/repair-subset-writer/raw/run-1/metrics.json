@@ -1,0 +1,43 @@
+{
+  "affected_rows": 1000,
+  "w_post": 1005,
+  "conflict_rows_flagged_by_stream": 48,
+  "a": {
+    "affected_correct": 952,
+    "affected_left_wrong": 48,
+    "rows_wrong_total": 48,
+    "rows_wrong_outside_affected": 0,
+    "rows_wrong_other_servers": 0,
+    "legit_writes_lost": 0,
+    "legit_lost_versions": 0,
+    "legit_deletes_undone": 0,
+    "affected_left_wrong_ids_equal_conflicts": true
+  },
+  "b": {
+    "affected_correct": 697,
+    "affected_left_wrong": 303,
+    "rows_wrong_total": 446,
+    "rows_wrong_outside_affected": 143,
+    "rows_wrong_other_servers": 0,
+    "legit_writes_lost": 478,
+    "legit_lost_versions": 468,
+    "legit_deletes_undone": 10,
+    "affected_left_wrong_ids_equal_conflicts": null
+  },
+  "c": {
+    "affected_correct": 697,
+    "affected_left_wrong": 303,
+    "rows_wrong_total": 971,
+    "rows_wrong_outside_affected": 668,
+    "rows_wrong_other_servers": 495,
+    "legit_writes_lost": 1005,
+    "legit_lost_versions": 995,
+    "legit_deletes_undone": 10,
+    "affected_left_wrong_ids_equal_conflicts": null
+  },
+  "time_s": {
+    "a": 0.61,
+    "b": 0.77,
+    "c": 0.52
+  }
+}

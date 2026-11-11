@@ -71,13 +71,13 @@ else:
     verdicts["H6"] = [("-", False, "needs at least one unpadded and one padded run")]
 
 print("\n### Per-run metrics (rows; 'lost' = legitimate writes lost)\n")
-print("| run | pad WAL (MB) | affected | W_post | (a) fixed / left wrong / outside / lost | (b) fixed / left wrong / outside / lost | (c) fixed / left wrong / outside / lost | rows wrong a / b / c |")
+print("| run | workload WAL (MB) / archive (MB) | affected | W_post | (a) fixed / left wrong / outside / lost | (b) fixed / left wrong / outside / lost | (c) fixed / left wrong / outside / lost | rows wrong a / b / c |")
 print("|---|---|---|---|---|---|---|---|")
 for r in runs:
     m = r["m"]
     f = lambda x: "%d / %d / %d / %d" % (x["affected_correct"], x["affected_left_wrong"], x["rows_wrong_outside_affected"], x["legit_writes_lost"])
-    print("| %s | %.0f | %d | %d | %s | %s | %s | %d / %d / %d |" % (
-        r["name"], r["s"]["wal_bytes_since_pre_backup_point"] / 1e6, m["affected_rows"], m["w_post"], f(m["a"]), f(m["b"]), f(m["c"]),
+    print("| %s | %.0f / %.0f | %d | %d | %s | %s | %s | %d / %d / %d |" % (
+        r["name"], r["s"]["wal_bytes_since_pre_backup_point"] / 1e6, r["s"]["archive_bytes"] / 1e6, m["affected_rows"], m["w_post"], f(m["a"]), f(m["b"]), f(m["c"]),
         m["a"]["rows_wrong_total"], m["b"]["rows_wrong_total"], m["c"]["rows_wrong_total"]))
 print("\n### Per-run times (seconds)\n")
 print("| run | (a) fetch + repair = total | PITR recovery | (b) recovery + row copy | (c) recovery |")

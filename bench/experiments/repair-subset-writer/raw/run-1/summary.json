@@ -1,0 +1,5 @@
+{"run": "run-1", "rows": 5000, "pad_rows": 0, "pad_passes": 0,
+ "wal_bytes_since_pre_backup_point": 19786584, "archive_bytes": 100663634,
+ "events_expected": 2807, "events_received": 2807, "affected_rows": 1000, "bad_txids": "786,792,799,806,813,820,827,834,841,848",
+ "stream_fetch_s": 0.16, "stream_repair_s": 0.42, "stream_total_s": 0.61,
+ "pitr_recovery_s": 0.52, "rowcopy_s": 0.25}
