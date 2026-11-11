@@ -83,7 +83,21 @@ La idea es simple: cuando algo sale mal en una base de datos, distintas herramie
 - **Un hallazgo colateral importante de seguridad:** esa misma sonda, sin querer buscarlo, también puede leer el proceso de inicio de sesión (login) completo: ve el nombre de usuario en texto claro, y ve la estructura del intercambio de autenticación (el protocolo se llama SCRAM). Lo que nunca pudo ver, en ninguna prueba, fue la contraseña, porque SCRAM está diseñado justamente para que la contraseña nunca viaje por la red, ni cifrada de forma reversible.
 - **Lo que de verdad cierra el hueco del trigger no es ninguna sonda, es un permiso.** Si a la cuenta de base de datos que usa una aplicación se le quita el privilegio para ejecutar ese comando de "ignora los triggers", la base simplemente rechaza el intento. Eso es más efectivo que cualquier forma de detectarlo después.
 
-**Estado: parcial.** Falta todavía clasificar, de forma sistemática, qué reglas de negocio reales (de proyectos de código abierto grandes) caben dentro de un constraint o trigger normal, y cuáles solo se pueden vigilar mirando el contenido de los cambios con CDC.
+**La clasificación sistemática: ya se hizo, y el número es más chico de lo que esperaríamos.** Revisamos 4 proyectos reales de código abierto, grandes y con base de datos pública (Mastodon, Discourse, Saleor y Odoo, los cuatro sobre PostgreSQL), y catalogamos 56 reglas de negocio reales, cada una señalada con el archivo y la línea exacta de donde salió. El detalle completo está en `docs/research/p1-invariant-classification.md`.
+
+**El resultado, dicho sin adornos: de esas 56 reglas, solo 3 (un 5%) son el tipo exacto de regla donde CDC aporta algo que un constraint de la base no podría hacer.**
+
+- **32% (18 de 56)** ya están resueltas por la base de datos misma (un `CHECK`, una llave única, una llave foránea o un trigger). Ahí CDC no agrega nada: la base ya lo cubre.
+- **De las que quedan sin cubrir por la base (68%, 38 reglas):**
+  - **61% necesita mirar más de una fila a la vez** (sumar varias filas, comparar contra otra tabla, revisar el historial). Esto no lo puede hacer una regla que solo mira el antes y el después de una fila sola; necesitaría un componente con memoria propia, que es un producto distinto y más grande del que estamos pensando construir.
+  - **32% sí se puede decidir mirando solo una fila.** Pero de esas, **9 de cada 12 son simplemente algo que un `CHECK` normal de la base ya podría hacer** (por ejemplo "esta cantidad no puede ser negativa"). Solo 3 son reglas de verdad especiales, del tipo "no puedes pasar de liquidado a pendiente", que un `CHECK` no puede expresar pero sí un trigger.
+  - **8% no se puede detectar de ninguna forma con CDC**, porque depende de quién hizo el cambio, de información que vive fuera de la base, o porque la propia escritura borra la evidencia de que algo estuvo mal antes.
+
+**Un hallazgo curioso que encontramos en el camino:** en Discourse, un desarrollador agregó una restricción `CHECK` para evitar que un contador quedara en negativo, y **la quitó 28 días después**. No sabemos por qué (no estaba explicado en el código que leímos), pero sugiere que a veces prevenir en la base tiene un costo que no vale la pena pagar, y ahí es donde vigilar sin bloquear (que es lo que haría CDC) podría tener sentido. Es una pista para investigar más, no una conclusión.
+
+**Qué significa esto, junto con el resultado de la sub-pregunta 1 (postmortems):** el panorama que se está armando es consistente en los dos lados. La ventaja real de CDC no es amplia ("vemos todo el contenido, por eso somos mejores en general"). Es angosta y específica: reglas de transición de estado, en tablas donde el equipo no quiere o no puede poner un trigger. Cubrir el 61% que necesita mirar varias filas a la vez significaría construir algo distinto y más grande, que además competiría directo contra las alertas por contadores, que es justo lo que el criterio de salida nos exige superar.
+
+**Estado: hecho.** El resultado es específico y medido (56 reglas clasificadas, cada una con su fuente), pero viene con una salvedad honesta: lo clasificó una sola persona, leyendo código, lo cual probablemente subestima cuántas reglas no están protegidas en ningún lado (la clase "no se encontró protección en ninguna parte"), porque una ausencia es más difícil de notar leyendo código que buscando restricciones que ya existen.
 
 ### 3. ¿Cuántos cambios "malos" alcanzan a pasar antes de que la reacción automática actúe?
 
@@ -212,3 +226,4 @@ Esto no significa que el proyecto esté condenado, ni que esté confirmado. Sign
 - **La presentación y el guion para explicarle esto al equipo:** `docs/overview/checkup/`
 - **El criterio de salida (R9) y el plan de conversaciones con usuarios reales:** `docs/research/user-conversations.md`
 - **El detalle completo de los 16 postmortems revisados, con fuentes:** `docs/research/p0-public-postmortems.md`
+- **El detalle completo de las 56 reglas de negocio clasificadas, con fuentes:** `docs/research/p1-invariant-classification.md`
