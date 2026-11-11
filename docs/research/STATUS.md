@@ -92,11 +92,29 @@ Esta es la pregunta donde ya tenemos la comparación más completa.
 
 **¿Por qué nos importa esto?** Porque `REPLICA IDENTITY FULL` es la configuración que hace posible todo lo interesante de las sub-preguntas 2 y 4: sin ella, cuando una fila se actualiza o se borra, CDC solo ve el valor *nuevo*, no el valor que tenía *antes*. Sin el valor anterior, no se puede detectar una transición prohibida (por ejemplo "de liquidado a pendiente") ni reparar nada, porque no sabemos a qué había que regresar la fila. Es decir: `REPLICA IDENTITY FULL` no es un detalle técnico menor, es el interruptor que activa o desactiva buena parte del valor que este proyecto promete. Por eso necesitábamos saber qué cuesta encenderlo.
 
-**Lo que probamos:** medimos cuánto más espacio ocupa en el registro de escritura (el WAL) cada operación de actualizar o borrar una fila, con esta opción prendida contra apagada, usando distintos tamaños de fila sintéticos (de prueba, no datos reales).
+**¿Qué quiere decir "filas sintéticas"?** Que no usamos una base de datos de un proyecto real. Construimos a propósito cuatro tablas de prueba, cada una con un tipo de fila distinto (una fila angosta de unos 80 bytes, una de 1 KB, una de 1,8 KB, y una de 6,4 KB con un campo de texto largo), para poder medir el efecto de forma controlada y repetible. "Sintético" aquí no significa "inventado al azar": significa que diseñamos la forma de la fila a propósito, para aislar la variable que queríamos medir (el ancho de la fila), en vez de depender de los datos de una aplicación real que no controlamos. La contraparte de "sintético" es "de producción": datos reales de un proyecto real, que es justo lo que todavía nos falta conseguir (ver el estado, abajo).
 
-**Resultado, y es la sorpresa más clara de todo el trabajo hasta ahora:** el costo no es un número fijo, depende muchísimo de cómo es la fila. En filas normales, cuesta entre 1,4 y 1,9 veces más espacio por cada actualización. Pero si la fila tiene una columna ancha de texto que PostgreSQL guarda aparte (se llama "TOAST", una técnica para columnas grandes) y esa columna en particular no cambió en esa operación, el costo llega a ser **36 veces más**. Eso es mucho.
+**Lo que probamos:** medimos cuánto más espacio ocupa en el registro de escritura (el WAL) cada operación de actualizar o borrar una fila, con esta opción prendida contra apagada, en esas cuatro filas sintéticas.
 
-**Estado: medido, pero solo en filas sintéticas.** Falta todavía averiguar cómo son las tablas reales de un proyecto real, para saber si ese escenario de 36 veces es raro o común en la práctica.
+**Resultado, y es la sorpresa más clara de todo el trabajo hasta ahora:** el costo no es un número fijo, depende muchísimo de cómo es la fila.
+
+| Tipo de fila | Sin `FULL` (por UPDATE) | Con `FULL` (por UPDATE) | Cuánto más |
+|---|---|---|---|
+| Angosta (unos 80 bytes, sin texto largo) | 175 bytes | 239 bytes | 1,4 veces |
+| Con un campo de 1 KB | 1.159 bytes | 2.195 bytes | 1,9 veces |
+| Con un campo de 1,8 KB | 1.972 bytes | 3.802 bytes | 1,9 veces |
+| Con un campo de 6,4 KB que no cambió en ese UPDATE | 186 bytes | 6.637 bytes | **36 veces** |
+
+**Un ejemplo concreto, para que quede claro por qué pasa esto:** imagina una fila de un pedido, con un precio (`amount`) y una nota larga (`note`) de 6,4 KB, de esas que PostgreSQL guarda en un lugar aparte por ser muy grandes (esa técnica se llama "TOAST"). Alguien solo actualiza el precio; la nota no se toca para nada.
+
+- **Sin `FULL`:** el WAL solo guarda el precio nuevo. Como la nota no cambió, ni se menciona. Total: 186 bytes.
+- **Con `FULL`:** el WAL tiene que guardar la fila completa de *antes* del cambio y la fila completa de *después*, para que CDC pueda ver cuál era el valor viejo. Eso significa escribir la nota larga **dos veces**, aunque no haya cambiado ni una letra de ella. Total: 6.637 bytes.
+
+Es la misma operación, el mismo cambio real (solo el precio), pero 36 veces más trabajo de escritura, solo por tener esa columna ancha al lado.
+
+![Por qué una fila cuesta 36 veces más con REPLICA IDENTITY FULL](kiro-artifact://b11e25a9-59b2-49f4-a764-e3128f17911e)
+
+**Estado: medido, pero solo en estas cuatro filas sintéticas.** Falta todavía averiguar cómo son las tablas de un proyecto real (de producción), para saber si el escenario de la columna ancha sin cambiar (el de 36 veces) es raro o común en la práctica.
 
 ### 6. ¿Cuánto puede fallar la propia reacción automática?
 
