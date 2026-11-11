@@ -87,7 +87,8 @@ interno de la base (el WAL) y entrega cada cambio como un evento. A eso se le ll
 - Trigger: `bench/experiments/trigger-bypass/RESULTS.md`. Requiere superusuario o el privilegio `SET`.
 - Reacción: 0,72 s es una cota superior e incluye la propia llamada. Ocho pods y tres manifiestos de 136 líneas en
   total. Dos límites: no sabe qué Job es (el objetivo es fijo) y, en 2 de 2 pruebas, perdió el evento cuando se
-  reemplazó el pod del Sensor, sin diagnosticar. Archivo: `argo-events-chain/RESULTS.md`.
+  reemplazó el pod del Sensor (después diagnosticado: el bus retiene el evento en un miembro muerto unos 5 min;
+  ver `argo-events-chain/SENSOR-LOSS-RESULTS.md`). Archivo: `argo-events-chain/RESULTS.md`.
 - Atribución por registro: requiere `application_name`, un prefijo con `%a` y `%x`, y `log_min_duration_statement = 0`.
   Con `log_statement = mod` el identificador sale en 0. Archivo: `attribution-inband/RESULTS.md`.
 - Slot: de 64 kB a 1953 kB en 6 pasos con el consumidor lento. Archivo: `backpressure/RESULTS.md`.

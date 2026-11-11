@@ -10,26 +10,30 @@ Follow-up to `RESULTS.md` in this directory, which reported "Sensor pod deleted,
 
 ## Answer
 
-**The event is not lost in the first place. It is handed to a dead process that the bus still counts as a group member, and it stays there until the bus's heartbeat check removes that member.** With stock settings that takes about 5 minutes (301 to 326 s after the kill, 15 of 15 forced-ghost runs). A check at 120 s, as in `RESULTS.md`, sees this as "lost". A newer event that triggers in the meantime makes it a real loss: the late event is then acknowledged and dropped without a trigger (6 of 6 runs, against 5 of 5 controls).
+**When a Sensor process dies without closing its subscription, the bus hands the next event to that dead process (it still counts as a queue-group member) and holds the event until the bus's heartbeat check removes the member.** With stock settings that took 301 to 326 s after the kill, in 10 of 10 SIGKILL runs on the default bus. On a bus with shortened heartbeats the release came at 12.7 to 14.5 s (5 of 5), and in all 15 of these forced-ghost runs the release came within -0.1 to +0.3 s of the bus's `Timed out on heartbeats` line for the dead client. A check at 120 s, as in `RESULTS.md`, sees this as "lost". Delayed is not the same as erased: a newer event that triggers in the meantime makes it a real loss, because the late event is then acknowledged and dropped without a trigger. That was tested only on the short-heartbeat bus (ghost lasting about 13 s, newer event 6 s after the kill): 6 of 6 dropped, against 5 of 5 controls that triggered. At the stock 5-minute window the same drop is expected from the source but was not run.
 
-**It is not fixable by an ack-wait or redelivery setting on this bus.** The Sensor's `AckWait` is a literal in the code (1 s) and did not release the event for 5 minutes. In cluster mode the server redelivers to the same queue member, by the source comment, and the native EventBus is always clustered. Two configuration changes reduce the problem and neither closes it. A JetStream EventBus delivered in 10 of 10 runs of the two protocols tried, which makes it a candidate and not a result.
+**How often this happens on a graceful replacement is a separate, smaller number.** On clean baselines (no ghost carried over from a previous run) a graceful delete followed by an event lost 0 of 5 (X3) and 1 of 10 (X4) on the default bus, and 0 of 8 with lease election (L-X3). The 7 of 14 in session 1 includes ghosts carried over from earlier runs and is not a per-run rate. A graceful stop skips the unsubscribe in 10 of 60 pods (17%, counted from a missing log line); a SIGKILL, OOM kill or node loss leaves the ghost every time. The original "2 of 2 lost" in `RESULTS.md` is not explained by a rate; it is consistent with a ghost carried over from an earlier operation, which I cannot confirm because those runs were not instrumented.
 
-**Consequence for ADR-016:** on this path, delivery across a Sensor pod replacement cannot be assumed, and no setting I could find restores the guarantee. That is the evidence for "guaranteed delivery has to exist before any content policy". It is evidence about this Argo Events chain only. I did not build or measure a reaction-side guarantee.
+**It is not fixable by an ack-wait or redelivery setting on the native bus.** The Sensor's `AckWait` is a literal in the code (1 s) and did not release the event for 5 minutes. In cluster mode the server redelivers to the same queue member, by the source comment, and the native EventBus is always clustered. Two configuration changes reduce the problem and neither closes it. A JetStream EventBus delivered in the informative protocol (SIGKILL, JS-K1) in 5 of 5 runs; its graceful-delete protocol (JS-S) cannot discriminate, because the STAN equivalent also delivered 5 of 5 (X3, 0 of 5 lost). JetStream is a candidate, not a result.
+
+**Consequence for ADR-016:** on this native-bus path, delivery across a Sensor pod replacement cannot be assumed, and I found no setting on the native bus that restores the guarantee. One untested-where-it-matters alternative exists (JetStream), and no reaction-side guarantee was built or measured. This supports the premise "guaranteed delivery has to exist before any content policy" for this Argo Events chain only. It is evidence about this chain, not a decision about ADR-016.
+
+**Status in one line.** The mechanism chain is confirmed from forced-ghost runs and two interventions. The pre-registered "found" rule (one mechanism supported in at least 4 of 5 S-delete runs) was **not** met, and a pre-registered tripwire fired (see "Against the pre-registered decision rule"). Read the claims below with that in mind.
 
 Mechanism status, split by link, because the links do not have the same strength:
 
 | Link | Status |
 |---|---|
-| 1. A Sensor process that exits without closing its subscription stays on the bus as a live member | **confirmed** (observed on the bus: 10 of 10 SIGKILLs, 10 of 60 graceful deletes in session 2, 9 of 30 in session 1) |
+| 1. A Sensor process that exits without closing its subscription stays on the bus as a live member | **confirmed** for SIGKILL (observed on the bus, 10 of 10). For graceful stops the ghost is counted from a missing log line (10 of 60 in session 2, 9 of 30 in session 1); the bus-side counts for session 2 are 4, 9, 2, 5 and 0 per group (13 of 60 for default pooled) and are false-positive-prone, so this part is observed in logs |
 | 1b. Why a graceful stop sometimes skips the unsubscribe (race at process exit) | **supported**, not observed. Source reading, log shape, exit code 0, and an intervention (0 of 60 with another elector) |
-| 2. The dead member is removed only by the heartbeat check, 301 to 326 s by default | **confirmed**, with an intervention: shortening the heartbeat moved the time to 12.8 to 14.7 s |
+| 2. The dead member is removed only by the heartbeat check, 301 to 326 s by default | **confirmed**, with an intervention: shortening the heartbeat moved the time to 12.7 to 14.5 s (release) / 12.8 to 14.7 s (bus log line) |
 | 3. The pending event stays on the dead member while a live member waits with nothing pending | **confirmed** (observed). The reason (clustered redelivery rule) is **supported** by source |
 | 4. Which member gets the event (fewest pending, ties to the first) | **supported**, one prediction tested (K2) |
-| 5. A late redelivered event is dropped if a newer event already triggered | outcome **confirmed** in the tested setup, reason **supported** (source, debug line not seen) |
+| 5. A late redelivered event is dropped if a newer event already triggered | outcome **confirmed** only on the short-heartbeat bus (ghost about 13 s, newer event 6 s after the kill); not run at stock settings. Reason **supported** (source, debug line not seen) |
 
 ## Hypotheses, written before the runs
 
-Copied from `prereg.md` (written before any run; that file is git-ignored, so the text is reproduced here in condensed form). Support rule: a mechanism is **supported** if its criterion passes in at least 4 of 5 sensor-replacement runs and the controls behave as predicted; **falsified** if the falsifying condition holds in at least 2 of 5 runs with a clean timeline. The diagnosis is **found** when one mechanism is supported in at least 4 of 5 S-delete runs. If S-delete delivers in 4 or more of 5 runs, the diagnosis becomes "loss is intermittent".
+Copied from `prereg.md` (the original is git-ignored; a verbatim copy with its SHA-256 is now committed as `evidence-sensor-loss/prereg.md` and `prereg.SHA256`). A commit cannot prove the order of writing; "written before the runs" is the author's record, checkable only through the dated section markers inside the file. The text below is a condensed reproduction. Support rule: a mechanism is **supported** if its criterion passes in at least 4 of 5 sensor-replacement runs and the controls behave as predicted; **falsified** if the falsifying condition holds in at least 2 of 5 runs with a clean timeline. The diagnosis is **found** when one mechanism is supported in at least 4 of 5 S-delete runs. If S-delete delivers in 4 or more of 5 runs, the diagnosis becomes "loss is intermittent".
 
 | ID | Hypothesis | Pass | Falsified if |
 |---|---|---|---|
@@ -51,6 +55,8 @@ Designs and controls, also pre-registered: S-delete (target 8, minimum 5), a tim
 - M5h: the process exits before `sub.Close()` reaches the bus (the reason behind M5f).
 - Session-2 experiments, each with a prediction written before it ran: K1 (SIGKILL, E at 0 s), K2 (E after the ghost missed a heartbeat), X3 (clean graceful baseline), X4 (E in flight at SIGTERM), G ghost-rate trials (default, rollout restart, `preStop`, Kubernetes-lease election), the M5g test (M5G and control M5GC), fix candidates F1 (short heartbeats) and F2 (JetStream).
 - Amendments during session 2, all in `prereg.md`: the `--grace-period=0 --force` premise was wrong (it is not a SIGKILL), so X1/X2 became K1/K2 (`kill -9` of the container from the node); one run was invalid; the kubelet restart back-off forced a second M5G attempt.
+- **Not in the amendments list, found in review: the short-heartbeat parameters changed.** `prereg.md` fixed F1/M5G at `--hb_interval 2s --hb_timeout 1s --hb_fail_count 2` and predicted "delivered but late, a few seconds to 10 s". The patch actually applied (`fix-bus-heartbeat.patch.json`) is `3s / 2s / 4`, and the release came at 12.7 to 14.5 s, so **the timing prediction was missed**. I do not know from the record why the values changed. The outcome (late delivery tied to the removal of the dead client) does not depend on the choice, but the departure should have been logged when it happened.
+- **Other predictions that missed.** G2 predicted a G0 skip rate "near 30%"; observed 17% (10 of 60). M2's "within 10% of the configured timeout" check: see the M2 row below, it fails for the short setting.
 
 ## What we saw
 
@@ -65,10 +71,13 @@ Designs and controls, also pre-registered: S-delete (target 8, minimum 5), a tim
 | C3 scale 0, E, scale 1 | 0 | 3 | scale to zero also loses |
 | C4 EventSource delete | late by the EventSource restart | 0 | 6.9 to 8.5 s |
 | C5 no restart, C6 fresh Sensor | 3 of 3, 1 of 1 | 0 | 0.7 to 1.0 s |
+| Long wait (35-LONG-1, the pre-registered extra check of M2) | 1 | 0 | delivered in 0.97 s; no ghost was involved, so **it tested nothing** about the long wait |
+
+Rows sum to 35 runs: 22 delivered (counting the 3 EventSource-restart runs, delivered late), 13 not delivered.
 
 In 13 of 13 runs where E was not delivered, E had been handed to a member whose pod was already dead; in the other 22 of 22 it was handed to a live pod (`tables/per-run-classification.txt`). Of those 13, 7 involved the ghost of the pod this run had just replaced, and 6 a ghost left by an earlier run (a ghost lives about 5.5 minutes, longer than a run). Later triggers for E came at +121 to +500 s in 10 of them; in 3 (runs 14, 28, 34) none was observed.
 
-S-delete lost 2 of 5 in the main group and 7 of 14 across all pre-registered S-delete runs (exact 95% interval about 23% to 77%). The runs are not independent, because ghosts carried over (disclosed in "Deviations").
+S-delete lost 2 of 5 in the main group and 7 of 14 across the S-delete runs that had a 120 s window (8 of 15 delivered counting the long-wait run; exact 95% interval for 7 of 14 about 23% to 77%). The runs are not independent, because ghosts carried over (disclosed in "Deviations"). Compare the clean-baseline graceful protocols of session 2: X3 0 of 5, X4 1 of 10, L-X3 0 of 8 (1 of 15 lost on the default bus).
 
 ### Session 2: protocols that control the ghost
 
@@ -83,33 +92,33 @@ S-delete lost 2 of 5 in the main group and 7 of 14 across all pre-registered S-d
 | G3 | 20 `rollout restart` | 20 | 2 did not |
 | G2 | `preStop` sleep 10 + grace 60 | 20 | 3 did not (vs 10 of 60: Fisher p = 1) |
 | G1/G1b | Kubernetes-lease election | 60 | 0 did not (CI 0 to 6%; vs 10 of 60: Fisher p = 0.001) |
-| M5G | SIGKILL, E at 0 s, newer E2 at +6 s, short-heartbeat bus | 6 | E never triggered in 60 s: 6 of 6 |
+| M5G | SIGKILL, E at 0 s, newer E2 at +6 s, **3 s / 2 s / 4 heartbeat bus (ghost about 13 s)** | 6 | E never triggered in 60 s: 6 of 6 |
 | M5GC | same without E2 (also the F1 fix test) | 5 | E triggered 12.7 to 14.5 s after the kill: 5 of 5 |
-| JS-K1 / JS-S / JS-C5 | SIGKILL / graceful delete / no restart on a JetStream bus | 5 / 5 / 3 | 5 of 5 (1.26 to 2.55 s) / 5 of 5 (0.72 to 1.30 s) / 3 of 3 |
+| JS-K1 / JS-S / JS-C5 | SIGKILL / graceful delete / no restart on a JetStream bus | 5 / 5 / 3 | 5 of 5 (1.26 to 2.55 s) / 5 of 5 (0.72 to 1.30 s) / 3 of 3. Only JS-K1 discriminates; JS-S has a STAN twin (X3) that also delivered 5 of 5 |
 
 Why the natural protocol is not the fix baseline: the clean graceful protocol (X3) lost 0 of 5 and X4 lost 1 of 10. By the pre-registered rule (baseline must lose at least 3 of 5) it leaves no room to show a fix, so fix candidates are compared on K1 (a certain ghost) and on the ghost rate G. This is a limit of the study: the fix results are for the forced-ghost protocol, not for the natural 17% race.
 
 ### The chain, with the key lines (`evidence-sensor-loss/Y01-K1-1/`)
 
-Run Y01-K1-1, default bus, times 2026-11-11 UTC:
+Run Y01-K1-1, default bus, times 2026-11-11 UTC. Bus samples are from bus node 1 (`bus-subscription-states.txt`, `bus-heartbeat-timeouts.txt`), the node whose log carries the heartbeat line:
 
 ```
 00:57:25.870  SIGKILL of the Sensor container (client -50)
 00:57:26.051  E issued (payments id 300, Kafka offset 109, bus seq 110)
-00:57:26.763  bus: -50  online, last_sent 110, pending 1        (only member)
-00:57:41.824  bus: -50  online, last_sent 110, pending 1
+00:57:27.196  bus: -50  online, last_sent 110, pending 1        (only member)
+00:57:41.931  bus: -50  online, last_sent 110, pending 1
               bus: -68  online, last_sent 0,   pending 0        (restarted container joins)
-   ...        same two lines in every sample until:
+   ...        no change in the sampled state until:
 01:02:37.348  bus log: [ERR] STREAM: [Client:client-4092367313-50] Timed out on heartbeats
 01:02:37.756  Job payments-writer observed suspended (E + 311.71 s)
-01:02:38.341  bus: -68  last_sent 110, pending 0
+01:02:38.239  bus: -68  last_sent 110, pending 0
 ```
 
-- Dead member and live member coexisted for 220 to 319 s in the 10 K1 / K1+lease runs (recomputed from the bus samples for this document). In 9 of 10 the dead member held `pending 1` and the live one `pending 0` in every sample. In the tenth (L-K1-1) the live member joined 0.2 s before the hand-over, both had `pending 0`, and the event went to the dead member (a tie, first in the list). That is consistent with the routing rule and is not a separate result.
-- The release came with the removal of the dead client. The Job was observed suspended within about 0.5 s of the bus log line in all 15 forced-ghost runs (`findings2.md` reports 0.3 s; the Job is polled, and I re-checked Y01-K1-1 only: 0.41 s). For 4 of the 10 default-heartbeat runs (Y01, Y04, Y12, L-K1-5) the evidence for "E triggered" is the Job change plus the bus state, because the log follower had stopped at the kill and did not capture the restarted container; the other 6 have a Sensor `Successfully processed trigger` line for E.
-- The heartbeat check is the only thing that released the event. With 3 s / 2 s / 4 misses the same chain ended 12.8 to 14.7 s after the kill (M5GC, 5 of 5). The time moved with the setting.
+- Dead member and live member coexisted for about 217 to 313 s in the 10 K1 / K1+lease runs (Y01 alone: about 296 s; range recomputed by the reviewer from the raw bus samples). In 9 of 10 the dead member held `pending 1` and the live one `pending 0` in every sample. In the tenth (L-K1-1) the live member joined 0.2 s before the hand-over, both had `pending 0`, and the event went to the dead member (a tie, first in the list); the reviewer's re-check found `pending 1` / `0` throughout from the hand-over, so "9 of 10" is conservative. That is consistent with the routing rule and is not a separate result.
+- The release came with the removal of the dead client. The Job was observed suspended within about 0.5 s of the bus log line in all 15 forced-ghost runs (10 default-heartbeat runs at 301 to 326 s, 5 short-heartbeat runs at 12.7 to 14.5 s; `findings2.md` reports 0.3 s; the Job is polled, and I re-checked Y01-K1-1 only: 0.41 s). For 4 of the 10 default-heartbeat runs (Y01, Y04, Y12, L-K1-5) the evidence for "E triggered" is the Job change plus the bus state, because the log follower had stopped at the kill and did not capture the restarted container; the other 6 have a Sensor `Successfully processed trigger` line for E.
+- The heartbeat check is the only thing that released the event. With 3 s / 2 s / 4 misses the same chain ended 12.7 to 14.5 s after the kill (bus log line at 12.8 to 14.7 s; M5GC, 5 of 5). The time moved with the setting.
 - Graceful exit, ghost vs clean (`G0-default/exit-path-clean-vs-ghost.txt`): the clean pod logs `exiting, unsubscribing and closing connection...` and the bus drops the member within about 1 s. The ghost pod's log ends at `Shutting down...` and `exiting...`, with container exit code 0, and its member stays online until the heartbeat check.
-- Late drop (`M-M5G-1/`): E (offset 215, bus seq 216) goes to the dead member. E2 (offset 216) is issued 5.6 s later and triggers on the live pod. At 04:09:04.355 the bus logs `Timed out on heartbeats` for the dead client and the pending message is cleared. No `Successfully processed trigger` line for offset 215 exists in any Sensor log of the run, and the Job is not suspended again through 04:09:51.9. The same in 6 of 6 runs. The control without E2 (`M-M5GC-1/`) triggers E 13.0 s after the kill.
+- Late drop (`M-M5G-1/`, short-heartbeat bus, ghost about 13 s; not run at stock settings): E (offset 215, bus seq 216) goes to the dead member. E2 (offset 216) is issued 5.6 s later and triggers on the live pod. At 04:09:04.355 the bus logs `Timed out on heartbeats` for the dead client and the pending message is cleared. No `Successfully processed trigger` line for offset 215 exists in any Sensor log of the run, and the Job is not suspended again through 04:09:51.9. The same in 6 of 6 runs. The control without E2 (`M-M5GC-1/`) triggers E 13.0 s after the kill.
 
 ### Mechanism in source terms (read, not run)
 
@@ -124,20 +133,22 @@ Source lines are from Argo Events v1.9.11 and STAN 0.22.1 as cited in the workin
 
 | ID | Verdict | Why |
 |---|---|---|
-| M1 old pod acked then died | **falsified** as the cause of the losses; the in-flight sub-case was not produced | In all 35 lost-or-late events the receiving member's process was already dead when the bus handed E over, so it could not have acked. E in flight at SIGTERM (X4): the six runs where the terminating pod handled E all triggered before the delete command; the ghost in Q-X4-8 came from the exit race, not from an ack |
-| M2 delivered, unacked, redelivery too slow | **confirmed**, as the held-by-a-dead-member chain | `pending 1` for 220 to 319 s with a live member at `pending 0`; release at the heartbeat removal (15 of 15), not at the 1 s ack-wait. The "within 10% of the configured timeout" criterion: defaults imply roughly 300 to 330 s by my arithmetic from `hb_interval`, `hb_timeout` and `hb_fail_count`, observed 301 to 326 s; the short settings imply roughly 12 to 15 s, observed 12.8 to 14.7 s. I read this as consistent, not as a precise test |
+| M1 old pod acked then died | **falsified** as the cause of the losses; the in-flight sub-case was not produced | In all 13 non-delivered session-1 runs and the 10+5 forced-ghost runs, E was handed to a member whose process was dead or exiting (the classifier label for runs 06, 14 and 22 is "exiting/exited before delivery", shutdown 3.6 to 0.0 s before; "already dead" would be stronger than that). Falsification rests on the pre-registered criterion: E stayed unacked on the bus after the exit. E in flight at SIGTERM (X4): the six runs where the terminating pod handled E all triggered before the delete command; the ghost in Q-X4-8 came from the exit race, not from an ack |
+| M2 delivered, unacked, redelivery too slow | **confirmed**, as the held-by-a-dead-member chain | The pre-registered pass is "E pending at t0+120 s **or** redelivered within 10% of the configured timeout". The first branch holds: `pending 1` on the dead member with a live member at `pending 0` for about 217 to 313 s in the 10 default-heartbeat runs, and release at the heartbeat removal (15 of 15 forced-ghost runs), not at the 1 s ack-wait. The 10% branch is weak and I do not rely on it: defaults imply roughly 300 to 330 s by my arithmetic, observed 301 to 326 s (inside); the short setting implies roughly 15 s, observed 12.7 to 14.5 s, which is **outside 10% in 4 of 5 runs** (only 14.5 s is inside 13.5 to 16.5). The 35-LONG-1 extra check did not test the long wait (no ghost) |
 | M3 E never reaches a subscriber | **falsified** | A Sensor subscription received E in 35 of 35 session-1 runs; same durable name in all pods; E retained in the channel |
 | M4 new pod skips E because of state | **falsified** for the main loss. M5g is a different effect that does drop E | The new pod never received E in the non-delivered session-1 runs; the fresh-Sensor control delivered |
 | M5a harness | **falsified** | One forbidden Kafka message per id in every run |
 | M5b trigger failed | **falsified** | No failed trigger attempt in any Sensor log |
 | M5c bus lost E | **falsified** | No bus restart or leader change after startup; E present in the channel |
 | M5d publish not confirmed | **falsified** | `Succeeded to publish an event` in 35 of 35 session-1 runs |
-| M5e dead member gets E | **confirmed** | 35 of 35 lost-or-late events were handed to a dead member; every event handed to a live member was delivered |
+| M5e dead member gets E | **confirmed** | session 1: 13 of 13 non-delivered runs went to a dead or exiting member, 22 of 22 delivered went to a live one; session 2: 10 of 10 default SIGKILL runs, 5 of 5 on the short bus, 6 of 6 M5G |
 | M5f exit without unsubscribe | **supported** | rates above; reason not observed |
-| M5g late drop | outcome **confirmed** in the tested setup (6 of 6 vs 5 of 5); reason **supported** | The sole difference between the two sets is E2 |
+| M5g late drop | outcome **confirmed** only on the 3 s / 2 s / 4 bus with E2 issued 6 s after the kill (6 of 6 vs 5 of 5); reason **supported** | The sole difference between the two sets is E2. Stock-settings case not run |
 | Replacement window alone | **not a cause** | C2, C3 and K2 show that a ghost present without any window decides the outcome; the window matters only because a ghost can be the sole member at that moment |
 
-**Against the pre-registered decision rule.** "Found" required one mechanism supported in at least 4 of 5 S-delete runs. The natural S-delete group lost only 2 of 5 (and X3 on a clean baseline 0 of 5), so by the letter the rule is not met, and the pre-registered fallback applies: **loss under graceful replacement is intermittent**. What carries the claim is different evidence: the complete separation in session 1 (13 of 13 non-delivered runs went to a dead member, 22 of 22 delivered went to a live one), the forced-ghost protocol (10 of 10, plus 11 more with the short-heartbeat bus), and the two interventions (heartbeat setting moves the time; the elector change removes the graceful ghosts). I call the chain confirmed on that basis and say so here, not on the S-delete count.
+**Against the pre-registered decision rule.** "Found" required one mechanism supported in at least 4 of 5 S-delete runs. The natural S-delete group lost only 2 of 5 (and X3 on a clean baseline 0 of 5), so by the letter the rule is not met, and the pre-registered fallback applies: **loss under graceful replacement is intermittent**. What carries the claim is different evidence: the complete separation in session 1 (13 of 13 non-delivered runs went to a dead member, 22 of 22 delivered went to a live one), the forced-ghost protocol (10 of 10, plus 11 more with the short-heartbeat bus), and the two interventions (heartbeat setting moves the time; the elector change removes the graceful ghosts). I call the chain confirmed on that basis and say so here, not on the S-delete count. This is a substitution of evidence, not the pre-registered route to "found"; a reader who holds me to the letter should read the status as "mechanism confirmed under forced ghosts, natural loss intermittent".
+
+**The pre-registered tripwire fired.** `prereg.md` says that if C1, C2, C3 or C5 show any loss, "the chain has a broader problem and the Sensor-replacement result cannot be attributed to the replacement window", and the report must say so. C2 lost 3 of 5 and C3 lost 3 of 3. `findings1.md` explains them (ghosts carried over from earlier runs, so the ghost is what decided the outcome and the replacement window did not), which is why I write "replacement window alone: not a cause". The mechanism work was restarted from there in session 2, as the pre-registration requires. The consequence is that the loss in `RESULTS.md` should not be described as tied to pod replacement: it is tied to a dead process being a group member, and replacement is one way (a common one) of creating that.
 
 The first observation in `RESULTS.md` (2 of 2 lost) is consistent with a carried-over ghost, but its runs were not instrumented, so I cannot say which ghost it was.
 
@@ -148,15 +159,15 @@ The first observation in `RESULTS.md` (2 of 2 lost) is consistent with a carried
 | Sensor `AckWait` / bus ack-wait / redelivery setting | `AckWait(1s)` is a literal (`trigger_conn.go:95-101`); no CRD field or env var found. Observed: a 1 s ack-wait did not release the event for about 300 s. Cluster mode redelivers to the same member, and the native bus is forced to 3 or more replicas | **Not fixable by a setting on the native bus.** A non-clustered STAN (not a supported shape here) was not tested |
 | `preStop` sleep 10 s, grace period 60 s | G2: 3 of 20 ghosts vs 10 of 60 | No effect: the race happens after SIGTERM. Irrelevant to SIGKILL |
 | Kubernetes-lease leader election (`LEADER_ELECTION=k8s`) | G1: 0 of 60 ghosts. L-X3: 8 of 8 delivered. **L-K1: 5 of 5 still late 301 to 326 s** | Removes the graceful-stop ghost in this setup. Does not cover SIGKILL, OOM kill or node loss. Side effects: every Sensor stop exits with code 1 (`leader lost`), and Lease RBAC is needed |
-| Shorter STAN heartbeats (3 s / 2 s / 4) | M5GC: ghost removed in 12.8 to 14.7 s, 5 of 5 delivered late (about 13 s). C5: 0.41 to 0.71 s, one trigger per E | Meets "fixed" for K1 only as "delivers late". **Does not prevent the late drop** (M5G 6 of 6 lost E on the same bus). No CRD field: applied as extra server flags on the StatefulSet, outside the supported spec. A 2 s timeout may evict live clients under load (not measured) |
-| JetStream EventBus (`spec.jetstream`, 3 replicas, own namespace) | JS-K1 5 of 5, JS-S 5 of 5, JS-C5 3 of 3. No group membership by connection | The only candidate with 0 losses and 0 delays above 30 s in the forced-ghost protocol. **Promising, not proven:** n=5 per protocol, the late-drop case not tested, a pull request in flight at kill time not tested, and changing the bus is a design change |
+| Shorter STAN heartbeats (3 s / 2 s / 4; the pre-registered setting was 2 s / 1 s / 2, see "Added after seeing data") | M5GC: ghost removed in 12.8 to 14.7 s, 5 of 5 delivered late (about 13 s). C5: 0.41 to 0.71 s, one trigger per E | Meets "fixed" for K1 only as "delivers late". **Does not prevent the late drop** (M5G 6 of 6 lost E on the same bus). No CRD field: applied as extra server flags on the StatefulSet, outside the supported spec. A 2 s timeout may evict live clients under load (not measured) |
+| JetStream EventBus (`spec.jetstream`, 3 replicas, own namespace) | JS-K1 5 of 5 (informative), JS-S 5 of 5 (non-discriminating: STAN X3 also 0 of 5 lost), JS-C5 3 of 3. No group membership by connection | The only candidate with 0 losses and 0 delays above 30 s in the forced-ghost protocol, on 5 informative runs. **Promising, not proven:** the late-drop case not tested, a pull request in flight at kill time not tested, and changing the bus is a design change |
 | `maxUnavailable 0`, readiness gates, `replicas: 2` | not run | No mechanism-based reason to expect an effect: the ghost is not a rollout-overlap problem, and a second NATS-bus Sensor replica is leader-only |
 
-**Answer to question 2.** No ack-wait or redelivery setting fixes it on the native bus. It is partly mitigable by configuration (two changes, neither closes the gap), and the one thing that passed is a different bus whose guarantee I tested only lightly. So it is a structural property of this delivery path (group membership tied to connection liveness, same-member redelivery in cluster mode, drop of older events), not a missing knob.
+**Answer to question 2.** No ack-wait or redelivery setting fixes it on the native bus. It is partly mitigable by configuration (two changes, neither closes the gap), and the one thing that passed in the informative protocol is a different bus (JetStream, 5 of 5 on JS-K1) whose guarantee I tested only lightly. So on the native bus it is a structural property of this delivery path (group membership tied to connection liveness, same-member redelivery in cluster mode, drop of older events), not a missing knob. Whether JetStream closes the gap is open.
 
 ## What this means for the project
 
-- The HANDOFF condition was: "if event loss is by design, guaranteed delivery must be built before any content policy". The finding supports the premise for this path: a Sensor replacement can delay an event by about 5 minutes and, if a newer event arrives first, erase it, and no knob on the native bus changes that.
+- The HANDOFF condition was: "if event loss is by design, guaranteed delivery must be built before any content policy". The finding supports the premise for this path: a dead Sensor process can delay an event by about 5 minutes (10 of 10 forced kills; in natural graceful replacements it happened in roughly 1 of 15 clean runs and in 17% of pod stops as a ghost), and, if a newer event arrives first, erase it (shown with a 13 s ghost only), and no knob on the native bus changes that.
 - For a Sensor where each event must produce its own reaction, the drop matters. For this Sensor it did not: the newer event had the same effect (`suspend: true`). The loss is harmless here and not harmless in general.
 - This is a finding about the Argo Events chain, which is a comparison point and not our product path. It does not show that a Lactifluus reaction would lose events. What it does show is the kind of failure a guarantee has to cover: a consumer that looks present but is dead, and an older event that is acknowledged and discarded.
 - A reaction-side guarantee, for example a level-triggered check of the current state that can be re-driven, or an idempotent reaction keyed on the event, follows from the mechanism. I did not build or test one. Whether to build it before content policies is the owner's call; this document supplies the evidence and not the decision.
@@ -174,6 +185,8 @@ The first observation in `RESULTS.md` (2 of 2 lost) is consistent with a carried
 
 ## Not covered, and not claimed
 
+- The late drop at stock heartbeat settings (E2 arriving within the 5-minute ghost window). Only the 13 s ghost was run.
+- A clean per-run loss rate for a natural graceful replacement with an event in a realistic position. The clean baselines (1 of 15) are small samples.
 - Other Argo Events or STAN versions, a non-clustered STAN, a larger JetStream test, JetStream under the late-redelivery case, JetStream with a pull request in flight at kill time. JetStream is not claimed to be a fix.
 - Node loss, OOM kill by the kernel, bus pod loss during the replacement, upgrades by changing the Sensor spec.
 - Non-idempotent triggers, and a stream of events during the replacement (one event at a time here).
@@ -190,6 +203,7 @@ Compact excerpt in `evidence-sensor-loss/` (not the raw dump of about 120 run di
 
 - `Y01-K1-1/`, `M-M5G-1/`, `M-M5GC-1/`, `Q-X4-8/`: `timeline.log`, `bus-subscription-states.txt` (changed samples of one bus node), `bus-heartbeat-timeouts.txt`, `sensor-log-key-lines.txt`, `kafka-messages-for-ids.txt`.
 - `G0-default/exit-path-clean-vs-ghost.txt`, `G0-default/result-line.txt`, `JS-K1-1/timeline.log`.
+- `prereg.md` and `prereg.SHA256`: verbatim copy of the git-ignored pre-registration, with hash. It shows content, not authorship time.
 - `tables/`: `findings2-tables.txt` (rates, K1/K2/M5G latencies, hand-over analysis for all runs), `ghost-table.txt` and `per-run-classification.txt` (session 1).
 - `scripts/`: the analysis scripts that produced the tables (`analyze.py`, `analyze2.py`, `ghosts.py`, `summarize2.py`). They read the raw evidence directory, which is not committed.
 
