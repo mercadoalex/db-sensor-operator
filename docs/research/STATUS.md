@@ -35,6 +35,15 @@ Este criterio (lo llamamos internamente "R9", por ser la novena línea de nuestr
 
 **Estado de este criterio hoy: no se ha cumplido ni se ha refutado.** No tenemos todavía ese caso real ganador. Lo que sí tenemos es evidencia medida en las dos direcciones: una ventaja real de CDC en un escenario (sub-pregunta 4), un costo real que puede ser alto (sub-pregunta 5), y una fragilidad real de la reacción (sub-pregunta 6). Nada de esto cierra la pregunta todavía.
 
+**Dicho de la forma más directa posible, para que no se sienta como un mensaje contradictorio.** Cuando decimos que la ventaja de CDC "es real pero específica y poco frecuente en lo que vimos", no es que te animemos con una mano y te desanimemos con la otra sin motivo. Son dos preguntas distintas, con dos respuestas distintas:
+
+1. **¿Cuando CDC gana, gana de verdad?** Sí, y ahí la respuesta es sólida y medida (sub-preguntas 1 y 4, y los experimentos de laboratorio que reconstruyeron el caso Bungie): en nuestro propio experimento, reparar desde el flujo arregló 952 de 1000 filas sin perder ni una sola escritura buena, contra perder el 100% del trabajo bueno con una restauración completa. No es una promesa, es un número que medimos.
+2. **¿Qué tan seguido se presenta esa situación en la vida real?** Ahí la respuesta honesta es "no lo sabemos todavía, y lo poco que vimos sugiere que es raro" (solo 2 de 16 postmortems públicos tenían esa forma exacta).
+
+La parte incómoda, dicha sin rodeos: **tener una ventaja real no es lo mismo que tener un proyecto que vale la pena construir.** Se puede tener la mejor solución del mundo para un problema que casi nadie tiene. Por eso el criterio de salida (R9, arriba) no pregunta "¿puede CDC ganar alguna vez?"; pregunta "¿hay más de un caso real donde claramente gane?", precisamente para no terminar construyendo algo técnicamente bonito que nadie necesita.
+
+Así que hoy tenemos **una solución que funciona, para un problema que no sabemos qué tan común es.** Y la única forma de resolver esa segunda pregunta no es con más experimentos técnicos (ya hicimos varios, y todos apuntan a lo mismo), sino hablando con gente real que administra bases de datos, para preguntarles directamente: "¿te ha pasado esto, con esta forma específica?". Esa es la conversación que sigue pendiente (ver `docs/research/user-conversations.md`).
+
 **¿Cómo se consigue ese "caso real"?** No sale de experimentos técnicos como los de abajo, que son de laboratorio. Sale de hablar con personas que de verdad administran bases de datos en producción y preguntarles si alguna vez vivieron este tipo de incidente, y qué hubieran querido que pasara automáticamente. Esa parte de la investigación (conversaciones con usuarios reales, documentada en `docs/research/user-conversations.md`) todavía no se ha hecho a fondo, y es la que de verdad puede cerrar esta pregunta en cualquier dirección.
 
 ## Las 7 sub-preguntas
