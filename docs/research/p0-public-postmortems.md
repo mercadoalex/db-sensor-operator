@@ -82,6 +82,11 @@ Details worth recording for each, in a few lines each:
 5. **GitHub Sept 2012** [P]. A schema migration load triggered a failover to a stale node; a later Pacemaker segfault made that stale node primary for about 7 minutes. MySQL auto-increment IDs issued in that window did not line up with IDs in Redis, so some events showed on the wrong dashboards and some repositories were misrouted (16 private ones exposed for 7 minutes).
 6. **Twilio 2013** [P]. A Redis master restart read the wrong config, dropped all balance data and booted read-only. With balances at zero, auto-recharge charged cards repeatedly without being able to record the payment (this is the duplicate-charge side effect). 1.1% of customers hit at first, 0.3% more on the recurrence.
 7. **Bungie 2020** [P]. A "fix" for quest sorting disabled too much of an inventory clean-up routine, so the cap for stacked items (currency, materials) was computed wrong and items above the wrong cap vanished. A server-config workaround for a crash-on-startup problem let some servers run old code again on the second release. Internal testers had seen the first bug and dismissed it as a tooling failure.
+
+![Destiny 2 promotional art (Bungie, "Bungie Day")](../../assets/bungie_destiny.jpg)
+
+*Image: promotional art for Destiny 2, © Bungie, Inc. Included for cultural/educational reference only, to accompany the discussion of the 2020 account-rollback incident above; not used for commercial purposes, and this project has no affiliation with Bungie.*
+
 8. **Travis 2018** [P]. A test run in an old tmux shell with `DATABASE_URL` still pointing at production truncated all tables. The API stayed up about 30 minutes on an empty database; users who logged in got *new* records with IDs from the existing sequence. After restore, those IDs collided with real accounts, so some users were logged in as the wrong user and tokens had to be revoked.
 9. **GitHub 2012 test run** [P]. CI ran against production and the standard "destroy and recreate the DB" step wiped it. They restored the last backup, skipped the large events table to be faster, and could not recover writes after that backup. Fix list includes storing binlogs.
 10. **Keepthescore 2020** [P]. A local-only "drop and recreate tables" function somehow connected to production. Restore from the daily managed backup was fast; the day's writes were lost.
