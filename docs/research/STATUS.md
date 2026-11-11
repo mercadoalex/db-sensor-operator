@@ -105,14 +105,35 @@ Esta es la pregunta donde ya tenemos la comparación más completa.
 | Con un campo de 1,8 KB | 1.972 bytes | 3.802 bytes | 1,9 veces |
 | Con un campo de 6,4 KB que no cambió en ese UPDATE | 186 bytes | 6.637 bytes | **36 veces** |
 
-**Un ejemplo concreto, para que quede claro por qué pasa esto:** imagina una fila de un pedido, con un precio (`amount`) y una nota larga (`note`) de 6,4 KB, de esas que PostgreSQL guarda en un lugar aparte por ser muy grandes (esa técnica se llama "TOAST"). Alguien solo actualiza el precio; la nota no se toca para nada.
+**Un ejemplo concreto, para que quede claro por qué pasa esto:** imagina una fila de un pedido, con un precio (`amount`) y una nota larga (`note`) de unos 6,4 KB, de esas que PostgreSQL guarda en un lugar aparte por ser muy grandes (esa técnica se llama "TOAST", de *The Oversized-Attribute Storage Technique*). Alguien solo actualiza el precio; la nota no se toca para nada.
 
-- **Sin `FULL`:** el WAL solo guarda el precio nuevo. Como la nota no cambió, ni se menciona. Total: 186 bytes.
-- **Con `FULL`:** el WAL tiene que guardar la fila completa de *antes* del cambio y la fila completa de *después*, para que CDC pueda ver cuál era el valor viejo. Eso significa escribir la nota larga **dos veces**, aunque no haya cambiado ni una letra de ella. Total: 6.637 bytes.
+**Primero, cómo se guarda esa fila en el disco, antes de que nadie la toque.** Esto es clave para entender todo lo demás: PostgreSQL no guarda el texto largo junto con el resto de la fila. Lo mueve a una tabla aparte (la "tabla TOAST") y en el lugar original de la fila deja solo una especie de "ficha" con la dirección de dónde está guardado (lo llamamos aquí "puntero"), de 18 bytes. Verificado en PostgreSQL 16 con una fila real: una nota de 6.400 bytes guardada así deja una fila de solo 53 bytes en la tabla principal (incluye un encabezado interno de unos 23 bytes, el `id`, el `amount`, y el puntero de 18 bytes a la nota). El texto completo vive aparte, partido en pedazos, en la tabla TOAST:
 
-Es la misma operación, el mismo cambio real (solo el precio), pero 36 veces más trabajo de escritura, solo por tener esa columna ancha al lado.
+```
+Tabla "orders" (donde viven las filas normales)        Tabla TOAST (solo para columnas muy grandes)
+┌───────────────────────────────────────┐              ┌──────────┬────────┬───────────────┐
+│ id=4711 │ amount=149.99 │ note=[ficha] │  el puntero  │ chunk_id │ nro.   │ un pedazo del │
+│                                        │ ───apunta──► │ 16411    │ 0,1,2… │ texto, cada    │
+│  53 bytes en total (con el puntero,    │   a:         │          │        │ uno de hasta   │
+│  no con el texto)                      │              │          │        │ ~2.000 bytes   │
+└───────────────────────────────────────┘              └──────────┴────────┴───────────────┘
+```
+
+Dos cosas que este dibujo deja claras y que suelen sorprender a quien no lo ha visto antes:
+
+- **El texto largo casi nunca "vive" junto a la fila.** Lo que hay en la tabla principal es una ficha de 18 bytes con la dirección, no el texto. Por eso una fila con una nota de 6,4 KB puede pesar, en la tabla principal, apenas 53 bytes.
+- **Leer la columna completa (`SELECT note FROM orders`) obliga a PostgreSQL a ir a buscar todos los pedazos y pegarlos de nuevo**, para devolverte el texto completo como si nunca se hubiera partido. Eso tiene un costo de lectura que normalmente no se nota, pero que conviene saber que existe: no es gratis "ver" una columna TOAST.
+
+**Ahora sí, qué pasa cuando se actualiza solo el precio, sin tocar la nota:**
+
+- **Sin `FULL`:** el WAL solo guarda el precio nuevo. La ficha de 18 bytes que apunta a la nota no cambia, así que ni se vuelve a escribir. Costo medido en el experimento (con una nota de forma similar): 186 bytes.
+- **Con `FULL`:** PostgreSQL tiene que guardar, además, la fila *completa* de antes del cambio y la fila *completa* de después, para que CDC pueda comparar y saber cuál era el valor viejo. El problema es que "la fila completa" para efectos de este registro **incluye el contenido real de la nota, no solo su ficha**. Por eso el costo se dispara: no es que se reescriba un puntero de 18 bytes dos veces, es que se tiene que reescribir el texto completo de la nota, dos veces, aunque no haya cambiado ni una letra de ella. Costo medido: 6.637 bytes.
+
+Es la misma operación, el mismo cambio real (solo el precio), pero 36 veces más trabajo de escritura, solo por tener esa columna ancha al lado y no haber podido reutilizar la ficha.
 
 ![Por qué una fila cuesta 36 veces más con REPLICA IDENTITY FULL](assets/full-cost-example.svg)
+
+*(Los números de bytes de la tabla y el ejemplo de arriba son del experimento real, con filas de prueba. El tamaño del puntero TOAST, 18 bytes, y el tamaño de la fila comprimida a 53 bytes sí se verificaron directamente en una PostgreSQL 16 real para este documento; el resto de las cifras de esta sección vienen de `bench/experiments/replica-identity-full-cost/RESULTS.md`.)*
 
 **Estado: medido, pero solo en estas cuatro filas sintéticas.** Falta todavía averiguar cómo son las tablas de un proyecto real (de producción), para saber si el escenario de la columna ancha sin cambiar (el de 36 veces) es raro o común en la práctica.
 
