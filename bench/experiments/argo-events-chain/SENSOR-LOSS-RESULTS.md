@@ -212,4 +212,4 @@ Compact excerpt in `evidence-sensor-loss/` (not the raw dump of about 120 run di
 
 Scripts that ran the experiments are in this directory: `diagnose.py`, `diagnose2.py`, `jsfix.py`, `argo-fix.yaml`, `argo-fix-jetstream.yaml`, `fix-*.patch.json`, `fix-*.revert.json`. The raw per-run directories and the pre-registration stay under `.agents/tasks/argo-sensor-loss/`.
 
-State left in the cluster: STAN chain restored to defaults; the JetStream chain from F2 still runs in namespace `argo-js` (`kubectl delete -f argo-fix-jetstream.yaml` removes it).
+State left in the cluster: the whole Argo Events chain (STAN and the JetStream chain from F2, namespace `argo-js`) was torn down after this document was written. Verified on `kind-db-sensor-bench`: no `argo-events` or `argo-js` namespace, no Argo CRDs, `argo_test_slot` dropped, `public.payments` back to its original columns and default replica identity. Only `bench-postgres` and `bench-cdc` remain.
