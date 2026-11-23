@@ -128,6 +128,8 @@ So: still an operator. Just one with a brain instead of a reflex.
 
 ## Where it actually landed
 
+![Blind-Window Benchmark: time to first live change, 57 seconds with the old default vs 6 seconds with a non-blocking start, about 9.5x faster](Blind-Window-Benchmark.png)
+
 Phase A shipped first, and it is the default today: the connector starts with `snapshot.mode=no_data`, so there is no blocking read and no `Pending` wait. Snapshot-era events are kept out of the lag calculation. A persistent offset store survives a Debezium restart, which matters more than it sounds: with the in-memory store the Debezium Operator's config used by default, one live event got re-delivered after a graceful restart, and that silently inflated my own counters. That alone was worth fixing before anything fancier.
 
 Phase B, the part of this article that talks about inspecting the table and choosing a strategy, is built but not switched on. The inspector exists: it asks PostgreSQL how big a table is, whether the connection can write to it, what the WAL retention headroom looks like, whether the row-count estimate is stale. The decision logic exists too, as a pure function from those facts to a strategy. It ran end to end in a kind cluster and passed. What it does not have yet is a reason to run: the plan it produces is recorded in the sensor's status with `applied: false`, because nothing downstream consumes a backfilled row. The operator today reports metrics from the live stream; it does not need the old rows to do that. Turning Phase B on before something needs it would be shipping a feature nobody asked for, which is the opposite of the lesson this whole article is about.
