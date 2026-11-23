@@ -100,7 +100,9 @@ I'm not going to rip out Debezium. I'm not going to hand-roll a watermark in Go.
 
 One caveat I'll state plainly: read-only incremental snapshots for PostgreSQL only exist in a relatively recent 2.x release of Debezium (and read-only replica support is newer still). If your operator pins an older version, that path doesn't exist yet, and your only option for read-only connections is "no snapshot, stream only," which means you're blind to existing rows. So I'm pinning a recent enough version. If you're not, that's your first upgrade, and it's not optional. Check the exact version against your own connector before you rely on it.
 
-What I am going to do is make Lactifluus a policy layer.
+**Update, a few weeks later: most of this is built now, not just planned.** The rest of this section is how I described the plan when I wrote it. Skip to the next section if you only want the current state.
+
+What I set out to do was make Lactifluus a policy layer.
 
 The operator looks at the table. It asks the database a few questions. How big is this table? Do I have write access? What's the current GTID set? Is GTID even enabled? Based on the answers, it picks the capture strategy.
 
@@ -124,13 +126,23 @@ The K8S operator pattern is: watch a CRD, inspect the world, decide what to do, 
 
 So: still an operator. Just one with a brain instead of a reflex.
 
+## Where it actually landed
+
+Phase A shipped first, and it is the default today: the connector starts with `snapshot.mode=no_data`, so there is no blocking read and no `Pending` wait. Snapshot-era events are kept out of the lag calculation. A persistent offset store survives a Debezium restart, which matters more than it sounds: with the in-memory store the Debezium Operator's config used by default, one live event got re-delivered after a graceful restart, and that silently inflated my own counters. That alone was worth fixing before anything fancier.
+
+Phase B, the part of this article that talks about inspecting the table and choosing a strategy, is built but not switched on. The inspector exists: it asks PostgreSQL how big a table is, whether the connection can write to it, what the WAL retention headroom looks like, whether the row-count estimate is stale. The decision logic exists too, as a pure function from those facts to a strategy. It ran end to end in a kind cluster and passed. What it does not have yet is a reason to run: the plan it produces is recorded in the sensor's status with `applied: false`, because nothing downstream consumes a backfilled row. The operator today reports metrics from the live stream; it does not need the old rows to do that. Turning Phase B on before something needs it would be shipping a feature nobody asked for, which is the opposite of the lesson this whole article is about.
+
+Two things from the original plan turned out to be wrong in the small print, which is worth saying plainly instead of quietly fixing it in the code and never mentioning it. `snapshot.mode=incremental` is not a real setting; incremental snapshots are triggered by sending an `execute-snapshot` signal while the connector runs with a mode that skips the blocking read. And the MySQL read-only dates I wrote from memory were off: I'd said 1.8/April 2022, and the actual read-only MySQL support landed in 1.7, with Shopify's engineering team documenting the GTID-based mechanics in that April 2022 post I link below. PostgreSQL's own read-only path, and read-only *replica* support specifically, is newer still, and I'm not going to repeat a version number here without checking it against the release notes at the time you read this, because Debezium ships quickly and I've already been burned once this article.
+
 ## The thing I keep coming back to
 
 The snapshot-then-stream model is a legacy. It's from a time when the only way to see a table was to read it all at once. It's like insisting on a full backup before you're allowed to monitor a system. It's not a physical law. It's an implementation artifact that got calcified into an architectural assumption, and then the assumption got inherited by every tool that came after, and then the tools got wrapped in operators, and then the operators got deployed to production, and by the time anyone noticed the assumption could be questioned, a lot of metrics pipelines already depended on it.
 
 DBLog broke the assumption in 2019. Debezium shipped it in 2021. Read-only support for PostgreSQL followed in a later 2.x release. And I was building on the older model without knowing, because the model is invisible. You can't see it in the docs. It's the shape of the state machine. It's the phase field. It's the fact that Pending exists at all.
 
-I'm going to make Pending go away. Not by deleting the state. By making the strategy smart enough that the sensor never needs to be in Pending in the first place. It goes straight to Running on the first log event. The snapshot is just background noise. The sensor bleeds metrics from the second one.
+I made Pending go away. Not by deleting the state; a sensor can still land there for other reasons. By making the default start smart enough that the sensor never needs to sit there waiting on a snapshot in the first place. It goes straight toward Running on the first log event. The snapshot is just background noise. The sensor bleeds metrics from the second one.
+
+Measured, on a 100,086-row table in a local cluster: the old default made the sensor blind for 57 seconds before it saw its first live change, because every row had to be read and delivered first. With the non-blocking start, that dropped to 6 seconds, which is just the pod coming up. At 1,750 rows a second, the rate I measured on that run, a 10-million-row table under the old default would be blind for something like an hour and a half. I didn't run that table; I'm extrapolating, and I'm saying so instead of quietly presenting it as measured. But it's the right order of magnitude to explain why the fix mattered more than a 51-second improvement on a small table would suggest.
 
 That's the whole article. The rest is just me telling you how I got here, which you already read. And that's the point of building in public: you ship what you understand today, you listen, and you iterate.
 
@@ -145,3 +157,4 @@ Alex
 - Netflix Tech Blog, *DBLog: A Generic Change-Data-Capture Framework* (2019): <https://netflixtechblog.com/dblog-a-generic-change-data-capture-framework-69351fb9099b>
 - Debezium blog, *Incremental Snapshots in Debezium*: <https://debezium.io/blog/2021/10/07/incremental-snapshots/>
 - Debezium blog, *Read-only Incremental Snapshots for MySQL* (April 2022): <https://debezium.io/blog/2022/04/07/read-only-incremental-snapshots/>
+- The blind-window numbers in this piece are from a measured run in this project's own benchmark: `bench/experiments/blind-window/RESULTS.md`. The design this whole article led to is written up as [ADR-014](../adr/ADR-014-snapshot-policy-layer.md).
