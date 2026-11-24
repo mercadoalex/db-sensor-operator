@@ -154,6 +154,8 @@ Measured, on a 100,086-row table in a local cluster: the old default made the se
 
 That's the whole article. The rest is just me telling you how I got here, which you already read. And that's the point of building in public: you ship what you understand today, you listen, and you iterate.
 
+![A simple, flat illustration of a stylized milk cap mushroom on a dark navy background, with a few amber droplets of latex beading from the underside of its cap](ooze.png)
+
 The milk cap doesn't know it's a mushroom. It just oozes. That's fine. That's what a sensor is.
 
 Until next,
