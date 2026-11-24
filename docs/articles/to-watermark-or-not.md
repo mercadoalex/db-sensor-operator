@@ -30,6 +30,8 @@ Before I built Lactifluus, I looked at the landscape. Maxwell. SpinalTap. Yelp's
 
 I told myself they all use the same principles, and I was right. They do. The replication protocol is the same. The binlog is the same. The WAL is the same. The difference between them is language, transport, and polish. Not model.
 
+![Four CDC tools, Maxwell (Go, talks HTTP), SpinalTap (a library, not a service), Debezium (Java, talks Kafka), and Yelp's MySQL Streamer, converging into one shared band labeled "SAME MODEL UNDERNEATH," showing a two-step pipeline: Snapshot, blocking and one-time, then Stream, what happens after. Caption: different language, different transport, same two-phase model](cdc-tools-same-model.png)
+
 So when I picked Debezium, I wasn't choosing a model. I was making a transport choice. Kafka over HTTP. Java over Go. The model was already decided. The ecosystem decided it for me, because every tool in it inherited it.
 
 ## The message
