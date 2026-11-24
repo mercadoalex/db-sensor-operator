@@ -1,6 +1,8 @@
 # To Watermark, or Not to Watermark: That Is the Operator's Dilemma
 
-*How a conversation in the Debezium community made Lactifluus learn to see sooner.*
+*My monitoring tool was blind for hours after startup. A better idea fixed that.*
+
+![A half-moon gauge, dim gray on the left and glowing amber on the right with its needle pointing into the lit half, surrounded by faint concentric ripple rings radiating outward like a water droplet, on a dark navy background, evoking a sensor going from blind to active](gauge-ambar.png)
 
 I built a Kubernetes operator. It wraps Debezium, watches database tables, and reports metrics. I named it Lactifluus after the milk cap mushroom, because when you break one, it oozes a milky latex, and that's what my operator does when you poke it. It bleeds metrics. Inserts per minute. Update rate. Lag. The whole thing.
 
