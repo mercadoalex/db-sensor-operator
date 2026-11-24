@@ -66,6 +66,8 @@ The solution is almost embarrassingly simple. There's a table with one row and o
 
 Then, for reconciliation, you look at every log event between those two watermarks. For any of them whose primary key matches a row in your chunk, you discard your chunk's version. The log event is newer, so it wins. The rows that don't collide with any log event in the window? Those are safe. Nobody touched them while you were reading. You emit them as current state.
 
+![A horizontal transaction-log timeline marking a low watermark (write a UUID), a highlighted SELECT-the-chunk segment, and a high watermark (write a second UUID), bracketed as "the window: the SELECT happened somewhere in here." Below it, a reconciliation panel: rows touched by a log event in the window are discarded (the log wins), rows untouched are safe and emitted as current state. Footer: no locks, no MVCC snapshot isolation, no SELECT ... FOR UPDATE, just a marker in the log](watermark-algorithm-reading-db-table.png)
+
 That's it. A one-row table, two UUID writes, and a deduplication pass. No locks. No MVCC snapshot isolation. No SELECT ... FOR UPDATE. Just a marker in the log and a "if the log says it changed, the log wins" rule.
 
 The read-only variant, which matters for me, replaces the "write a UUID to a table" step with "sample the GTID set" on MySQL or "sample the transaction ID" on PostgreSQL. Same window, same deduplication, but you never write to the database. You just look at the log's own coordinates before and after your SELECT.
