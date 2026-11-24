@@ -40,7 +40,11 @@ It wasn't a random link in a channel. It was a direct message from a Debezium ma
 
 Then the maintainer mentioned feedback they'd been hearing: people find that setting up a full CDC pipeline just to get metrics is too much. Then they pointed me to the paper. DBLog. The Netflix one. They noted that the authors had also used their CDC solution for database activity logging. And, almost as an afterthought, that one of the authors was giving a talk that very day, and I might want to join.
 
-I read that on the Metro. Line 2, the blue line, Viaducto, I think, or maybe Portales; it wasn't much further to Taxqueña. Doesn't matter. The car was packed the way CDMX cars are packed, the kind where you're not standing so much as being held by a stranger's backpack and a woman's handbag, and the doors opened and closed and opened, and nobody moved because nobody could. And I was reading, squeezed between a guy eating elote and a teenager with earbuds, a message from a maintainer of the engine I was building on that said, in essence: there's a model with a different gear in it, here's the paper, want to come to the talk?
+I read that on the Metro. Line 2, the blue line, Viaducto, I think, or maybe Portales; it wasn't much further to Taxqueña. Doesn't matter. The car was packed the way CDMX cars are packed, the kind where you're not standing so much as being held by a stranger's backpack and a woman's handbag, and the doors opened and closed and opened, and nobody moved because nobody could.
+
+![A crowded Mexico City Metro platform, people shoulder to shoulder waiting as a train approaches](estacion-viaducto-metro-cdmx.png)
+
+And I was reading, squeezed between a guy eating elote and a teenager with earbuds, a message from a maintainer of the engine I was building on that said, in essence: there's a model with a different gear in it, here's the paper, want to come to the talk?
 
 I got off at my stop. I stood on the platform for a minute before I walked. I was a little uncomfortable. Not in the "I messed up" way. In the "I've been at this for three months, and the person who maintains the engine I'm sitting on just showed me a gear I didn't know existed" way. Which, honestly, is the best kind of discomfort. It's the kind that means there's something to learn.
 
