@@ -72,3 +72,10 @@ docs/overview/deck-notes.js
 bench/results/fullcost-*/
 bench/results/ebpf-*/
 bench/results/ebpf-auth-*/
+# Local-only image drafts, not yet reviewed for inclusion
+assets/debezium-server-architecture.png
+assets/debezium_architecture.png
+assets/horizontal_fondo_blanco.png
+assets/logo_navy.png
+assets/tablaypuntero.png
+docs/overview/lactifluus-overview-light.png
